@@ -1,15 +1,10 @@
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use rusqlite::{params, Connection, OptionalExtension};
 use uuid::Uuid;
 
 use crate::models::{BrokerConnection, NewBrokerConnection, NewSubscription, Subscription};
-
-#[derive(Debug, thiserror::Error)]
-pub enum StorageError {
-    #[error("database error: {0}")]
-    Database(#[from] rusqlite::Error),
-}
+use crate::storage::StorageError;
 
 pub trait ConnectionsRepository {
     fn create(&self, new: NewBrokerConnection) -> Result<BrokerConnection, StorageError>;
@@ -25,14 +20,15 @@ pub trait ConnectionsRepository {
 }
 
 pub struct SqliteConnectionsRepository {
-    conn: Mutex<Connection>,
+    conn: Arc<Mutex<Connection>>,
 }
 
 impl SqliteConnectionsRepository {
-    pub fn new(conn: Connection) -> Self {
-        Self {
-            conn: Mutex::new(conn),
-        }
+    /// Takes a shared connection handle so it can coexist with other
+    /// repositories (e.g. `SqliteFavoritesRepository`) over the same
+    /// physical SQLite database.
+    pub fn new(conn: Arc<Mutex<Connection>>) -> Self {
+        Self { conn }
     }
 }
 
@@ -233,7 +229,7 @@ mod tests {
     use crate::storage::open_in_memory;
 
     fn repo() -> SqliteConnectionsRepository {
-        SqliteConnectionsRepository::new(open_in_memory())
+        SqliteConnectionsRepository::new(Arc::new(Mutex::new(open_in_memory())))
     }
 
     fn sample_connection() -> NewBrokerConnection {

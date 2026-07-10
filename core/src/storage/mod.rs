@@ -1,4 +1,5 @@
 pub mod connections_repo;
+pub mod favorites_repo;
 
 use std::sync::LazyLock;
 
@@ -7,6 +8,12 @@ use rusqlite::Connection;
 use rusqlite_migration::{Migrations, M};
 
 use crate::models::QoS;
+
+#[derive(Debug, thiserror::Error)]
+pub enum StorageError {
+    #[error("database error: {0}")]
+    Database(#[from] rusqlite::Error),
+}
 
 // QoS is a domain type (models.rs has no idea rusqlite exists); this is the
 // one place that teaches it how to read/write itself as a SQLite integer.
@@ -24,9 +31,10 @@ impl FromSql for QoS {
 }
 
 static MIGRATIONS: LazyLock<Migrations<'static>> = LazyLock::new(|| {
-    Migrations::new(vec![M::up(include_str!(
-        "migrations/0001_broker_connections.sql"
-    ))])
+    Migrations::new(vec![
+        M::up(include_str!("migrations/0001_broker_connections.sql")),
+        M::up(include_str!("migrations/0002_favorite_messages.sql")),
+    ])
 });
 
 /// Opens a fresh in-memory database with all migrations applied.

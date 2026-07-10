@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 /// MQTT quality-of-service level (0, 1, 2 on the wire).
@@ -70,6 +71,26 @@ pub struct NewBrokerConnection {
     pub use_tls: bool,
     pub keep_alive_secs: u16,
     pub subscriptions: Vec<NewSubscription>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FavoriteMessage {
+    pub id: Uuid,
+    pub connection_id: Option<Uuid>,
+    pub topic: String,
+    pub payload: String,
+    pub qos: QoS,
+    pub retain: bool,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NewFavoriteMessage {
+    pub connection_id: Option<Uuid>,
+    pub topic: String,
+    pub payload: String,
+    pub qos: QoS,
+    pub retain: bool,
 }
 
 #[cfg(test)]
