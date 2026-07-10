@@ -11,6 +11,9 @@
 npm-debug.log
 yarn-error.log
 
+# Rust / Cargo (workspace target dir now lives at repo root)
+/target
+
 # IDEs and editors
 .idea/
 .project
