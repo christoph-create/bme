@@ -130,12 +130,10 @@ jobs:
 
       - name: Publish Forgejo release
         env:
-          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TOKEN: ${{ secrets.RELEASE_TOKEN }}
         run: |
           set -eo pipefail
           tag="${GITHUB_REF#refs/tags/}"
-          echo "server_url context: ${{ github.server_url }}"
-          echo "repository context: ${{ github.repository }}"
           api="https://codeberg.org/api/v1/repos/chrissi_710/bmdp"
           prerelease=false
           case "$tag" in *-*) prerelease=true ;; esac
