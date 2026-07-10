@@ -132,21 +132,38 @@ jobs:
         env:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -e
+          set -eo pipefail
           tag="${GITHUB_REF#refs/tags/}"
           api="${{ github.server_url }}/api/v1/repos/${{ github.repository }}"
           prerelease=false
           case "$tag" in *-*) prerelease=true ;; esac
 
-          release_id=$(curl -sf -X POST \
+          response=$(curl -s -w '\n%{http_code}' -X POST \
             -H "Authorization: token $TOKEN" \
             -H "Content-Type: application/json" \
             -d "{\"tag_name\":\"$tag\",\"name\":\"$tag\",\"body\":\"Automated release for $tag\",\"prerelease\":$prerelease}" \
-            "$api/releases" | jq -r .id)
+            "$api/releases")
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+
+          if [ "$http_code" -ge 400 ]; then
+            echo "Failed to create release (HTTP $http_code): $body"
+            exit 1
+          fi
+
+          release_id=$(echo "$body" | jq -r .id)
+          echo "Created release $tag (id=$release_id)"
 
           find target/release/bundle -type f \( -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" \) | while read -r file; do
-            curl -sf -X POST \
+            echo "Uploading $file"
+            upload_response=$(curl -s -w '\n%{http_code}' -X POST \
               -H "Authorization: token $TOKEN" \
               -F "attachment=@$file;type=application/octet-stream" \
-              "$api/releases/$release_id/assets?name=$(basename "$file")"
+              "$api/releases/$release_id/assets?name=$(basename "$file")")
+            upload_code=$(echo "$upload_response" | tail -n1)
+            upload_body=$(echo "$upload_response" | sed '$d')
+            if [ "$upload_code" -ge 400 ]; then
+              echo "Failed to upload $file (HTTP $upload_code): $upload_body"
+              exit 1
+            fi
           done
