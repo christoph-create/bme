@@ -260,9 +260,10 @@ mod tests {
             .unwrap();
 
         adapter.runtime.block_on(async {
-            let received = wait_for(&mut events_rx, |event| {
-                matches!(event, MqttEvent::MessageReceived { topic: t, .. } if t == &topic)
-            })
+            let received = wait_for(
+                &mut events_rx,
+                |event| matches!(event, MqttEvent::MessageReceived { topic: t, .. } if t == &topic),
+            )
             .await;
             match received {
                 MqttEvent::MessageReceived { payload, .. } => {

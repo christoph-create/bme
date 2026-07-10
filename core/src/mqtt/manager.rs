@@ -37,7 +37,8 @@ impl<P: MqttPort> MqttClientManager<P> {
         retain: bool,
     ) -> Result<(), MqttError> {
         self.ensure_connected(connection_id)?;
-        self.port.publish(connection_id, topic, payload, qos, retain)
+        self.port
+            .publish(connection_id, topic, payload, qos, retain)
     }
 
     pub fn subscribe(&self, connection_id: Uuid, topic: &str, qos: QoS) -> Result<(), MqttError> {
@@ -98,8 +99,15 @@ mod tests {
     }
 
     impl MqttPort for FakeMqttPort {
-        fn connect(&self, connection_id: Uuid, _broker: &BrokerConnection) -> Result<(), MqttError> {
-            self.calls.lock().unwrap().push(Call::Connect(connection_id));
+        fn connect(
+            &self,
+            connection_id: Uuid,
+            _broker: &BrokerConnection,
+        ) -> Result<(), MqttError> {
+            self.calls
+                .lock()
+                .unwrap()
+                .push(Call::Connect(connection_id));
             Ok(())
         }
 
@@ -184,7 +192,13 @@ mod tests {
         manager.port.calls(); // drain the Connect call
 
         manager
-            .publish(broker.id, "sensors/temp", vec![1, 2, 3], QoS::AtLeastOnce, true)
+            .publish(
+                broker.id,
+                "sensors/temp",
+                vec![1, 2, 3],
+                QoS::AtLeastOnce,
+                true,
+            )
             .unwrap();
 
         assert_eq!(

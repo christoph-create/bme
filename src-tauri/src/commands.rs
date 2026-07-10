@@ -1,4 +1,6 @@
-use bmdp_core::models::{BrokerConnection, FavoriteMessage, NewBrokerConnection, NewFavoriteMessage, QoS};
+use bmdp_core::models::{
+    BrokerConnection, FavoriteMessage, NewBrokerConnection, NewFavoriteMessage, QoS,
+};
 use bmdp_core::mqtt::manager::MqttClientManager;
 use bmdp_core::mqtt::rumqttc_adapter::RumqttcAdapter;
 use bmdp_core::storage::connections_repo::{ConnectionsRepository, SqliteConnectionsRepository};
@@ -24,10 +26,7 @@ pub fn create_connection(
 }
 
 #[tauri::command]
-pub fn delete_connection(
-    repo: State<SqliteConnectionsRepository>,
-    id: Uuid,
-) -> Result<(), String> {
+pub fn delete_connection(repo: State<SqliteConnectionsRepository>, id: Uuid) -> Result<(), String> {
     repo.delete(id).map_err(|err| err.to_string())
 }
 
@@ -41,7 +40,9 @@ pub fn connect_broker(
         .get(id)
         .map_err(|err| err.to_string())?
         .ok_or_else(|| format!("connection {id} not found"))?;
-    manager.connect(id, &connection).map_err(|err| err.to_string())
+    manager
+        .connect(id, &connection)
+        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]

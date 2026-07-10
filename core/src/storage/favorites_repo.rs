@@ -11,10 +11,8 @@ pub trait FavoritesRepository {
     fn create(&self, new: NewFavoriteMessage) -> Result<FavoriteMessage, StorageError>;
     fn get(&self, id: Uuid) -> Result<Option<FavoriteMessage>, StorageError>;
     fn list(&self) -> Result<Vec<FavoriteMessage>, StorageError>;
-    fn list_by_connection(
-        &self,
-        connection_id: Uuid,
-    ) -> Result<Vec<FavoriteMessage>, StorageError>;
+    fn list_by_connection(&self, connection_id: Uuid)
+        -> Result<Vec<FavoriteMessage>, StorageError>;
     fn delete(&self, id: Uuid) -> Result<(), StorageError>;
 }
 

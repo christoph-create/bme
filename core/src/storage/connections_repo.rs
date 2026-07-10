@@ -95,8 +95,7 @@ impl ConnectionsRepository for SqliteConnectionsRepository {
             )
             .optional()?;
 
-        let Some((name, host, port, client_id, username, password, use_tls, keep_alive_secs)) =
-            row
+        let Some((name, host, port, client_id, username, password, use_tls, keep_alive_secs)) = row
         else {
             return Ok(None);
         };
