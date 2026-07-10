@@ -1,8 +1,9 @@
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// MQTT quality-of-service level (0, 1, 2 on the wire).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum QoS {
     AtMostOnce,
     AtLeastOnce,
@@ -32,7 +33,7 @@ impl From<QoS> for i64 {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Subscription {
     pub id: Uuid,
     pub connection_id: Uuid,
@@ -40,7 +41,7 @@ pub struct Subscription {
     pub qos: QoS,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BrokerConnection {
     pub id: Uuid,
     pub name: String,
@@ -54,13 +55,13 @@ pub struct BrokerConnection {
     pub subscriptions: Vec<Subscription>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NewSubscription {
     pub topic: String,
     pub qos: QoS,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NewBrokerConnection {
     pub name: String,
     pub host: String,
@@ -73,7 +74,7 @@ pub struct NewBrokerConnection {
     pub subscriptions: Vec<NewSubscription>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FavoriteMessage {
     pub id: Uuid,
     pub connection_id: Option<Uuid>,
@@ -84,7 +85,7 @@ pub struct FavoriteMessage {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NewFavoriteMessage {
     pub connection_id: Option<Uuid>,
     pub topic: String,

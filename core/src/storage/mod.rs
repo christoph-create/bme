@@ -13,6 +13,8 @@ use crate::models::QoS;
 pub enum StorageError {
     #[error("database error: {0}")]
     Database(#[from] rusqlite::Error),
+    #[error("migration error: {0}")]
+    Migration(#[from] rusqlite_migration::Error),
 }
 
 // QoS is a domain type (models.rs has no idea rusqlite exists); this is the
@@ -47,4 +49,14 @@ pub fn open_in_memory() -> Connection {
         .to_latest(&mut conn)
         .expect("failed to run migrations");
     conn
+}
+
+/// Opens (creating if necessary) a file-backed database at `path` with all
+/// migrations applied - what the real app uses, as opposed to
+/// `open_in_memory`'s disposable databases for tests.
+pub fn open_at(path: &std::path::Path) -> Result<Connection, StorageError> {
+    let mut conn = Connection::open(path)?;
+    conn.pragma_update(None, "foreign_keys", true)?;
+    MIGRATIONS.to_latest(&mut conn)?;
+    Ok(conn)
 }

@@ -5,6 +5,16 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
-    "opener:default"
+    "opener:default",
+    "allow-greet",
+    "allow-list-connections",
+    "allow-create-connection",
+    "allow-delete-connection",
+    "allow-connect-broker",
+    "allow-disconnect-broker",
+    "allow-publish-message",
+    "allow-subscribe-topic",
+    "allow-list-favorites",
+    "allow-save-favorite"
   ]
 }

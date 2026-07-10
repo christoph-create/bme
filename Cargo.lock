@@ -302,11 +302,14 @@ dependencies = [
 name = "bmdp"
 version = "0.1.0"
 dependencies = [
+ "bmdp-core",
  "serde",
  "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-opener",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]
@@ -317,6 +320,7 @@ dependencies = [
  "rumqttc",
  "rusqlite",
  "rusqlite_migration",
+ "serde",
  "thiserror 2.0.18",
  "tokio",
  "uuid",

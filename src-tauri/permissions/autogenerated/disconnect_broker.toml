@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-disconnect-broker"
+description = "Enables the disconnect_broker command without any pre-configured scope."
+commands.allow = ["disconnect_broker"]
+
+[[permission]]
+identifier = "deny-disconnect-broker"
+description = "Denies the disconnect_broker command without any pre-configured scope."
+commands.deny = ["disconnect_broker"]

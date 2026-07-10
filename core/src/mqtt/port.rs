@@ -1,3 +1,4 @@
+use serde::Serialize;
 use uuid::Uuid;
 
 use crate::models::{BrokerConnection, QoS};
@@ -12,7 +13,7 @@ pub enum MqttError {
 
 /// An event pushed out of a connection independently of who asked for
 /// anything - e.g. an incoming publish, or a state change.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub enum MqttEvent {
     Connected {
         connection_id: Uuid,
