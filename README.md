@@ -1,6 +1,45 @@
-# Tauri + Angular
+# bmdp — Better MQTT Development Platform
 
-This template should help get you started developing with Tauri and Angular.
+A desktop app for developing against MQTT brokers: connect, subscribe, publish, and keep a library of favorite messages for quick reuse. Built with [Tauri](https://tauri.app) (Rust backend) and [Angular](https://angular.dev) (frontend).
+
+## Status
+
+Phase 1 (backend) is done: a Rust core library (`core/`) with SQLite-backed storage for broker connections/subscriptions and favorite messages, and an MQTT client built on [rumqttc](https://github.com/bytebeamio/rumqttc), all developed test-first. The Tauri command layer wires it up for the frontend. Angular UI work is next.
+
+<!-- Screenshots will go here once there's a UI to show. -->
+
+## Features
+
+- Manage multiple broker connections (host, port, credentials, TLS, keep-alive) and their subscription topics
+- Connect/disconnect, publish, and subscribe against real MQTT brokers
+- Save and reuse favorite messages (topic, payload, QoS, retain), optionally tied to a specific connection
+- SQLite storage, no external database required
+
+## Development
+
+Prerequisites: [Rust](https://rustup.rs), [Node.js](https://nodejs.org) (LTS), and the [Tauri prerequisites](https://tauri.app/start/prerequisites/) for your platform.
+
+```sh
+npm install
+
+# Run the app in dev mode (Angular dev server + Tauri window)
+npm run tauri dev
+
+# Rust workspace: lint, test, build
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+
+# Frontend: lint, build
+npm run lint
+npm run build
+```
+
+CI runs the same checks on every push via Forgejo Actions (`.forgejo/workflows/ci.yml`); pushing a `v*` tag additionally builds and publishes a release.
+
+## License
+
+GPL-3.0-or-later - see [LICENSE](LICENSE).
 
 ## Recommended IDE Setup
 
