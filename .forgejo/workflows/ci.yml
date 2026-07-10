@@ -134,7 +134,9 @@ jobs:
         run: |
           set -eo pipefail
           tag="${GITHUB_REF#refs/tags/}"
-          api="${{ github.server_url }}/api/v1/repos/${{ github.repository }}"
+          echo "server_url context: ${{ github.server_url }}"
+          echo "repository context: ${{ github.repository }}"
+          api="https://codeberg.org/api/v1/repos/chrissi_710/bmdp"
           prerelease=false
           case "$tag" in *-*) prerelease=true ;; esac
 
