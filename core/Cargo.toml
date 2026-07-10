@@ -9,3 +9,5 @@ rusqlite_migration = "1"
 uuid = { version = "1", features = ["v4"] }
 chrono = "0.4"
 thiserror = "2"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+rumqttc = "0.24"
