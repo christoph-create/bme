@@ -1,4 +1,5 @@
 pub mod models;
+pub mod mqtt;
 pub mod storage;
 
 #[cfg(test)]
