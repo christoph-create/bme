@@ -6,7 +6,7 @@ on:
 
 jobs:
   lint:
-    runs-on: self-hosted
+    runs-on: docker
     steps:
       - uses: actions/checkout@v4
 
@@ -28,7 +28,7 @@ jobs:
       - run: npm run lint
 
   test:
-    runs-on: self-hosted
+    runs-on: docker
     steps:
       - uses: actions/checkout@v4
 
@@ -39,7 +39,7 @@ jobs:
       - run: cargo test --workspace --locked
 
   build:
-    runs-on: self-hosted
+    runs-on: docker
     steps:
       - uses: actions/checkout@v4
 
