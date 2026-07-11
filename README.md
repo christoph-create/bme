@@ -9,8 +9,8 @@ Phase 1 (backend) is done: a Rust core library (`core/`) with SQLite-backed stor
 Phase 2 (Angular frontend) is in progress, built one screen at a time, test-first, against the real Tauri commands:
 
 - **Connections** — list, create, and delete saved broker connections.
-- **Broker Workspace** — connect to a broker; manage its subscriptions (persisted, replayed on reconnect); a live topic tree built from received messages (expand/collapse, message counts, last-payload preview with a flash on update, time-ago).
-- Message stream and publish panel are still placeholder shells.
+- **Broker Workspace** — connect to a broker; manage its subscriptions (persisted, replayed on reconnect); a live topic tree built from received messages (expand/collapse, message counts, last-payload preview with a flash on update, time-ago); a messages panel showing the full session history for the selected topic (newest first, QoS, retained flag, payload).
+- Publish panel is still a placeholder shell.
 
 <!-- Screenshots will go here once there's a UI to show. -->
 

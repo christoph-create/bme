@@ -107,7 +107,6 @@ h1 {
 }
 
 .sidebar,
-.messages,
 .publish {
   overflow: auto;
   border: 1px dashed var(--color-border);
@@ -125,6 +124,8 @@ h1 {
 .messages {
   grid-column: 3;
   grid-row: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .publish {

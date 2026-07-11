@@ -24,6 +24,9 @@
   --color-danger: rgb(239 68 68);
   --color-danger-tint: rgb(239 68 68 / 12%);
 
+  --color-info-on-tint: rgb(147 197 253);
+  --color-info-tint: rgb(59 130 246 / 12%);
+
   --color-surface-hover: rgb(38 39 44);
 
   --color-tree-name: rgb(199 200 204);

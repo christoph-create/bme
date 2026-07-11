@@ -2,7 +2,7 @@ import { Component, OnInit, inject, input, signal } from "@angular/core";
 import { FormBuilder, ReactiveFormsModule, Validators } from "@angular/forms";
 
 import { Subscription } from "../../../core/models/broker-connection.model";
-import { QoS } from "../../../core/models/qos";
+import { QoS, qosNumber } from "../../../core/models/qos";
 import { ConnectionsService } from "../../../core/services/connections.service";
 import { MqttService } from "../../../core/services/mqtt.service";
 
@@ -16,6 +16,7 @@ const QOS_OPTIONS: readonly QoS[] = ["AtMostOnce", "AtLeastOnce", "ExactlyOnce"]
 })
 export class SubscriptionsPanel implements OnInit {
   readonly qosOptions = QOS_OPTIONS;
+  readonly qosNumber = qosNumber;
   readonly connectionId = input.required<string>();
 
   private readonly connectionsService = inject(ConnectionsService);

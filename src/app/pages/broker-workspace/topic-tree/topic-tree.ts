@@ -17,9 +17,9 @@ import {
   collectFolderPaths,
   countLeaves,
 } from "./build-topic-tree";
+import { formatPayloadPreview } from "../format/payload-text";
+import { formatTimeAgo } from "../format/time-ago";
 import { findUpdatedLeafPaths } from "./find-updated-leaf-paths";
-import { formatPayloadPreview } from "./payload-preview";
-import { formatTimeAgo } from "./time-ago";
 
 const TICK_INTERVAL_MS = 1000;
 const FLASH_DURATION_MS = 400;

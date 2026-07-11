@@ -39,7 +39,10 @@
   <div class="resizer resizer-col" (pointerdown)="startColumnResize($event)"></div>
 
   <section class="messages">
-    <app-message-stream />
+    <app-message-stream
+      [connectionId]="connectionId"
+      [topic]="selectedTopic()"
+    />
   </section>
 
   <div class="resizer resizer-row" (pointerdown)="startRowResize($event)"></div>

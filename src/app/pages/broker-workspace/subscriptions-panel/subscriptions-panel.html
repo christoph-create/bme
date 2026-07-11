@@ -25,7 +25,7 @@
             role="button"
             tabindex="0"
           >
-            {{ option === "AtMostOnce" ? "Q0" : option === "AtLeastOnce" ? "Q1" : "Q2" }}
+            Q{{ qosNumber(option) }}
           </div>
         }
       </div>
@@ -43,15 +43,7 @@
     @for (subscription of subscriptions(); track subscription.id) {
       <li class="subscription-chip">
         <span class="topic">{{ subscription.topic }}</span>
-        <span class="qos-badge"
-          >Q{{
-            subscription.qos === "AtMostOnce"
-              ? "0"
-              : subscription.qos === "AtLeastOnce"
-                ? "1"
-                : "2"
-          }}</span
-        >
+        <span class="qos-badge">Q{{ qosNumber(subscription.qos) }}</span>
         <span
           class="remove"
           (click)="unsubscribe(subscription)"

@@ -1,23 +1,140 @@
-import { ComponentFixture, TestBed } from "@angular/core/testing";
-import { beforeEach, describe, expect, it } from "vitest";
+import { TestBed } from "@angular/core/testing";
+import { of } from "rxjs";
+import { describe, expect, it, vi } from "vitest";
 
+import { StoredMessage } from "../../../core/models/stored-message.model";
+import { MessageStoreService } from "../../../core/services/message-store.service";
 import { MessageStream } from "./message-stream";
 
-describe("MessageStream", () => {
-  let component: MessageStream;
-  let fixture: ComponentFixture<MessageStream>;
+const CONNECTION_ID = "11111111-1111-1111-1111-111111111111";
 
-  beforeEach(async () => {
-    await TestBed.configureTestingModule({
-      imports: [MessageStream],
-    }).compileComponents();
+function message(overrides: Partial<StoredMessage> = {}): StoredMessage {
+  return {
+    payload: [1, 2, 3],
+    qos: "AtMostOnce",
+    retain: false,
+    receivedAt: Date.now() - 12_000,
+    ...overrides,
+  };
+}
 
-    fixture = TestBed.createComponent(MessageStream);
-    component = fixture.componentInstance;
-    await fixture.whenStable();
+async function setup(
+  messagesByTopic: Record<string, readonly StoredMessage[]>,
+) {
+  const messagesFor = vi
+    .fn()
+    .mockImplementation((_connectionId: string, topic: string) =>
+      of(messagesByTopic[topic] ?? []),
+    );
+
+  TestBed.configureTestingModule({
+    imports: [MessageStream],
+    providers: [{ provide: MessageStoreService, useValue: { messagesFor } }],
   });
 
-  it("should create", () => {
-    expect(component).toBeTruthy();
+  const fixture = TestBed.createComponent(MessageStream);
+  fixture.componentRef.setInput("connectionId", CONNECTION_ID);
+  fixture.detectChanges();
+  await fixture.whenStable();
+  fixture.detectChanges();
+
+  return { fixture, messagesFor };
+}
+
+async function selectTopic(
+  fixture: Awaited<ReturnType<typeof setup>>["fixture"],
+  topic: string,
+) {
+  fixture.componentRef.setInput("topic", topic);
+  fixture.detectChanges();
+  await fixture.whenStable();
+  fixture.detectChanges();
+}
+
+describe("MessageStream", () => {
+  it("prompts to select a topic when none is selected", async () => {
+    const { fixture } = await setup({});
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? "";
+    expect(text).toContain("Select a topic");
+  });
+
+  it("shows the topic path and message count once a topic is selected", async () => {
+    const { fixture } = await setup({ device: [message(), message()] });
+    await selectTopic(fixture, "device");
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? "";
+    expect(text).toContain("device");
+    expect(text).toContain("2 messages in this session");
+  });
+
+  it("uses singular 'message' for exactly one message", async () => {
+    const { fixture } = await setup({ device: [message()] });
+    await selectTopic(fixture, "device");
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? "";
+    expect(text).toContain("1 message in this session");
+  });
+
+  it("shows a placeholder when the selected topic has no messages yet", async () => {
+    const { fixture } = await setup({});
+    await selectTopic(fixture, "device");
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? "";
+    expect(text).toContain("No messages yet on this topic");
+  });
+
+  it("renders messages newest-first with QoS and payload", async () => {
+    const first = message({
+      payload: [111, 108, 100], // "old"
+      receivedAt: Date.now() - 60_000,
+    });
+    const second = message({
+      payload: [110, 101, 119], // "new"
+      qos: "ExactlyOnce",
+      receivedAt: Date.now() - 1_000,
+    });
+    const { fixture } = await setup({ device: [first, second] });
+    await selectTopic(fixture, "device");
+
+    const cards = (fixture.nativeElement as HTMLElement).querySelectorAll(
+      ".message-card",
+    );
+    expect(cards).toHaveLength(2);
+    expect(cards[0].textContent).toContain("new");
+    expect(cards[0].textContent).toContain("QoS 2");
+    expect(cards[1].textContent).toContain("old");
+  });
+
+  it("shows a Retained badge only for retained messages", async () => {
+    const { fixture } = await setup({ device: [message({ retain: true })] });
+    await selectTopic(fixture, "device");
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? "";
+    expect(text).toContain("Retained");
+  });
+
+  it("does not show a Retained badge for non-retained messages", async () => {
+    const { fixture } = await setup({ device: [message({ retain: false })] });
+    await selectTopic(fixture, "device");
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? "";
+    expect(text).not.toContain("Retained");
+  });
+
+  it("switches to the newly selected topic's messages", async () => {
+    const { fixture, messagesFor } = await setup({
+      device: [message({ payload: [100] })],
+      "other/topic": [message({ payload: [200] })],
+    });
+    await selectTopic(fixture, "device");
+
+    expect(messagesFor).toHaveBeenCalledWith(CONNECTION_ID, "device");
+
+    await selectTopic(fixture, "other/topic");
+
+    expect(messagesFor).toHaveBeenCalledWith(CONNECTION_ID, "other/topic");
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? "";
+    expect(text).toContain("other/topic");
   });
 });
