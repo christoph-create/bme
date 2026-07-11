@@ -200,7 +200,7 @@ mod tests {
             name: "Integration test broker".to_string(),
             host: host.to_string(),
             port,
-            client_id: format!("bmdp-test-{}", Uuid::new_v4()),
+            client_id: format!("bme-test-{}", Uuid::new_v4()),
             username: None,
             password: None,
             use_tls: false,
@@ -228,14 +228,14 @@ mod tests {
     /// Requires network access to a real broker. Defaults to the public
     /// test.mosquitto.org sandbox; point `sample_broker` at "localhost" for
     /// a local Mosquitto instead (e.g. `docker run -p 1883:1883 eclipse-mosquitto`).
-    /// Run explicitly with: cargo test -p bmdp-core -- --ignored rumqttc
+    /// Run explicitly with: cargo test -p bme-core -- --ignored rumqttc
     #[test]
     #[ignore]
     fn connects_publishes_and_receives_from_a_real_broker() {
         let (events_tx, mut events_rx) = mpsc::unbounded_channel();
         let adapter = RumqttcAdapter::new(events_tx);
         let broker = sample_broker("test.mosquitto.org", 1883);
-        let topic = format!("bmdp/tests/{}", broker.id);
+        let topic = format!("bme/tests/{}", broker.id);
 
         adapter.connect(broker.id, &broker).unwrap();
 
@@ -253,7 +253,7 @@ mod tests {
             .publish(
                 broker.id,
                 &topic,
-                b"hello from bmdp".to_vec(),
+                b"hello from bme".to_vec(),
                 QoS::AtLeastOnce,
                 false,
             )
@@ -267,7 +267,7 @@ mod tests {
             .await;
             match received {
                 MqttEvent::MessageReceived { payload, .. } => {
-                    assert_eq!(payload, b"hello from bmdp");
+                    assert_eq!(payload, b"hello from bme");
                 }
                 _ => unreachable!(),
             }

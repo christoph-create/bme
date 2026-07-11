@@ -1,4 +1,4 @@
-# bmdp — Better MQTT Development Platform
+# bme — Better MQTT Explorer
 
 A desktop app for developing against MQTT brokers: connect, subscribe, publish, and keep a library of favorite messages for quick reuse. Built with [Tauri](https://tauri.app) (Rust backend) and [Angular](https://angular.dev) (frontend).
 

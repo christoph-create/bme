@@ -1,18 +1,18 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "bmdp",
+  "productName": "bme",
   "version": "0.1.0",
-  "identifier": "com.christoph.bmdp",
+  "identifier": "com.christoph.bme",
   "build": {
     "beforeDevCommand": "npm run start",
     "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "npm run build",
-    "frontendDist": "../dist/bmdp/browser"
+    "frontendDist": "../dist/bme/browser"
   },
   "app": {
     "windows": [
       {
-        "title": "bmdp",
+        "title": "bme",
         "width": 800,
         "height": 600
       }

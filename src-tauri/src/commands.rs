@@ -1,10 +1,10 @@
-use bmdp_core::models::{
+use bme_core::models::{
     BrokerConnection, FavoriteMessage, NewBrokerConnection, NewFavoriteMessage, QoS,
 };
-use bmdp_core::mqtt::manager::MqttClientManager;
-use bmdp_core::mqtt::rumqttc_adapter::RumqttcAdapter;
-use bmdp_core::storage::connections_repo::{ConnectionsRepository, SqliteConnectionsRepository};
-use bmdp_core::storage::favorites_repo::{FavoritesRepository, SqliteFavoritesRepository};
+use bme_core::mqtt::manager::MqttClientManager;
+use bme_core::mqtt::rumqttc_adapter::RumqttcAdapter;
+use bme_core::storage::connections_repo::{ConnectionsRepository, SqliteConnectionsRepository};
+use bme_core::storage::favorites_repo::{FavoritesRepository, SqliteFavoritesRepository};
 use tauri::State;
 use uuid::Uuid;
 

@@ -236,7 +236,7 @@ mod tests {
             name: "Local Mosquitto".to_string(),
             host: "localhost".to_string(),
             port: 1883,
-            client_id: "bmdp-dev".to_string(),
+            client_id: "bme-dev".to_string(),
             username: None,
             password: None,
             use_tls: false,

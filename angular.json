@@ -9,7 +9,7 @@
     ]
   },
   "projects": {
-    "bmdp": {
+    "bme": {
       "projectType": "application",
       "schematics": {
         "@schematics/angular:component": {
@@ -68,10 +68,10 @@
           },
           "configurations": {
             "production": {
-              "buildTarget": "bmdp:build:production"
+              "buildTarget": "bme:build:production"
             },
             "development": {
-              "buildTarget": "bmdp:build:development"
+              "buildTarget": "bme:build:development"
             }
           },
           "defaultConfiguration": "development"

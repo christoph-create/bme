@@ -136,7 +136,7 @@ jobs:
         run: |
           set -eo pipefail
           tag="${GITHUB_REF#refs/tags/}"
-          api="https://codeberg.org/api/v1/repos/chrissi_710/bmdp"
+          api="https://codeberg.org/api/v1/repos/chrissi_710/bme"
           prerelease=false
           case "$tag" in *-*) prerelease=true ;; esac
 

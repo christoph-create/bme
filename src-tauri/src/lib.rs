@@ -2,11 +2,11 @@ mod commands;
 
 use std::sync::{Arc, Mutex};
 
-use bmdp_core::mqtt::manager::MqttClientManager;
-use bmdp_core::mqtt::rumqttc_adapter::RumqttcAdapter;
-use bmdp_core::storage;
-use bmdp_core::storage::connections_repo::SqliteConnectionsRepository;
-use bmdp_core::storage::favorites_repo::SqliteFavoritesRepository;
+use bme_core::mqtt::manager::MqttClientManager;
+use bme_core::mqtt::rumqttc_adapter::RumqttcAdapter;
+use bme_core::storage;
+use bme_core::storage::connections_repo::SqliteConnectionsRepository;
+use bme_core::storage::favorites_repo::SqliteFavoritesRepository;
 use tauri::{Emitter, Manager};
 use tokio::sync::mpsc;
 
@@ -23,7 +23,7 @@ pub fn run() {
         .setup(|app| {
             let app_data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&app_data_dir)?;
-            let db_path = app_data_dir.join("bmdp.sqlite3");
+            let db_path = app_data_dir.join("bme.sqlite3");
             let conn = Arc::new(Mutex::new(storage::open_at(&db_path)?));
 
             app.manage(SqliteConnectionsRepository::new(Arc::clone(&conn)));
@@ -126,7 +126,7 @@ mod tests {
                     "name": "Local",
                     "host": "localhost",
                     "port": 1883,
-                    "client_id": "bmdp-smoke-test",
+                    "client_id": "bme-smoke-test",
                     "username": null,
                     "password": null,
                     "use_tls": false,

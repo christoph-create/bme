@@ -187,7 +187,7 @@ mod tests {
                 name: "Local".to_string(),
                 host: "localhost".to_string(),
                 port: 1883,
-                client_id: "bmdp".to_string(),
+                client_id: "bme".to_string(),
                 username: None,
                 password: None,
                 use_tls: false,
