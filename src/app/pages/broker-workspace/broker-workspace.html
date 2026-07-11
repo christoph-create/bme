@@ -1,10 +1,29 @@
 <header class="page-header">
   <h1>Broker Workspace</h1>
-  <button type="button">Disconnect</button>
+  <button type="button" class="btn-disconnect">Disconnect</button>
 </header>
 
-<div class="layout">
-  <aside class="placeholder">Subscriptions &amp; Topics</aside>
-  <section class="placeholder">Messages</section>
-  <section class="placeholder publish">Publish</section>
+<div
+  class="layout"
+  [class.resizing-col]="resizing() === 'column'"
+  [class.resizing-row]="resizing() === 'row'"
+  [style.grid-template-columns]="sidebarWidth() + 'px 6px 1fr'"
+  [style.grid-template-rows]="'1fr 6px ' + publishHeight() + 'px'"
+>
+  <aside class="sidebar">
+    <app-subscriptions-panel />
+    <app-topic-tree />
+  </aside>
+
+  <div class="resizer resizer-col" (pointerdown)="startColumnResize($event)"></div>
+
+  <section class="messages">
+    <app-message-stream />
+  </section>
+
+  <div class="resizer resizer-row" (pointerdown)="startRowResize($event)"></div>
+
+  <section class="publish">
+    <app-publish-panel />
+  </section>
 </div>
