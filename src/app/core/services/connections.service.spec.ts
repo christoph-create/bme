@@ -1,0 +1,115 @@
+import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
+import { afterEach, describe, expect, it } from "vitest";
+
+import {
+  BrokerConnection,
+  NewBrokerConnection,
+} from "../models/broker-connection.model";
+import { ConnectionsService } from "./connections.service";
+
+const SAMPLE_ID = "11111111-1111-1111-1111-111111111111";
+
+function sampleNewConnection(): NewBrokerConnection {
+  return {
+    name: "Local",
+    host: "localhost",
+    port: 1883,
+    client_id: "bme",
+    username: null,
+    password: null,
+    use_tls: false,
+    keep_alive_secs: 30,
+    subscriptions: [],
+  };
+}
+
+function sampleConnection(): BrokerConnection {
+  return { id: SAMPLE_ID, ...sampleNewConnection(), subscriptions: [] };
+}
+
+describe("ConnectionsService", () => {
+  afterEach(() => {
+    clearMocks();
+  });
+
+  it("lists connections via the list_connections command", async () => {
+    const connections = [sampleConnection()];
+    mockIPC((cmd) => {
+      if (cmd === "list_connections") return connections;
+      throw new Error(`unexpected command: ${cmd}`);
+    });
+
+    await expect(new ConnectionsService().list()).resolves.toEqual(
+      connections,
+    );
+  });
+
+  it("creates a connection via the create_connection command with camelCased args", async () => {
+    const newConnection = sampleNewConnection();
+    const created = sampleConnection();
+    mockIPC((cmd, args) => {
+      if (cmd === "create_connection") {
+        expect(args).toEqual({ newConnection });
+        return created;
+      }
+      throw new Error(`unexpected command: ${cmd}`);
+    });
+
+    await expect(
+      new ConnectionsService().create(newConnection),
+    ).resolves.toEqual(created);
+  });
+
+  it("deletes a connection via the delete_connection command", async () => {
+    mockIPC((cmd, args) => {
+      if (cmd === "delete_connection") {
+        expect(args).toEqual({ id: SAMPLE_ID });
+        return null;
+      }
+      throw new Error(`unexpected command: ${cmd}`);
+    });
+
+    await expect(
+      new ConnectionsService().delete(SAMPLE_ID),
+    ).resolves.toBeNull();
+  });
+
+  it("connects to a broker via the connect_broker command", async () => {
+    mockIPC((cmd, args) => {
+      if (cmd === "connect_broker") {
+        expect(args).toEqual({ id: SAMPLE_ID });
+        return null;
+      }
+      throw new Error(`unexpected command: ${cmd}`);
+    });
+
+    await expect(
+      new ConnectionsService().connect(SAMPLE_ID),
+    ).resolves.toBeNull();
+  });
+
+  it("disconnects from a broker via the disconnect_broker command", async () => {
+    mockIPC((cmd, args) => {
+      if (cmd === "disconnect_broker") {
+        expect(args).toEqual({ id: SAMPLE_ID });
+        return null;
+      }
+      throw new Error(`unexpected command: ${cmd}`);
+    });
+
+    await expect(
+      new ConnectionsService().disconnect(SAMPLE_ID),
+    ).resolves.toBeNull();
+  });
+
+  it("propagates command errors as rejected promises", async () => {
+    mockIPC((cmd) => {
+      if (cmd === "list_connections") {
+        throw new Error("boom");
+      }
+      throw new Error(`unexpected command: ${cmd}`);
+    });
+
+    await expect(new ConnectionsService().list()).rejects.toThrow("boom");
+  });
+});

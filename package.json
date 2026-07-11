@@ -8,7 +8,8 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "tauri": "tauri",
-    "lint": "ng lint"
+    "lint": "ng lint",
+    "test": "ng test"
   },
   "private": true,
   "dependencies": {
@@ -31,7 +32,9 @@
     "@tauri-apps/cli": "^2",
     "angular-eslint": "22.0.0",
     "eslint": "^10.3.0",
+    "jsdom": "^29.1.1",
     "typescript": "~6.0.3",
-    "typescript-eslint": "8.60.1"
+    "typescript-eslint": "8.60.1",
+    "vitest": "^4.1.10"
   }
 }
