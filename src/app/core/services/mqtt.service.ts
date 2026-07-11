@@ -1,6 +1,7 @@
 import { Injectable } from "@angular/core";
 import { invoke } from "@tauri-apps/api/core";
 
+import { Subscription } from "../models/broker-connection.model";
 import { QoS } from "../models/qos";
 
 @Injectable({ providedIn: "root" })
@@ -21,7 +22,19 @@ export class MqttService {
     });
   }
 
-  subscribe(connectionId: string, topic: string, qos: QoS): Promise<void> {
+  subscribe(
+    connectionId: string,
+    topic: string,
+    qos: QoS,
+  ): Promise<Subscription> {
     return invoke("subscribe_topic", { connectionId, topic, qos });
+  }
+
+  unsubscribe(
+    connectionId: string,
+    subscriptionId: string,
+    topic: string,
+  ): Promise<void> {
+    return invoke("unsubscribe_topic", { connectionId, subscriptionId, topic });
   }
 }

@@ -1,7 +1,25 @@
 <header class="page-header">
-  <h1>Broker Workspace</h1>
-  <button type="button" class="btn-disconnect">Disconnect</button>
+  <div class="header-title">
+    <h1>Broker Workspace</h1>
+    @if (connecting()) {
+      <span class="status-pill connecting">Connecting…</span>
+    } @else if (connectError()) {
+      <span class="status-pill error">Connection failed</span>
+    } @else {
+      <span class="status-pill connected">Connected</span>
+    }
+  </div>
+  <button type="button" class="btn-disconnect" (click)="disconnect()">
+    Disconnect
+  </button>
 </header>
+
+@if (connectError()) {
+  <div class="connect-error-banner">
+    <span>{{ connectError() }}</span>
+    <button type="button" (click)="connect()">Retry</button>
+  </div>
+}
 
 <div
   class="layout"
@@ -11,7 +29,7 @@
   [style.grid-template-rows]="'1fr 6px ' + publishHeight() + 'px'"
 >
   <aside class="sidebar">
-    <app-subscriptions-panel />
+    <app-subscriptions-panel [connectionId]="connectionId" />
     <app-topic-tree />
   </aside>
 

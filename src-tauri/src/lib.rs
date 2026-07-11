@@ -46,10 +46,12 @@ pub fn run() {
             commands::list_connections,
             commands::create_connection,
             commands::delete_connection,
+            commands::get_connection,
             commands::connect_broker,
             commands::disconnect_broker,
             commands::publish_message,
             commands::subscribe_topic,
+            commands::unsubscribe_topic,
             commands::list_favorites,
             commands::save_favorite,
         ])
@@ -76,6 +78,8 @@ mod tests {
             .invoke_handler(tauri::generate_handler![
                 commands::create_connection,
                 commands::list_connections,
+                commands::connect_broker,
+                commands::subscribe_topic,
             ])
             .build(tauri::generate_context!())
             .expect("failed to build mock app");
@@ -140,5 +144,50 @@ mod tests {
         let all = invoke(&webview, "list_connections", serde_json::json!({}));
         assert_eq!(all.as_array().unwrap().len(), 1);
         assert_eq!(all[0]["id"], created["id"]);
+    }
+
+    #[test]
+    fn subscribing_persists_and_is_visible_on_the_listed_connection() {
+        let app = build_test_app();
+        let webview = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+
+        let created = invoke(
+            &webview,
+            "create_connection",
+            serde_json::json!({
+                "newConnection": {
+                    "name": "Local",
+                    "host": "localhost",
+                    "port": 1883,
+                    "client_id": "bme-subscribe-test",
+                    "username": null,
+                    "password": null,
+                    "use_tls": false,
+                    "keep_alive_secs": 30,
+                    "subscriptions": []
+                }
+            }),
+        );
+        let id = created["id"].clone();
+
+        invoke(&webview, "connect_broker", serde_json::json!({ "id": id }));
+
+        invoke(
+            &webview,
+            "subscribe_topic",
+            serde_json::json!({
+                "connectionId": id,
+                "topic": "sensors/#",
+                "qos": "AtLeastOnce",
+            }),
+        );
+
+        let all = invoke(&webview, "list_connections", serde_json::json!({}));
+        let subscriptions = all[0]["subscriptions"].as_array().unwrap();
+        assert_eq!(subscriptions.len(), 1);
+        assert_eq!(subscriptions[0]["topic"], "sensors/#");
+        assert_eq!(subscriptions[0]["qos"], "AtLeastOnce");
     }
 }

@@ -44,6 +44,32 @@ describe("ConnectionsService", () => {
     );
   });
 
+  it("gets a single connection via the get_connection command", async () => {
+    const connection = sampleConnection();
+    mockIPC((cmd, args) => {
+      if (cmd === "get_connection") {
+        expect(args).toEqual({ id: SAMPLE_ID });
+        return connection;
+      }
+      throw new Error(`unexpected command: ${cmd}`);
+    });
+
+    await expect(new ConnectionsService().get(SAMPLE_ID)).resolves.toEqual(
+      connection,
+    );
+  });
+
+  it("resolves null from get_connection when the connection is not found", async () => {
+    mockIPC((cmd) => {
+      if (cmd === "get_connection") return null;
+      throw new Error(`unexpected command: ${cmd}`);
+    });
+
+    await expect(
+      new ConnectionsService().get(SAMPLE_ID),
+    ).resolves.toBeNull();
+  });
+
   it("creates a connection via the create_connection command with camelCased args", async () => {
     const newConnection = sampleNewConnection();
     const created = sampleConnection();

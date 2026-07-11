@@ -1,2 +1,66 @@
-<h2>Subscriptions</h2>
-<p>Subscription list goes here</p>
+<div class="section-header">
+  <span class="section-label">Subscriptions · {{ subscriptions().length }}</span>
+  <span class="add-link" (click)="toggleAdd()" (keydown.enter)="toggleAdd()" role="button" tabindex="0">+ Add</span>
+</div>
+
+@if (adding()) {
+  <form class="add-form" [formGroup]="form" (ngSubmit)="subscribe()">
+    <input
+      class="mono"
+      formControlName="topic"
+      placeholder="e.g. sensors/#"
+    />
+    <div class="hint">
+      Some brokers restrict wildcards like # — prefer scoped filters (e.g.
+      sensors/#).
+    </div>
+    <div class="form-row">
+      <div class="qos-select">
+        @for (option of qosOptions; track option) {
+          <div
+            class="qos-option"
+            [class.selected]="qos() === option"
+            (click)="selectQos(option)"
+            (keydown.enter)="selectQos(option)"
+            role="button"
+            tabindex="0"
+          >
+            {{ option === "AtMostOnce" ? "Q0" : option === "AtLeastOnce" ? "Q1" : "Q2" }}
+          </div>
+        }
+      </div>
+      <button type="submit" class="btn-subscribe" [disabled]="form.invalid">
+        Subscribe
+      </button>
+    </div>
+  </form>
+}
+
+@if (error()) {
+  <p class="status-text error">{{ error() }}</p>
+} @else if (!loading()) {
+  <ul class="subscription-list">
+    @for (subscription of subscriptions(); track subscription.id) {
+      <li class="subscription-chip">
+        <span class="topic">{{ subscription.topic }}</span>
+        <span class="qos-badge"
+          >Q{{
+            subscription.qos === "AtMostOnce"
+              ? "0"
+              : subscription.qos === "AtLeastOnce"
+                ? "1"
+                : "2"
+          }}</span
+        >
+        <span
+          class="remove"
+          (click)="unsubscribe(subscription)"
+          (keydown.enter)="unsubscribe(subscription)"
+          role="button"
+          tabindex="0"
+          >×</span
+        >
+      </li>
+    }
+  </ul>
+}

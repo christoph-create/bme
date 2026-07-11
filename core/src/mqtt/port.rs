@@ -50,5 +50,7 @@ pub trait MqttPort: Send + Sync {
 
     fn subscribe(&self, connection_id: Uuid, topic: &str, qos: QoS) -> Result<(), MqttError>;
 
+    fn unsubscribe(&self, connection_id: Uuid, topic: &str) -> Result<(), MqttError>;
+
     fn disconnect(&self, connection_id: Uuid) -> Result<(), MqttError>;
 }

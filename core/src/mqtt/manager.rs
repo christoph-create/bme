@@ -46,6 +46,11 @@ impl<P: MqttPort> MqttClientManager<P> {
         self.port.subscribe(connection_id, topic, qos)
     }
 
+    pub fn unsubscribe(&self, connection_id: Uuid, topic: &str) -> Result<(), MqttError> {
+        self.ensure_connected(connection_id)?;
+        self.port.unsubscribe(connection_id, topic)
+    }
+
     pub fn disconnect(&self, connection_id: Uuid) -> Result<(), MqttError> {
         self.port.disconnect(connection_id)?;
         self.connected.lock().unwrap().remove(&connection_id);
@@ -83,6 +88,10 @@ mod tests {
             connection_id: Uuid,
             topic: String,
             qos: QoS,
+        },
+        Unsubscribe {
+            connection_id: Uuid,
+            topic: String,
         },
         Disconnect(Uuid),
     }
@@ -134,6 +143,14 @@ mod tests {
                 connection_id,
                 topic: topic.to_string(),
                 qos,
+            });
+            Ok(())
+        }
+
+        fn unsubscribe(&self, connection_id: Uuid, topic: &str) -> Result<(), MqttError> {
+            self.calls.lock().unwrap().push(Call::Unsubscribe {
+                connection_id,
+                topic: topic.to_string(),
             });
             Ok(())
         }
@@ -230,6 +247,35 @@ mod tests {
                 connection_id: broker.id,
                 topic: "sensors/#".to_string(),
                 qos: QoS::ExactlyOnce,
+            }]
+        );
+    }
+
+    #[test]
+    fn unsubscribe_before_connect_is_rejected() {
+        let manager = MqttClientManager::new(FakeMqttPort::default());
+        let unknown_id = Uuid::new_v4();
+
+        let result = manager.unsubscribe(unknown_id, "sensors/#");
+
+        assert_eq!(result, Err(MqttError::UnknownConnection(unknown_id)));
+        assert!(manager.port.calls().is_empty());
+    }
+
+    #[test]
+    fn unsubscribe_after_connect_delegates_to_the_port() {
+        let manager = MqttClientManager::new(FakeMqttPort::default());
+        let broker = sample_broker();
+        manager.connect(broker.id, &broker).unwrap();
+        manager.port.calls();
+
+        manager.unsubscribe(broker.id, "sensors/#").unwrap();
+
+        assert_eq!(
+            manager.port.calls(),
+            vec![Call::Unsubscribe {
+                connection_id: broker.id,
+                topic: "sensors/#".to_string(),
             }]
         );
     }

@@ -1,5 +1,7 @@
-import { Component, HostListener, signal } from "@angular/core";
+import { Component, HostListener, inject, signal } from "@angular/core";
+import { ActivatedRoute, Router } from "@angular/router";
 
+import { ConnectionsService } from "../../core/services/connections.service";
 import { MessageStream } from "./message-stream/message-stream";
 import { PublishPanel } from "./publish-panel/publish-panel";
 import { SubscriptionsPanel } from "./subscriptions-panel/subscriptions-panel";
@@ -23,11 +25,46 @@ type ResizeMode = "column" | "row" | null;
   styleUrl: "./broker-workspace.css",
 })
 export class BrokerWorkspace {
+  private readonly connectionsService = inject(ConnectionsService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+
+  readonly connectionId = this.route.snapshot.paramMap.get("id") ?? "";
+
+  readonly connecting = signal(true);
+  readonly connectError = signal<string | null>(null);
+
   readonly sidebarWidth = signal(260);
   readonly publishHeight = signal(260);
   readonly resizing = signal<ResizeMode>(null);
 
   private dragOrigin = { x: 0, y: 0, sidebarWidth: 0, publishHeight: 0 };
+
+  constructor() {
+    void this.connect();
+  }
+
+  async connect(): Promise<void> {
+    this.connecting.set(true);
+    this.connectError.set(null);
+    try {
+      await this.connectionsService.connect(this.connectionId);
+    } catch (err) {
+      this.connectError.set(err instanceof Error ? err.message : String(err));
+    } finally {
+      this.connecting.set(false);
+    }
+  }
+
+  async disconnect(): Promise<void> {
+    try {
+      await this.connectionsService.disconnect(this.connectionId);
+    } catch (err) {
+      this.connectError.set(err instanceof Error ? err.message : String(err));
+      return;
+    }
+    void this.router.navigate(["/connections"]);
+  }
 
   startColumnResize(event: PointerEvent): void {
     event.preventDefault();

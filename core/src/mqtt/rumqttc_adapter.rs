@@ -40,6 +40,9 @@ enum Command {
         topic: String,
         qos: rumqttc::QoS,
     },
+    Unsubscribe {
+        topic: String,
+    },
     Disconnect,
 }
 
@@ -133,6 +136,15 @@ impl MqttPort for RumqttcAdapter {
         )
     }
 
+    fn unsubscribe(&self, connection_id: Uuid, topic: &str) -> Result<(), MqttError> {
+        self.send_command(
+            connection_id,
+            Command::Unsubscribe {
+                topic: topic.to_string(),
+            },
+        )
+    }
+
     fn disconnect(&self, connection_id: Uuid) -> Result<(), MqttError> {
         self.send_command(connection_id, Command::Disconnect)?;
         self.connections.lock().unwrap().remove(&connection_id);
@@ -177,6 +189,9 @@ async fn run_connection(
                     }
                     Some(Command::Subscribe { topic, qos }) => {
                         let _ = client.subscribe(topic, qos).await;
+                    }
+                    Some(Command::Unsubscribe { topic }) => {
+                        let _ = client.unsubscribe(topic).await;
                     }
                     Some(Command::Disconnect) | None => {
                         let _ = client.disconnect().await;

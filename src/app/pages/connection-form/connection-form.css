@@ -173,7 +173,7 @@ input.mono {
 .switch-track {
   position: absolute;
   inset: 0;
-  background: rgb(58 59 64);
+  background: var(--color-toggle-track);
   border-radius: 9px;
   transition: background 0.15s;
 }

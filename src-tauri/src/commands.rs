@@ -1,5 +1,6 @@
 use bme_core::models::{
-    BrokerConnection, FavoriteMessage, NewBrokerConnection, NewFavoriteMessage, QoS,
+    BrokerConnection, FavoriteMessage, NewBrokerConnection, NewFavoriteMessage, NewSubscription,
+    QoS, Subscription,
 };
 use bme_core::mqtt::manager::MqttClientManager;
 use bme_core::mqtt::rumqttc_adapter::RumqttcAdapter;
@@ -31,6 +32,14 @@ pub fn delete_connection(repo: State<SqliteConnectionsRepository>, id: Uuid) -> 
 }
 
 #[tauri::command]
+pub fn get_connection(
+    repo: State<SqliteConnectionsRepository>,
+    id: Uuid,
+) -> Result<Option<BrokerConnection>, String> {
+    repo.get(id).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
 pub fn connect_broker(
     repo: State<SqliteConnectionsRepository>,
     manager: State<MqttManagerState>,
@@ -42,7 +51,13 @@ pub fn connect_broker(
         .ok_or_else(|| format!("connection {id} not found"))?;
     manager
         .connect(id, &connection)
-        .map_err(|err| err.to_string())
+        .map_err(|err| err.to_string())?;
+    for subscription in &connection.subscriptions {
+        manager
+            .subscribe(id, &subscription.topic, subscription.qos)
+            .map_err(|err| err.to_string())?;
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -66,13 +81,31 @@ pub fn publish_message(
 
 #[tauri::command]
 pub fn subscribe_topic(
+    repo: State<SqliteConnectionsRepository>,
     manager: State<MqttManagerState>,
     connection_id: Uuid,
     topic: String,
     qos: QoS,
-) -> Result<(), String> {
+) -> Result<Subscription, String> {
     manager
         .subscribe(connection_id, &topic, qos)
+        .map_err(|err| err.to_string())?;
+    repo.add_subscription(connection_id, NewSubscription { topic, qos })
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub fn unsubscribe_topic(
+    repo: State<SqliteConnectionsRepository>,
+    manager: State<MqttManagerState>,
+    connection_id: Uuid,
+    subscription_id: Uuid,
+    topic: String,
+) -> Result<(), String> {
+    manager
+        .unsubscribe(connection_id, &topic)
+        .map_err(|err| err.to_string())?;
+    repo.remove_subscription(subscription_id)
         .map_err(|err| err.to_string())
 }
 

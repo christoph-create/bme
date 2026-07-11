@@ -7,6 +7,7 @@
   --color-border-faint: rgb(255 255 255 / 6%);
 
   --color-text: rgb(236 236 238);
+  --color-text-dim: rgb(215 216 219);
   --color-text-secondary: rgb(152 153 158);
   --color-text-tertiary: rgb(119 120 125);
   --color-text-quaternary: rgb(97 98 104);
@@ -15,6 +16,7 @@
   --color-accent: rgb(249 115 22);
   --color-accent-ink: rgb(26 16 6);
   --color-accent-tint: rgb(249 115 22 / 12%);
+  --color-accent-on-tint: rgb(249 165 107);
 
   --color-success: rgb(52 211 153);
   --color-success-tint: rgb(52 211 153 / 12%);
@@ -25,7 +27,9 @@
   --color-surface-hover: rgb(38 39 44);
 
   --color-input-bg: rgb(30 31 35);
+  --color-input-bg-alt: rgb(35 36 40);
   --color-input-border: rgb(255 255 255 / 10%);
+  --color-toggle-track: rgb(58 59 64);
   --radius-input: 7px;
 
   --font-sans:

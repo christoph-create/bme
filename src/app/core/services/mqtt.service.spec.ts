@@ -36,7 +36,13 @@ describe("MqttService", () => {
     ).resolves.toBeNull();
   });
 
-  it("subscribes to a topic via the subscribe_topic command", async () => {
+  it("subscribes to a topic via the subscribe_topic command and resolves the persisted subscription", async () => {
+    const subscription = {
+      id: "22222222-2222-2222-2222-222222222222",
+      connection_id: CONNECTION_ID,
+      topic: "sensors/#",
+      qos: "ExactlyOnce",
+    };
     mockIPC((cmd, args) => {
       if (cmd === "subscribe_topic") {
         expect(args).toEqual({
@@ -44,13 +50,32 @@ describe("MqttService", () => {
           topic: "sensors/#",
           qos: "ExactlyOnce",
         });
-        return null;
+        return subscription;
       }
       throw new Error(`unexpected command: ${cmd}`);
     });
 
     await expect(
       new MqttService().subscribe(CONNECTION_ID, "sensors/#", "ExactlyOnce"),
+    ).resolves.toEqual(subscription);
+  });
+
+  it("unsubscribes from a topic via the unsubscribe_topic command", async () => {
+    const subscriptionId = "22222222-2222-2222-2222-222222222222";
+    mockIPC((cmd, args) => {
+      if (cmd === "unsubscribe_topic") {
+        expect(args).toEqual({
+          connectionId: CONNECTION_ID,
+          subscriptionId,
+          topic: "sensors/#",
+        });
+        return null;
+      }
+      throw new Error(`unexpected command: ${cmd}`);
+    });
+
+    await expect(
+      new MqttService().unsubscribe(CONNECTION_ID, subscriptionId, "sensors/#"),
     ).resolves.toBeNull();
   });
 

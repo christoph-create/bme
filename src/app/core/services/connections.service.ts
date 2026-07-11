@@ -12,6 +12,10 @@ export class ConnectionsService {
     return invoke("list_connections");
   }
 
+  get(id: string): Promise<BrokerConnection | null> {
+    return invoke("get_connection", { id });
+  }
+
   create(newConnection: NewBrokerConnection): Promise<BrokerConnection> {
     return invoke("create_connection", { newConnection });
   }
