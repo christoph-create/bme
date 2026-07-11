@@ -1,0 +1,18 @@
+.page-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.page-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.placeholder {
+  border: 1px dashed;
+  padding: 1rem;
+  margin-top: 1rem;
+}
