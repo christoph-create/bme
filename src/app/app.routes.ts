@@ -8,5 +8,6 @@ export const routes: Routes = [
   { path: "", pathMatch: "full", redirectTo: "connections" },
   { path: "connections", component: Connections },
   { path: "connections/new", component: ConnectionForm },
-  { path: "broker", component: BrokerWorkspace },
+  { path: "connections/:id/edit", component: ConnectionForm },
+  { path: "broker/:id", component: BrokerWorkspace },
 ];

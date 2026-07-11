@@ -1,9 +1,67 @@
 <header class="page-header">
   <div>
     <h1>Connections</h1>
-    <p>Select a broker to connect, or create a new one</p>
+    <p class="subtitle">Select a broker to connect, or create a new one</p>
   </div>
-  <button type="button">+ New Connection</button>
+  <a class="btn-primary" routerLink="/connections/new">+ New Connection</a>
 </header>
 
-<section class="connection-list placeholder">Connection list goes here</section>
+@if (loading()) {
+  <p class="status-text">Loading connections…</p>
+} @else if (error()) {
+  <p class="status-text error">{{ error() }}</p>
+} @else if (connections().length === 0) {
+  <div class="empty-state">
+    <p>No connections yet.</p>
+  </div>
+} @else {
+  <ul class="connection-list">
+    @for (connection of connections(); track connection.id) {
+      <li
+        class="connection-row"
+        role="button"
+        tabindex="0"
+        (click)="openBroker(connection.id)"
+        (keydown.enter)="openBroker(connection.id)"
+        (keydown.space)="openBroker(connection.id)"
+      >
+        <span
+          class="dot"
+          [style.background]="colorForConnectionId(connection.id)"
+        ></span>
+        <div class="connection-info">
+          <div class="connection-name">{{ connection.name }}</div>
+          <div class="connection-host">
+            {{ connection.host }}:{{ connection.port }}
+          </div>
+        </div>
+        <div class="menu-wrapper">
+          <button
+            type="button"
+            class="menu-trigger"
+            (click)="toggleMenu(connection.id, $event)"
+          >
+            ⋯
+          </button>
+          @if (openMenuId() === connection.id) {
+            <div class="menu">
+              <a
+                [routerLink]="['/connections', connection.id, 'edit']"
+                (click)="$event.stopPropagation()"
+              >
+                Edit connection
+              </a>
+              <button
+                type="button"
+                (click)="deleteConnection(connection.id, $event)"
+              >
+                Delete
+              </button>
+            </div>
+          }
+        </div>
+        <span class="chevron">›</span>
+      </li>
+    }
+  </ul>
+}
