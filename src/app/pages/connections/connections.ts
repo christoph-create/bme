@@ -1,9 +1,8 @@
-import { Component, inject, signal } from "@angular/core";
+import { Component, HostListener, inject, signal } from "@angular/core";
 import { Router, RouterLink } from "@angular/router";
 
 import { BrokerConnection } from "../../core/models/broker-connection.model";
 import { ConnectionsService } from "../../core/services/connections.service";
-import { colorForConnectionId } from "./connection-color";
 
 @Component({
   selector: "app-connections",
@@ -20,8 +19,6 @@ export class Connections {
   readonly error = signal<string | null>(null);
   readonly openMenuId = signal<string | null>(null);
 
-  readonly colorForConnectionId = colorForConnectionId;
-
   constructor() {
     void this.refresh();
   }
@@ -35,12 +32,15 @@ export class Connections {
     this.openMenuId.set(this.openMenuId() === id ? null : id);
   }
 
+  /** Closes the "⋯" menu on any click that isn't handled (and stopped) by the menu itself. */
+  @HostListener("document:click")
+  closeMenu(): void {
+    this.openMenuId.set(null);
+  }
+
   async deleteConnection(id: string, event: Event): Promise<void> {
     event.stopPropagation();
     this.openMenuId.set(null);
-    if (!window.confirm("Delete this connection?")) {
-      return;
-    }
     await this.connectionsService.delete(id);
     await this.refresh();
   }

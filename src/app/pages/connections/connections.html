@@ -3,7 +3,7 @@
     <h1>Connections</h1>
     <p class="subtitle">Select a broker to connect, or create a new one</p>
   </div>
-  <a class="btn-primary" routerLink="/connections/new">+ New Connection</a>
+  <button class="btn-primary" [routerLink]="['/connections/new']">+ New Connection</button>
 </header>
 
 @if (loading()) {
@@ -25,10 +25,6 @@
         (keydown.enter)="openBroker(connection.id)"
         (keydown.space)="openBroker(connection.id)"
       >
-        <span
-          class="dot"
-          [style.background]="colorForConnectionId(connection.id)"
-        ></span>
         <div class="connection-info">
           <div class="connection-name">{{ connection.name }}</div>
           <div class="connection-host">
@@ -45,14 +41,16 @@
           </button>
           @if (openMenuId() === connection.id) {
             <div class="menu">
-              <a
+                <button
+                class="menu-item"
                 [routerLink]="['/connections', connection.id, 'edit']"
                 (click)="$event.stopPropagation()"
               >
                 Edit connection
-              </a>
+              </button>
               <button
                 type="button"
+                class="menu-item menu-item-danger"
                 (click)="deleteConnection(connection.id, $event)"
               >
                 Delete

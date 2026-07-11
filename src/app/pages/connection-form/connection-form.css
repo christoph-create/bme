@@ -1,18 +1,241 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-7) var(--space-7);
+}
+
 .page-header {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: var(--space-4);
+  width: 100%;
+  max-width: 560px;
+  margin-bottom: var(--space-6);
+}
+
+.back-link {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+h1 {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.form,
+.status-text {
+  width: 100%;
+  max-width: 560px;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.field-row {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.field {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.field-host {
+  flex: 2;
+}
+
+.field-port {
+  flex: 1;
+}
+
+label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-2);
+}
+
+input[type="text"],
+input[type="password"],
+input[type="number"] {
+  background: var(--color-input-bg);
+  border: 1px solid var(--color-input-border);
+  border-radius: var(--radius-input);
+  padding: 9px 12px;
+  color: var(--color-text);
+  font-size: 13px;
+  font-family: var(--font-sans);
+  outline: none;
+}
+
+input.mono {
+  font-family: var(--font-mono);
+}
+
+.checkbox-field,
+.toggle-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: 13px;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.toggle-field {
+  justify-content: space-between;
+  background: var(--color-input-bg);
+  border: 1px solid var(--color-input-border);
+  border-radius: var(--radius-input);
+  padding: 9px 12px;
+  flex: 1;
+}
+
+.status-text {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.status-text.error {
+  color: var(--color-accent);
 }
 
 .page-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 1rem;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--color-border-faint);
 }
 
-.placeholder {
-  border: 1px dashed;
-  padding: 1rem;
-  margin-top: 1rem;
+.btn-secondary {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  padding: 9px 16px;
+  border-radius: var(--radius-md);
+}
+
+.btn-secondary:hover {
+  color: var(--color-text);
+}
+
+.btn-primary {
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 9px 18px;
+  border-radius: var(--radius-md);
+  border: none;
+  cursor: pointer;
+}
+
+.btn-primary:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* TLS/SSL toggle */
+.switch {
+  position: relative;
+  display: inline-flex;
+  width: 32px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.switch input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.switch-track {
+  position: absolute;
+  inset: 0;
+  background: rgb(58 59 64);
+  border-radius: 9px;
+  transition: background 0.15s;
+}
+
+.switch-track::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: white;
+  transition: left 0.15s;
+}
+
+.switch input:checked + .switch-track {
+  background: var(--color-accent);
+}
+
+.switch input:checked + .switch-track::before {
+  left: 16px;
+}
+
+/* "Requires authentication" checkbox */
+.checkbox {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.checkbox input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.checkbox-box {
+  position: absolute;
+  inset: 0;
+  border-radius: 4px;
+  border: 1px solid var(--color-input-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.checkbox-check {
+  color: var(--color-accent-ink);
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0;
+}
+
+.checkbox input:checked + .checkbox-box {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.checkbox input:checked + .checkbox-box .checkbox-check {
+  opacity: 1;
 }

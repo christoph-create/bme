@@ -68,10 +68,9 @@ describe("Connections", () => {
     expect(text).toContain("No connections yet");
   });
 
-  it("deletes a connection after confirming", async () => {
+  it("deletes a connection when Delete is clicked", async () => {
     const connection = sampleConnection();
     const { fixture, fake } = await setup([connection]);
-    vi.spyOn(window, "confirm").mockReturnValue(true);
 
     await fixture.componentInstance.deleteConnection(
       connection.id,
@@ -81,16 +80,16 @@ describe("Connections", () => {
     expect(fake.delete).toHaveBeenCalledWith(connection.id);
   });
 
-  it("does not delete when the confirmation is declined", async () => {
+  it("closes the open menu on a click anywhere outside it", async () => {
     const connection = sampleConnection();
-    const { fixture, fake } = await setup([connection]);
-    vi.spyOn(window, "confirm").mockReturnValue(false);
+    const { fixture } = await setup([connection]);
+    const component = fixture.componentInstance;
 
-    await fixture.componentInstance.deleteConnection(
-      connection.id,
-      new Event("click"),
-    );
+    component.toggleMenu(connection.id, new Event("click"));
+    expect(component.openMenuId()).toBe(connection.id);
 
-    expect(fake.delete).not.toHaveBeenCalled();
+    document.dispatchEvent(new Event("click"));
+
+    expect(component.openMenuId()).toBeNull();
   });
 });
