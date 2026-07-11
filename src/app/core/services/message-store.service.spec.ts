@@ -130,6 +130,15 @@ describe("MessageStoreService", () => {
     ).resolves.toEqual([]);
   });
 
+  it("does not throw when the underlying event stream errors (e.g. no Tauri bridge available)", async () => {
+    const { events$, store } = setup();
+
+    expect(() => events$.error(new Error("no bridge"))).not.toThrow();
+    await expect(
+      firstValueFrom(store.messagesFor(CONNECTION_A, "sensors/temp")),
+    ).resolves.toEqual([]);
+  });
+
   it("caps history per topic, dropping the oldest message first", async () => {
     const { events$, store } = setup(3);
 
@@ -158,6 +167,41 @@ describe("MessageStoreService", () => {
     expect(
       await firstValueFrom(store.messagesFor(CONNECTION_B, "sensors/temp")),
     ).toEqual([]);
+  });
+
+  it("topicsFor starts empty for a connection with no messages", async () => {
+    const { store } = setup();
+
+    const topics = await firstValueFrom(store.topicsFor(CONNECTION_A));
+    expect(topics.size).toBe(0);
+  });
+
+  it("topicsFor reflects every topic received for that connection", async () => {
+    const { events$, store } = setup();
+
+    events$.next({
+      MessageReceived: messageReceived({ topic: "sensors/temp", payload: [1] }),
+    });
+    events$.next({
+      MessageReceived: messageReceived({
+        topic: "sensors/humidity",
+        payload: [2],
+      }),
+    });
+    events$.next({
+      MessageReceived: messageReceived({
+        connection_id: CONNECTION_B,
+        topic: "other",
+        payload: [9],
+      }),
+    });
+
+    const topics = await firstValueFrom(store.topicsFor(CONNECTION_A));
+    expect([...topics.keys()].sort()).toEqual([
+      "sensors/humidity",
+      "sensors/temp",
+    ]);
+    expect(topics.get("sensors/temp")?.map((m) => m.payload)).toEqual([[1]]);
   });
 
   it("clear(connectionId) empties only that connection's history", async () => {

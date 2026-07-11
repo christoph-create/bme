@@ -30,7 +30,10 @@
 >
   <aside class="sidebar">
     <app-subscriptions-panel [connectionId]="connectionId" />
-    <app-topic-tree />
+    <app-topic-tree
+      [connectionId]="connectionId"
+      (topicSelected)="selectedTopic.set($event)"
+    />
   </aside>
 
   <div class="resizer resizer-col" (pointerdown)="startColumnResize($event)"></div>

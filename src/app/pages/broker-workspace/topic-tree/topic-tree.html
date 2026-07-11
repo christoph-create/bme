@@ -1,2 +1,73 @@
-<h2>Topics</h2>
-<p>Topic tree goes here</p>
+<div class="section-header">
+  <span class="section-label">Topics · {{ totalTopics() }}</span>
+  <span
+    class="toggle-link"
+    (click)="toggleExpandAll()"
+    (keydown.enter)="toggleExpandAll()"
+    role="button"
+    tabindex="0"
+  >
+    {{ isFullyExpanded() ? "Collapse all" : "Expand all" }}
+  </span>
+</div>
+
+<div class="tree">
+  <ng-container
+    *ngTemplateOutlet="nodeList; context: { nodes: nodes(), depth: 0 }"
+  ></ng-container>
+</div>
+
+<ng-template #nodeList let-nodes="nodes" let-depth="depth">
+  @for (node of nodes; track node.path) {
+    <ng-container
+      *ngTemplateOutlet="nodeTpl; context: { node: node, depth: depth }"
+    ></ng-container>
+  }
+</ng-template>
+
+<ng-template #nodeTpl let-node="node" let-depth="depth">
+  @if (node.kind === "folder") {
+    <div
+      class="tree-row folder"
+      [style.padding-left.px]="10 + depth * 16"
+      (click)="toggleFolder(node.path)"
+      (keydown.enter)="toggleFolder(node.path)"
+      role="button"
+      tabindex="0"
+    >
+      <span class="chevron" [class.expanded]="isExpanded(node.path)">›</span>
+      <span class="name folder-name">{{ node.name }}</span>
+      <span class="folder-count">({{ node.leafCount }})</span>
+    </div>
+    @if (isExpanded(node.path)) {
+      <ng-container
+        *ngTemplateOutlet="
+          nodeList;
+          context: { nodes: node.children, depth: depth + 1 }
+        "
+      ></ng-container>
+    }
+  } @else {
+    <div
+      class="tree-row leaf"
+      [class.selected]="selectedTopic() === node.path"
+      [style.padding-left.px]="10 + depth * 16"
+      (click)="selectTopic(node.path)"
+      (keydown.enter)="selectTopic(node.path)"
+      role="button"
+      tabindex="0"
+    >
+      <div class="row-main">
+        <span class="dot" [class.selected]="selectedTopic() === node.path"></span>
+        <span class="name leaf-name">{{ node.name }}</span>
+        <span class="msg-count">{{ node.messageCount }}</span>
+      </div>
+      <div class="row-detail">
+        <span class="preview" [class.flash]="isFlashing(node.path)">{{
+          payloadPreview(node.lastMessage.payload)
+        }}</span>
+        <span class="time">{{ timeAgo(node.lastMessage.receivedAt) }}</span>
+      </div>
+    </div>
+  }
+</ng-template>

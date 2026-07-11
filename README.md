@@ -4,7 +4,13 @@ A desktop app for developing against MQTT brokers: connect, subscribe, publish, 
 
 ## Status
 
-Phase 1 (backend) is done: a Rust core library (`core/`) with SQLite-backed storage for broker connections/subscriptions and favorite messages, and an MQTT client built on [rumqttc](https://github.com/bytebeamio/rumqttc), all developed test-first. The Tauri command layer wires it up for the frontend. Angular UI work is next.
+Phase 1 (backend) is done: a Rust core library (`core/`) with SQLite-backed storage for broker connections/subscriptions and favorite messages, and an MQTT client built on [rumqttc](https://github.com/bytebeamio/rumqttc), all developed test-first.
+
+Phase 2 (Angular frontend) is in progress, built one screen at a time, test-first, against the real Tauri commands:
+
+- **Connections** — list, create, and delete saved broker connections.
+- **Broker Workspace** — connect to a broker; manage its subscriptions (persisted, replayed on reconnect); a live topic tree built from received messages (expand/collapse, message counts, last-payload preview with a flash on update, time-ago).
+- Message stream and publish panel are still placeholder shells.
 
 <!-- Screenshots will go here once there's a UI to show. -->
 

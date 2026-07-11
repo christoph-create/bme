@@ -26,6 +26,9 @@
 
   --color-surface-hover: rgb(38 39 44);
 
+  --color-tree-name: rgb(199 200 204);
+  --color-badge-bg: rgb(255 255 255 / 5%);
+
   --color-input-bg: rgb(30 31 35);
   --color-input-bg-alt: rgb(35 36 40);
   --color-input-border: rgb(255 255 255 / 10%);

@@ -6,6 +6,7 @@ import { MqttEventsService } from "./mqtt-events.service";
 
 const DEFAULT_MAX_MESSAGES_PER_TOPIC = 500;
 const EMPTY_MESSAGES: readonly StoredMessage[] = [];
+const EMPTY_TOPICS: ReadonlyMap<string, readonly StoredMessage[]> = new Map();
 
 /** How many messages to retain per connection/topic before dropping the oldest. */
 export const MAX_MESSAGES_PER_TOPIC = new InjectionToken<number>(
@@ -26,10 +27,17 @@ export class MessageStoreService {
   private readonly state$ = new BehaviorSubject<StoreState>(new Map());
 
   constructor() {
-    inject(MqttEventsService).events$.subscribe((event) => {
-      if ("MessageReceived" in event) {
-        this.append(event.MessageReceived);
-      }
+    inject(MqttEventsService).events$.subscribe({
+      next: (event) => {
+        if ("MessageReceived" in event) {
+          this.append(event.MessageReceived);
+        }
+      },
+      // If the event stream itself errors (e.g. no Tauri IPC bridge available,
+      // such as running outside the Tauri webview), there's nothing to recover
+      // into - just stop appending. Without this, RxJS rethrows an unhandled
+      // subscribe error as an uncaught exception.
+      error: () => undefined,
     });
   }
 
@@ -39,6 +47,13 @@ export class MessageStoreService {
   ): Observable<readonly StoredMessage[]> {
     return this.state$.pipe(
       map((state) => state.get(connectionId)?.get(topic) ?? EMPTY_MESSAGES),
+      distinctUntilChanged(),
+    );
+  }
+
+  topicsFor(connectionId: string): Observable<TopicHistory> {
+    return this.state$.pipe(
+      map((state) => state.get(connectionId) ?? EMPTY_TOPICS),
       distinctUntilChanged(),
     );
   }

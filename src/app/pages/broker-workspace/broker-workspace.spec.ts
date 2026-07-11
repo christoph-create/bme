@@ -5,9 +5,11 @@ import {
   convertToParamMap,
   provideRouter,
 } from "@angular/router";
+import { of } from "rxjs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ConnectionsService } from "../../core/services/connections.service";
+import { MessageStoreService } from "../../core/services/message-store.service";
 import { BrokerWorkspace } from "./broker-workspace";
 
 const CONNECTION_ID = "11111111-1111-1111-1111-111111111111";
@@ -29,12 +31,17 @@ async function setup(
   const connect = options.connect ?? vi.fn().mockResolvedValue(undefined);
   const disconnect =
     options.disconnect ?? vi.fn().mockResolvedValue(undefined);
+  const get = vi.fn().mockResolvedValue(null);
 
   TestBed.configureTestingModule({
     imports: [BrokerWorkspace],
     providers: [
       provideRouter([]),
-      { provide: ConnectionsService, useValue: { connect, disconnect } },
+      { provide: ConnectionsService, useValue: { connect, disconnect, get } },
+      {
+        provide: MessageStoreService,
+        useValue: { topicsFor: vi.fn().mockReturnValue(of(new Map())) },
+      },
       {
         provide: ActivatedRoute,
         useValue: {
@@ -178,7 +185,7 @@ describe("BrokerWorkspace", () => {
     component.startColumnResize(pointerEvent(200, 0));
     component.onPointerMove(pointerEvent(5000, 0));
 
-    expect(component.sidebarWidth()).toBe(420);
+    expect(component.sidebarWidth()).toBe(800);
   });
 
   it("grows the publish panel when the row resizer is dragged up", async () => {

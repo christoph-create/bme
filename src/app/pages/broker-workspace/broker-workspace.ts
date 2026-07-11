@@ -8,7 +8,7 @@ import { SubscriptionsPanel } from "./subscriptions-panel/subscriptions-panel";
 import { TopicTree } from "./topic-tree/topic-tree";
 
 const MIN_SIDEBAR_WIDTH = 200;
-const MAX_SIDEBAR_WIDTH = 420;
+const MAX_SIDEBAR_WIDTH = 800;
 const MIN_PUBLISH_HEIGHT = 160;
 const MAX_PUBLISH_HEIGHT = 560;
 
@@ -33,6 +33,7 @@ export class BrokerWorkspace {
 
   readonly connecting = signal(true);
   readonly connectError = signal<string | null>(null);
+  readonly selectedTopic = signal<string | null>(null);
 
   readonly sidebarWidth = signal(260);
   readonly publishHeight = signal(260);
