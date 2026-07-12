@@ -87,6 +87,8 @@ async function setup(
 describe("BrokerWorkspace", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    window.innerWidth = 1024;
+    window.innerHeight = 768;
   });
 
   it("should create", async () => {
@@ -292,7 +294,7 @@ describe("BrokerWorkspace", () => {
     component.startRowResize(pointerEvent(0, 300));
     component.onPointerMove(pointerEvent(0, 5000));
 
-    expect(component.publishHeight()).toBe(160);
+    expect(component.publishHeight()).toBe(200);
   });
 
   it("clamps the publish height to its maximum", async () => {
@@ -317,5 +319,119 @@ describe("BrokerWorkspace", () => {
     component.onPointerMove(pointerEvent(240, 0));
 
     expect(component.sidebarWidth()).toBe(startWidth);
+  });
+
+  it("scales the sidebar width proportionally when the window widens", async () => {
+    const { fixture } = await setup();
+    await fixture.whenStable();
+    const component = fixture.componentInstance;
+
+    const startWidth = component.sidebarWidth();
+    window.innerWidth = 2048; // double the default 1024
+    component.onWindowResize();
+
+    expect(component.sidebarWidth()).toBe(startWidth * 2);
+  });
+
+  it("clamps the sidebar width to its minimum when the window narrows", async () => {
+    const { fixture } = await setup();
+    await fixture.whenStable();
+    const component = fixture.componentInstance;
+
+    window.innerWidth = 512; // half the default 1024
+    component.onWindowResize();
+
+    expect(component.sidebarWidth()).toBe(200);
+  });
+
+  it("clamps the sidebar width to its maximum when the window widens a lot", async () => {
+    const { fixture } = await setup();
+    await fixture.whenStable();
+    const component = fixture.componentInstance;
+
+    window.innerWidth = 10240; // 10x the default 1024
+    component.onWindowResize();
+
+    expect(component.sidebarWidth()).toBe(800);
+  });
+
+  it("scales the publish height proportionally when the window grows taller", async () => {
+    const { fixture } = await setup();
+    await fixture.whenStable();
+    const component = fixture.componentInstance;
+
+    const startHeight = component.publishHeight();
+    window.innerHeight = 1536; // double the default 768
+    component.onWindowResize();
+
+    expect(component.publishHeight()).toBe(startHeight * 2);
+  });
+
+  it("clamps the publish height to its minimum when the window gets shorter", async () => {
+    const { fixture } = await setup();
+    await fixture.whenStable();
+    const component = fixture.componentInstance;
+
+    window.innerHeight = 384; // half the default 768
+    component.onWindowResize();
+
+    expect(component.publishHeight()).toBe(200);
+  });
+
+  it("clamps the publish height to its maximum when the window gets much taller", async () => {
+    const { fixture } = await setup();
+    await fixture.whenStable();
+    const component = fixture.componentInstance;
+
+    window.innerHeight = 2304; // 3x the default 768
+    component.onWindowResize();
+
+    expect(component.publishHeight()).toBe(560);
+  });
+
+  it("does not resize the publish panel when only the width changes", async () => {
+    const { fixture } = await setup();
+    await fixture.whenStable();
+    const component = fixture.componentInstance;
+
+    const startHeight = component.publishHeight();
+    window.innerWidth = 2048;
+    component.onWindowResize();
+
+    expect(component.publishHeight()).toBe(startHeight);
+  });
+
+  it("does not keep growing across repeated resize events at the same size", async () => {
+    const { fixture } = await setup();
+    await fixture.whenStable();
+    const component = fixture.componentInstance;
+
+    const startWidth = component.sidebarWidth();
+    const startHeight = component.publishHeight();
+    component.onWindowResize();
+    component.onWindowResize();
+    component.onWindowResize();
+
+    expect(component.sidebarWidth()).toBe(startWidth);
+    expect(component.publishHeight()).toBe(startHeight);
+  });
+
+  it("returns to the original size after the window grows and then shrinks back", async () => {
+    const { fixture } = await setup();
+    await fixture.whenStable();
+    const component = fixture.componentInstance;
+
+    const startWidth = component.sidebarWidth();
+    const startHeight = component.publishHeight();
+
+    window.innerWidth = 2048;
+    window.innerHeight = 1536;
+    component.onWindowResize();
+    window.innerWidth = 1024;
+    window.innerHeight = 768;
+    component.onWindowResize();
+
+    expect(component.sidebarWidth()).toBe(startWidth);
+    expect(component.publishHeight()).toBe(startHeight);
   });
 });
