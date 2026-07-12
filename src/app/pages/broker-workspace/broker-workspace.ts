@@ -1,7 +1,8 @@
-import { Component, HostListener, inject, signal } from "@angular/core";
+import { Component, DestroyRef, HostListener, inject, signal } from "@angular/core";
 import { ActivatedRoute, Router } from "@angular/router";
 
 import { ConnectionsService } from "../../core/services/connections.service";
+import { MqttEventsService } from "../../core/services/mqtt-events.service";
 import { MessageStream } from "./message-stream/message-stream";
 import { PublishPanel } from "./publish-panel/publish-panel";
 import { SubscriptionsPanel } from "./subscriptions-panel/subscriptions-panel";
@@ -26,6 +27,8 @@ type ResizeMode = "column" | "row" | null;
 })
 export class BrokerWorkspace {
   private readonly connectionsService = inject(ConnectionsService);
+  private readonly mqttEvents = inject(MqttEventsService);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
@@ -42,6 +45,26 @@ export class BrokerWorkspace {
   private dragOrigin = { x: 0, y: 0, sidebarWidth: 0, publishHeight: 0 };
 
   constructor() {
+    // The `connect` command only confirms the broker accepted the request,
+    // not that a session actually exists - and the broker can also drop an
+    // established session later on. `Connected`/`Disconnected` events are
+    // the only source of truth for that, so status must always follow them
+    // rather than the initial connect() call resolving.
+    const subscription = this.mqttEvents.events$.subscribe((event) => {
+      if ("Connected" in event) {
+        if (event.Connected.connection_id === this.connectionId) {
+          this.connecting.set(false);
+          this.connectError.set(null);
+        }
+      } else if ("Disconnected" in event) {
+        if (event.Disconnected.connection_id === this.connectionId) {
+          this.connecting.set(false);
+          this.connectError.set("Disconnected from broker");
+        }
+      }
+    });
+    this.destroyRef.onDestroy(() => subscription.unsubscribe());
+
     void this.connect();
   }
 
@@ -50,9 +73,10 @@ export class BrokerWorkspace {
     this.connectError.set(null);
     try {
       await this.connectionsService.connect(this.connectionId);
+      // Leave `connecting` true - it clears when the Connected event above
+      // arrives (or Disconnected, if the attempt fails asynchronously).
     } catch (err) {
       this.connectError.set(err instanceof Error ? err.message : String(err));
-    } finally {
       this.connecting.set(false);
     }
   }

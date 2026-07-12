@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use rumqttc::{AsyncClient, Event, EventLoop, MqttOptions, Packet, Transport};
@@ -54,7 +54,7 @@ enum Command {
 pub struct RumqttcAdapter {
     runtime: tokio::runtime::Runtime,
     events_tx: mpsc::UnboundedSender<MqttEvent>,
-    connections: Mutex<HashMap<Uuid, mpsc::UnboundedSender<Command>>>,
+    connections: Arc<Mutex<HashMap<Uuid, mpsc::UnboundedSender<Command>>>>,
 }
 
 impl RumqttcAdapter {
@@ -62,7 +62,7 @@ impl RumqttcAdapter {
         Self {
             runtime: tokio::runtime::Runtime::new().expect("failed to start tokio runtime"),
             events_tx,
-            connections: Mutex::new(HashMap::new()),
+            connections: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -98,6 +98,7 @@ impl MqttPort for RumqttcAdapter {
             eventloop,
             command_rx,
             self.events_tx.clone(),
+            Arc::clone(&self.connections),
         ));
 
         self.connections
@@ -145,9 +146,15 @@ impl MqttPort for RumqttcAdapter {
         )
     }
 
+    /// Idempotent: disconnecting a connection that's already gone (never
+    /// connected, already disconnected, or whose task ended on its own
+    /// after e.g. a network drop) is a no-op success rather than an error,
+    /// since the end state the caller wants - "not connected" - already
+    /// holds.
     fn disconnect(&self, connection_id: Uuid) -> Result<(), MqttError> {
-        self.send_command(connection_id, Command::Disconnect)?;
-        self.connections.lock().unwrap().remove(&connection_id);
+        if let Some(command_tx) = self.connections.lock().unwrap().remove(&connection_id) {
+            let _ = command_tx.send(Command::Disconnect);
+        }
         Ok(())
     }
 }
@@ -158,6 +165,7 @@ async fn run_connection(
     mut eventloop: EventLoop,
     mut command_rx: mpsc::UnboundedReceiver<Command>,
     events_tx: mpsc::UnboundedSender<MqttEvent>,
+    connections: Arc<Mutex<HashMap<Uuid, mpsc::UnboundedSender<Command>>>>,
 ) {
     loop {
         tokio::select! {
@@ -177,6 +185,7 @@ async fn run_connection(
                     }
                     Ok(_) => {}
                     Err(_) => {
+                        connections.lock().unwrap().remove(&connection_id);
                         let _ = events_tx.send(MqttEvent::Disconnected { connection_id });
                         return;
                     }
@@ -195,6 +204,7 @@ async fn run_connection(
                     }
                     Some(Command::Disconnect) | None => {
                         let _ = client.disconnect().await;
+                        connections.lock().unwrap().remove(&connection_id);
                         let _ = events_tx.send(MqttEvent::Disconnected { connection_id });
                         return;
                     }
@@ -238,6 +248,26 @@ mod tests {
         })
         .await
         .expect("timed out waiting for expected MQTT event")
+    }
+
+    #[test]
+    fn disconnecting_a_connection_that_was_never_connected_succeeds() {
+        let (events_tx, _events_rx) = mpsc::unbounded_channel();
+        let adapter = RumqttcAdapter::new(events_tx);
+
+        assert_eq!(adapter.disconnect(Uuid::new_v4()), Ok(()));
+    }
+
+    #[test]
+    fn disconnecting_the_same_connection_twice_succeeds_both_times() {
+        let (events_tx, _events_rx) = mpsc::unbounded_channel();
+        let adapter = RumqttcAdapter::new(events_tx);
+        let broker = sample_broker("localhost", 1883);
+
+        adapter.connect(broker.id, &broker).unwrap();
+
+        assert_eq!(adapter.disconnect(broker.id), Ok(()));
+        assert_eq!(adapter.disconnect(broker.id), Ok(()));
     }
 
     /// Requires network access to a real broker. Defaults to the public

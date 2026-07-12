@@ -5,14 +5,17 @@ import {
   convertToParamMap,
   provideRouter,
 } from "@angular/router";
-import { of } from "rxjs";
+import { Subject, of } from "rxjs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { MqttEvent } from "../../core/models/mqtt-event.model";
 import { ConnectionsService } from "../../core/services/connections.service";
 import { MessageStoreService } from "../../core/services/message-store.service";
+import { MqttEventsService } from "../../core/services/mqtt-events.service";
 import { BrokerWorkspace } from "./broker-workspace";
 
 const CONNECTION_ID = "11111111-1111-1111-1111-111111111111";
+const OTHER_CONNECTION_ID = "22222222-2222-2222-2222-222222222222";
 
 function pointerEvent(x: number, y: number): PointerEvent {
   return {
@@ -32,6 +35,7 @@ async function setup(
   const disconnect =
     options.disconnect ?? vi.fn().mockResolvedValue(undefined);
   const get = vi.fn().mockResolvedValue(null);
+  const events$ = new Subject<MqttEvent>();
 
   TestBed.configureTestingModule({
     imports: [BrokerWorkspace],
@@ -42,6 +46,7 @@ async function setup(
         provide: MessageStoreService,
         useValue: { topicsFor: vi.fn().mockReturnValue(of(new Map())) },
       },
+      { provide: MqttEventsService, useValue: { events$ } },
       {
         provide: ActivatedRoute,
         useValue: {
@@ -56,7 +61,7 @@ async function setup(
   const navigate = vi.spyOn(router, "navigate").mockResolvedValue(true);
   fixture.detectChanges();
 
-  return { fixture, connect, disconnect, navigate };
+  return { fixture, connect, disconnect, navigate, events$ };
 }
 
 describe("BrokerWorkspace", () => {
@@ -85,25 +90,23 @@ describe("BrokerWorkspace", () => {
     expect(connect).toHaveBeenCalledWith(CONNECTION_ID);
   });
 
-  it("shows a connecting indicator while the initial connect is in flight", async () => {
-    let resolveConnect: () => void = vi.fn();
-    const connect = vi.fn().mockReturnValue(
-      new Promise<void>((resolve) => {
-        resolveConnect = resolve;
-      }),
-    );
-
-    const { fixture } = await setup({ connect });
-
-    expect(fixture.componentInstance.connecting()).toBe(true);
-
-    resolveConnect();
+  it("keeps showing the connecting indicator after the connect command is accepted, until the broker confirms", async () => {
+    const { fixture, events$ } = await setup();
     await fixture.whenStable();
 
+    // The connect() invoke call resolving only means the command was
+    // accepted, not that a session exists yet - status must wait for the
+    // Connected event.
+    expect(fixture.componentInstance.connecting()).toBe(true);
+
+    events$.next({ Connected: { connection_id: CONNECTION_ID } });
+    fixture.detectChanges();
+
     expect(fixture.componentInstance.connecting()).toBe(false);
+    expect(fixture.componentInstance.connectError()).toBeNull();
   });
 
-  it("shows an error when the initial connect fails", async () => {
+  it("shows an error when the initial connect command itself is rejected", async () => {
     const connect = vi.fn().mockRejectedValue(new Error("broker unreachable"));
 
     const { fixture } = await setup({ connect });
@@ -113,6 +116,47 @@ describe("BrokerWorkspace", () => {
     expect(fixture.componentInstance.connectError()).toBe(
       "broker unreachable",
     );
+  });
+
+  it("stops connecting and surfaces an error when the broker reports it disconnected", async () => {
+    const { fixture, events$ } = await setup();
+    await fixture.whenStable();
+
+    events$.next({ Disconnected: { connection_id: CONNECTION_ID } });
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.connecting()).toBe(false);
+    expect(fixture.componentInstance.connectError()).toBe(
+      "Disconnected from broker",
+    );
+  });
+
+  it("flips from connected back to an error if the broker drops the session later", async () => {
+    const { fixture, events$ } = await setup();
+    await fixture.whenStable();
+
+    events$.next({ Connected: { connection_id: CONNECTION_ID } });
+    fixture.detectChanges();
+    expect(fixture.componentInstance.connecting()).toBe(false);
+    expect(fixture.componentInstance.connectError()).toBeNull();
+
+    events$.next({ Disconnected: { connection_id: CONNECTION_ID } });
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.connectError()).toBe(
+      "Disconnected from broker",
+    );
+  });
+
+  it("ignores Connected/Disconnected events for other connections", async () => {
+    const { fixture, events$ } = await setup();
+    await fixture.whenStable();
+
+    events$.next({ Disconnected: { connection_id: OTHER_CONNECTION_ID } });
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.connecting()).toBe(true);
+    expect(fixture.componentInstance.connectError()).toBeNull();
   });
 
   it("clears a previous error and reconnects when connect() is retried", async () => {
@@ -130,6 +174,7 @@ describe("BrokerWorkspace", () => {
     await fixture.componentInstance.connect();
 
     expect(fixture.componentInstance.connectError()).toBeNull();
+    expect(fixture.componentInstance.connecting()).toBe(true);
     expect(connect).toHaveBeenCalledTimes(2);
   });
 
