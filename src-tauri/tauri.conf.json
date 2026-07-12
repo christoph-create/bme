@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "bme",
+        "title": "Better MQTT Explorer",
         "width": 800,
         "height": 600
       }
