@@ -1,0 +1,14 @@
+<div class="qos-select">
+  @for (option of qosOptions; track option) {
+    <div
+      class="qos-option"
+      [class.selected]="value() === option"
+      (click)="select(option)"
+      (keydown.enter)="select(option)"
+      role="button"
+      tabindex="0"
+    >
+      Q{{ qosNumber(option) }}
+    </div>
+  }
+</div>

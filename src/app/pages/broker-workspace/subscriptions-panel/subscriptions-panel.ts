@@ -5,17 +5,15 @@ import { Subscription } from "../../../core/models/broker-connection.model";
 import { QoS, qosNumber } from "../../../core/models/qos";
 import { ConnectionsService } from "../../../core/services/connections.service";
 import { MqttService } from "../../../core/services/mqtt.service";
-
-const QOS_OPTIONS: readonly QoS[] = ["AtMostOnce", "AtLeastOnce", "ExactlyOnce"];
+import { QosSelect } from "../qos-select/qos-select";
 
 @Component({
   selector: "app-subscriptions-panel",
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, QosSelect],
   templateUrl: "./subscriptions-panel.html",
   styleUrl: "./subscriptions-panel.css",
 })
 export class SubscriptionsPanel implements OnInit {
-  readonly qosOptions = QOS_OPTIONS;
   readonly qosNumber = qosNumber;
   readonly connectionId = input.required<string>();
 
@@ -39,10 +37,6 @@ export class SubscriptionsPanel implements OnInit {
 
   toggleAdd(): void {
     this.adding.set(!this.adding());
-  }
-
-  selectQos(qos: QoS): void {
-    this.qos.set(qos);
   }
 
   async subscribe(): Promise<void> {

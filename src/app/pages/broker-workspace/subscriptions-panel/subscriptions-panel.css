@@ -65,34 +65,8 @@
   align-items: center;
 }
 
-.qos-select {
-  display: flex;
-  background: var(--color-input-bg-alt);
-  border: 1px solid var(--color-input-border);
-  border-radius: 6px;
-  padding: 2px;
+.form-row app-qos-select {
   flex: 1;
-}
-
-.qos-option {
-  flex: 1;
-  text-align: center;
-  padding: 4px 0;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  background: transparent;
-  color: var(--color-text-secondary);
-}
-
-.qos-option.selected {
-  background: var(--color-accent);
-  color: var(--color-accent-ink);
-}
-
-.qos-option:not(.selected):hover {
-  background: var(--color-surface-hover);
 }
 
 .btn-subscribe {

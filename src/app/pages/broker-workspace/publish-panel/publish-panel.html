@@ -1,2 +1,61 @@
-<h2>Publish</h2>
-<p>Publish form goes here</p>
+<div class="header">
+  <span class="label">Publish</span>
+  @if (publishedFlash()) {
+    <span class="flash">✓ Published</span>
+  }
+</div>
+
+<form class="body" [formGroup]="form" (ngSubmit)="publish()">
+  <div class="row">
+    <input
+      class="topic-input"
+      formControlName="topic"
+      placeholder="topic"
+    />
+    <div class="segmented">
+      @for (opt of formatOptions; track opt) {
+        <div
+          class="segment"
+          [class.selected]="format() === opt"
+          (click)="selectFormat(opt)"
+          (keydown.enter)="selectFormat(opt)"
+          role="button"
+          tabindex="0"
+        >
+          {{ opt.toUpperCase() }}
+        </div>
+      }
+    </div>
+    <app-qos-select [(value)]="qos" />
+  </div>
+
+  @if (format() === "json") {
+    <div class="format-row">
+      <span
+        class="format-action"
+        (click)="formatPayload()"
+        (keydown.enter)="formatPayload()"
+        role="button"
+        tabindex="0"
+      >
+        Format
+      </span>
+    </div>
+  }
+
+  <textarea
+    class="payload-input"
+    formControlName="payload"
+    placeholder='payload'
+  ></textarea>
+
+  @if (publishError()) {
+    <p class="error">{{ publishError() }}</p>
+  }
+
+  <div class="actions">
+    <button type="submit" class="btn-publish" [disabled]="form.invalid">
+      Publish
+    </button>
+  </div>
+</form>

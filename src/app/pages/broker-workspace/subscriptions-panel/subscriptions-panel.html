@@ -15,20 +15,7 @@
       sensors/#).
     </div>
     <div class="form-row">
-      <div class="qos-select">
-        @for (option of qosOptions; track option) {
-          <div
-            class="qos-option"
-            [class.selected]="qos() === option"
-            (click)="selectQos(option)"
-            (keydown.enter)="selectQos(option)"
-            role="button"
-            tabindex="0"
-          >
-            Q{{ qosNumber(option) }}
-          </div>
-        }
-      </div>
+      <app-qos-select [(value)]="qos" />
       <button type="submit" class="btn-subscribe" [disabled]="form.invalid">
         Subscribe
       </button>

@@ -48,6 +48,9 @@
   <div class="resizer resizer-row" (pointerdown)="startRowResize($event)"></div>
 
   <section class="publish">
-    <app-publish-panel />
+    <app-publish-panel
+      [connectionId]="connectionId"
+      [topic]="selectedTopic()"
+    />
   </section>
 </div>

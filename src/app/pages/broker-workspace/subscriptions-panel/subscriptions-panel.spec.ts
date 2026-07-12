@@ -115,8 +115,16 @@ describe("SubscriptionsPanel", () => {
     });
 
     const component = fixture.componentInstance;
+    component.adding.set(true);
     component.form.controls.topic.setValue("device/#");
-    component.selectQos("ExactlyOnce");
+    fixture.detectChanges();
+    const options = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll(".qos-option"),
+    );
+    (
+      options.find((el) => el.textContent?.trim() === "Q2") as HTMLElement
+    ).click();
+    fixture.detectChanges();
     await component.subscribe();
 
     expect(mqttService.subscribe).toHaveBeenCalledWith(
