@@ -13,6 +13,7 @@ import { MqttService } from "../../../core/services/mqtt.service";
 import { QosSelect } from "../qos-select/qos-select";
 
 const FLASH_DURATION_MS = 1800;
+const FORMAT_ERROR_DURATION_MS = 2500;
 export type PublishFormat = "json" | "raw";
 const FORMAT_OPTIONS: readonly PublishFormat[] = ["json", "raw"];
 
@@ -41,8 +42,10 @@ export class PublishPanel {
   readonly qos = signal<QoS>("AtMostOnce");
   readonly publishedFlash = signal(false);
   readonly publishError = signal<string | null>(null);
+  readonly formatError = signal<string | null>(null);
 
   private flashTimeout: ReturnType<typeof setTimeout> | null = null;
+  private formatErrorTimeout: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     effect(() => {
@@ -55,6 +58,9 @@ export class PublishPanel {
     this.destroyRef.onDestroy(() => {
       if (this.flashTimeout !== null) {
         clearTimeout(this.flashTimeout);
+      }
+      if (this.formatErrorTimeout !== null) {
+        clearTimeout(this.formatErrorTimeout);
       }
     });
   }
@@ -69,9 +75,8 @@ export class PublishPanel {
     try {
       const pretty = JSON.stringify(JSON.parse(payload), null, 2);
       this.form.controls.payload.setValue(pretty);
-      this.publishError.set(null);
     } catch {
-      this.publishError.set("Payload isn't valid JSON");
+      this.flashFormatError("Payload isn't valid JSON");
     }
   }
 
@@ -97,6 +102,11 @@ export class PublishPanel {
     }
 
     this.publishError.set(null);
+    if (this.formatErrorTimeout !== null) {
+      clearTimeout(this.formatErrorTimeout);
+      this.formatErrorTimeout = null;
+    }
+    this.formatError.set(null);
     this.flashPublished();
   }
 
@@ -114,6 +124,17 @@ export class PublishPanel {
       this.publishedFlash.set(false);
       this.flashTimeout = null;
     }, FLASH_DURATION_MS);
+  }
+
+  private flashFormatError(message: string): void {
+    if (this.formatErrorTimeout !== null) {
+      clearTimeout(this.formatErrorTimeout);
+    }
+    this.formatError.set(message);
+    this.formatErrorTimeout = setTimeout(() => {
+      this.formatError.set(null);
+      this.formatErrorTimeout = null;
+    }, FORMAT_ERROR_DURATION_MS);
   }
 }
 

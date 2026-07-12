@@ -8,7 +8,7 @@
 <form class="body" [formGroup]="form" (ngSubmit)="publish()">
   <div class="row">
     <input
-      class="topic-input"
+      class="topic-input mono"
       formControlName="topic"
       placeholder="topic"
     />
@@ -44,13 +44,13 @@
   }
 
   <textarea
-    class="payload-input"
+    class="payload-input mono"
     formControlName="payload"
-    placeholder='payload'
+    placeholder="payload"
   ></textarea>
 
-  @if (publishError()) {
-    <p class="error">{{ publishError() }}</p>
+  @if (formatError() ?? publishError(); as message) {
+    <p class="error">{{ message }}</p>
   }
 
   <div class="actions">

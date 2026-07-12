@@ -246,7 +246,36 @@ describe("PublishPanel", () => {
       component.formatPayload();
 
       expect(component.form.controls.payload.value).toBe("not valid json");
-      expect(component.publishError()).toBeTruthy();
+      expect(component.formatError()).toBeTruthy();
+    });
+
+    it("clears the format error on its own after a short timeout", async () => {
+      vi.useFakeTimers();
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+      component.form.controls.payload.setValue("not valid json");
+
+      component.formatPayload();
+      expect(component.formatError()).toBeTruthy();
+
+      vi.advanceTimersByTime(5000);
+
+      expect(component.formatError()).toBeNull();
+    });
+
+    it("does not leave a stale format error behind a rejected publish's error message", async () => {
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+      component.form.controls.payload.setValue("not valid json");
+      component.formatPayload();
+      expect(component.formatError()).toBeTruthy();
+
+      component.form.controls.topic.setValue("sensors/zone-a");
+      component.form.controls.payload.setValue("hello");
+      component.selectFormat("raw");
+      await component.publish();
+
+      expect(component.formatError()).toBeNull();
     });
 
     it("only shows the Format action while in JSON format", async () => {
