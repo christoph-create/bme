@@ -300,7 +300,7 @@ dependencies = [
 
 [[package]]
 name = "bme"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "bme-core",
  "serde",
@@ -314,7 +314,7 @@ dependencies = [
 
 [[package]]
 name = "bme-core"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "chrono",
  "rumqttc",
