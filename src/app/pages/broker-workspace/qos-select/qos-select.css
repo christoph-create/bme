@@ -1,5 +1,6 @@
 :host {
   display: flex;
+  height: var(--control-height);
 }
 
 .qos-select {
@@ -13,8 +14,10 @@
 
 .qos-option {
   flex: 1;
-  text-align: center;
-  padding: 5px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
   border-radius: 5px;
   font-size: 11.5px;
   font-weight: 600;

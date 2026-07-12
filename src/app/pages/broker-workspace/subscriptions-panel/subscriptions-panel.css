@@ -39,20 +39,6 @@
   gap: 6px;
 }
 
-.add-form input {
-  background: var(--color-input-bg-alt);
-  border: 1px solid var(--color-input-border);
-  border-radius: 6px;
-  padding: 6px 8px;
-  color: var(--color-text);
-  font-size: 12px;
-  outline: none;
-}
-
-.add-form input.mono {
-  font-family: var(--font-mono);
-}
-
 .hint {
   font-size: 10.5px;
   color: var(--color-text-faint);
@@ -130,10 +116,10 @@
 
 .qos-badge {
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--color-accent-on-tint);
   background: var(--color-accent-tint);
-  padding: 1px 5px;
+  padding: 4px 5px;
   border-radius: 4px;
   flex-shrink: 0;
 }

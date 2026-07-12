@@ -76,6 +76,7 @@
 .qos-badge {
   font-size: 10px;
   font-weight: 700;
+  line-height: 1;
   color: var(--color-accent-on-tint);
   background: var(--color-accent-tint);
   padding: 1px 6px;
@@ -85,6 +86,7 @@
 .retain-badge {
   font-size: 10px;
   font-weight: 700;
+  line-height: 1;
   color: var(--color-info-on-tint);
   background: var(--color-info-tint);
   padding: 1px 6px;

@@ -122,6 +122,7 @@
 
 .msg-count {
   font-size: 10.5px;
+  line-height: 1;
   color: var(--color-text-quaternary);
   background: var(--color-badge-bg);
   padding: 1px 5px;
