@@ -60,16 +60,16 @@ describe("formatMessageBody", () => {
     expect(formatMessageBody([])).toBe("(empty)");
   });
 
-  it("passes short text through unchanged", () => {
-    expect(formatMessageBody(encode('{"ok":true}'))).toBe('{"ok":true}');
+  it("passes short non-JSON text through unchanged", () => {
+    expect(formatMessageBody(encode("plain text message"))).toBe(
+      "plain text message",
+    );
   });
 
-  it("preserves whitespace and newlines, unlike the one-line preview", () => {
-    const payload = encode('{\n  "hz": 60.1,\n  "amp": 0.02\n}');
+  it("preserves whitespace and newlines in non-JSON text, unlike the one-line preview", () => {
+    const payload = encode("line one\n  line two\nline three");
 
-    expect(formatMessageBody(payload)).toBe(
-      '{\n  "hz": 60.1,\n  "amp": 0.02\n}',
-    );
+    expect(formatMessageBody(payload)).toBe("line one\n  line two\nline three");
   });
 
   it("shows a binary placeholder when the payload doesn't decode as text", () => {
@@ -90,5 +90,56 @@ describe("formatMessageBody", () => {
     const result = formatMessageBody(encode(longText));
 
     expect(result).toBe("x".repeat(20_000) + "…");
+  });
+
+  it("pretty-prints a compact JSON object by default", () => {
+    const payload = encode('{"data1":"data","data2":"data"}');
+
+    expect(formatMessageBody(payload)).toBe(
+      '{\n  "data1": "data",\n  "data2": "data"\n}',
+    );
+  });
+
+  it("pretty-prints a compact JSON array by default", () => {
+    const payload = encode("[1,2,3]");
+
+    expect(formatMessageBody(payload)).toBe("[\n  1,\n  2,\n  3\n]");
+  });
+
+  it("pretty-prints nested JSON", () => {
+    const payload = encode('{"outer":{"inner":[1,2]}}');
+
+    expect(formatMessageBody(payload)).toBe(
+      '{\n  "outer": {\n    "inner": [\n      1,\n      2\n    ]\n  }\n}',
+    );
+  });
+
+  it("leaves malformed JSON-looking text as raw text", () => {
+    const payload = encode('{"unterminated": true');
+
+    expect(formatMessageBody(payload)).toBe('{"unterminated": true');
+  });
+
+  it("does not reformat bare JSON scalars like a number or boolean", () => {
+    expect(formatMessageBody(encode("42"))).toBe("42");
+    expect(formatMessageBody(encode("true"))).toBe("true");
+  });
+
+  it("shows the raw compact JSON when prettyPrintJson is disabled", () => {
+    const payload = encode('{"data1":"data","data2":"data"}');
+
+    expect(formatMessageBody(payload, { prettyPrintJson: false })).toBe(
+      '{"data1":"data","data2":"data"}',
+    );
+  });
+
+  it("does not attempt to pretty-print JSON that got cut off by truncation", () => {
+    const value = "x".repeat(20_000);
+    const payload = encode(`{"data":"${value}"}`);
+
+    const result = formatMessageBody(payload);
+
+    expect(result.endsWith("…")).toBe(true);
+    expect(result.startsWith('{"data":"')).toBe(true);
   });
 });

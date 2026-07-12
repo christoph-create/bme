@@ -8,6 +8,10 @@ import { MessageStream } from "./message-stream";
 
 const CONNECTION_ID = "11111111-1111-1111-1111-111111111111";
 
+function encode(text: string): number[] {
+  return Array.from(new TextEncoder().encode(text));
+}
+
 function message(overrides: Partial<StoredMessage> = {}): StoredMessage {
   return {
     payload: [1, 2, 3],
@@ -120,6 +124,44 @@ describe("MessageStream", () => {
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? "";
     expect(text).not.toContain("Retained");
+  });
+
+  it("pretty-prints JSON payloads by default", async () => {
+    const payload = encode('{"data1":"data","data2":"data"}');
+    const { fixture } = await setup({ device: [message({ payload })] });
+    await selectTopic(fixture, "device");
+
+    const body = (fixture.nativeElement as HTMLElement).querySelector(
+      ".payload",
+    );
+    expect(body?.textContent).toBe(
+      '{\n  "data1": "data",\n  "data2": "data"\n}',
+    );
+  });
+
+  it("shows the raw compact JSON after toggling to Raw, for every card", async () => {
+    const payload = encode('{"data1":"data","data2":"data"}');
+    const { fixture } = await setup({ device: [message({ payload })] });
+    await selectTopic(fixture, "device");
+
+    const element = fixture.nativeElement as HTMLElement;
+    const toggle = element.querySelector(".toggle-link") as HTMLElement;
+    expect(toggle.textContent?.trim()).toBe("Raw");
+
+    toggle.click();
+    fixture.detectChanges();
+
+    expect(element.querySelector(".payload")?.textContent).toBe(
+      '{"data1":"data","data2":"data"}',
+    );
+    expect(toggle.textContent?.trim()).toBe("Pretty JSON");
+
+    toggle.click();
+    fixture.detectChanges();
+
+    expect(element.querySelector(".payload")?.textContent).toBe(
+      '{\n  "data1": "data",\n  "data2": "data"\n}',
+    );
   });
 
   it("switches to the newly selected topic's messages", async () => {

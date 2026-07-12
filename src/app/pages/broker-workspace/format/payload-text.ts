@@ -32,8 +32,17 @@ export function formatPayloadPreview(payload: readonly number[]): string {
  * Renders the full body of a received payload for the messages panel,
  * preserving whitespace/newlines. Caps decoding at ~20,000 bytes so an
  * unusually large message doesn't stall the UI.
+ *
+ * When `prettyPrintJson` is enabled (the default) and the payload is a
+ * complete, valid JSON object or array, it's reformatted with 2-space
+ * indentation rather than shown as the raw wire bytes.
  */
-export function formatMessageBody(payload: readonly number[]): string {
+export function formatMessageBody(
+  payload: readonly number[],
+  options: { prettyPrintJson?: boolean } = {},
+): string {
+  const { prettyPrintJson = true } = options;
+
   if (payload.length === 0) {
     return "(empty)";
   }
@@ -44,7 +53,33 @@ export function formatMessageBody(payload: readonly number[]): string {
 
   const truncated = payload.length > MAX_BODY_BYTES;
   const text = decode(payload.slice(0, MAX_BODY_BYTES));
+
+  if (prettyPrintJson && !truncated) {
+    const pretty = tryPrettyPrintJson(text);
+    if (pretty !== null) {
+      return pretty;
+    }
+  }
+
   return truncated ? `${text}…` : text;
+}
+
+/**
+ * Pretty-prints `text` if it's a complete JSON object or array, else
+ * returns null. Deliberately ignores bare JSON scalars (numbers, strings,
+ * booleans) - reformatting e.g. the payload "42" wouldn't change anything
+ * visible, so it's not worth the false sense of "this got JSON-formatted".
+ */
+function tryPrettyPrintJson(text: string): string | null {
+  const trimmed = text.trim();
+  if (trimmed[0] !== "{" && trimmed[0] !== "[") {
+    return null;
+  }
+  try {
+    return JSON.stringify(JSON.parse(trimmed), null, 2);
+  } catch {
+    return null;
+  }
 }
 
 function binaryLabel(byteLength: number): string {

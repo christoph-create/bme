@@ -1,6 +1,17 @@
 @if (topic(); as topicPath) {
   <div class="header">
-    <div class="topic-path">{{ topicPath }}</div>
+    <div class="header-top">
+      <div class="topic-path">{{ topicPath }}</div>
+      <span
+        class="toggle-link"
+        (click)="togglePrettyJson()"
+        (keydown.enter)="togglePrettyJson()"
+        role="button"
+        tabindex="0"
+      >
+        {{ prettyJson() ? "Raw" : "Pretty JSON" }}
+      </span>
+    </div>
     <div class="count-label">{{ messageCountLabel() }}</div>
   </div>
   <div class="message-list">

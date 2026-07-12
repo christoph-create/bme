@@ -43,6 +43,8 @@ export class MessageStream {
     return `${count} ${count === 1 ? "message" : "messages"} in this session`;
   });
 
+  readonly prettyJson = signal(true);
+
   private topicSubscription: Subscription | null = null;
 
   constructor() {
@@ -67,7 +69,11 @@ export class MessageStream {
   }
 
   body(payload: readonly number[]): string {
-    return formatMessageBody(payload);
+    return formatMessageBody(payload, { prettyPrintJson: this.prettyJson() });
+  }
+
+  togglePrettyJson(): void {
+    this.prettyJson.update((pretty) => !pretty);
   }
 
   private subscribeTo(connectionId: string, topic: string | null): void {
