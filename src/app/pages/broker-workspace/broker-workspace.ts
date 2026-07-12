@@ -1,6 +1,7 @@
 import { Component, DestroyRef, HostListener, inject, signal } from "@angular/core";
 import { ActivatedRoute, Router } from "@angular/router";
 
+import { BrokerConnection } from "../../core/models/broker-connection.model";
 import { ConnectionsService } from "../../core/services/connections.service";
 import { MqttEventsService } from "../../core/services/mqtt-events.service";
 import { MessageStream } from "./message-stream/message-stream";
@@ -37,6 +38,7 @@ export class BrokerWorkspace {
   readonly connecting = signal(true);
   readonly connectError = signal<string | null>(null);
   readonly selectedTopic = signal<string | null>(null);
+  readonly connection = signal<BrokerConnection | null>(null);
 
   readonly sidebarWidth = signal(260);
   readonly publishHeight = signal(260);
@@ -66,6 +68,17 @@ export class BrokerWorkspace {
     this.destroyRef.onDestroy(() => subscription.unsubscribe());
 
     void this.connect();
+    void this.loadConnection();
+  }
+
+  private async loadConnection(): Promise<void> {
+    try {
+      this.connection.set(await this.connectionsService.get(this.connectionId));
+    } catch {
+      // Non-fatal: the header just falls back to a generic title. The
+      // connect()/event-listener flow above is what surfaces real
+      // connection problems.
+    }
   }
 
   async connect(): Promise<void> {

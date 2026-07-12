@@ -13,10 +13,22 @@
   flex-shrink: 0;
 }
 
+.header-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .header-title {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.header-subtitle {
+  font-size: 11.5px;
+  font-family: var(--font-mono);
+  color: var(--color-text-tertiary);
 }
 
 h1 {

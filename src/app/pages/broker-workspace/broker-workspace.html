@@ -1,12 +1,17 @@
 <header class="page-header">
-  <div class="header-title">
-    <h1>Broker Workspace</h1>
-    @if (connecting()) {
-      <span class="status-pill connecting">Connecting…</span>
-    } @else if (connectError()) {
-      <span class="status-pill error">Connection failed</span>
-    } @else {
-      <span class="status-pill connected">Connected</span>
+  <div class="header-info">
+    <div class="header-title">
+      <h1>{{ connection()?.name ?? "Broker Workspace" }}</h1>
+      @if (connecting()) {
+        <span class="status-pill connecting">Connecting…</span>
+      } @else if (connectError()) {
+        <span class="status-pill error">Connection failed</span>
+      } @else {
+        <span class="status-pill connected">Connected</span>
+      }
+    </div>
+    @if (connection(); as conn) {
+      <span class="header-subtitle">{{ conn.host }}:{{ conn.port }}</span>
     }
   </div>
   <button type="button" class="btn-disconnect" (click)="disconnect()">

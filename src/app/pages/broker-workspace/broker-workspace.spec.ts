@@ -8,6 +8,7 @@ import {
 import { Subject, of } from "rxjs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { BrokerConnection } from "../../core/models/broker-connection.model";
 import { MqttEvent } from "../../core/models/mqtt-event.model";
 import { ConnectionsService } from "../../core/services/connections.service";
 import { MessageStoreService } from "../../core/services/message-store.service";
@@ -16,6 +17,24 @@ import { BrokerWorkspace } from "./broker-workspace";
 
 const CONNECTION_ID = "11111111-1111-1111-1111-111111111111";
 const OTHER_CONNECTION_ID = "22222222-2222-2222-2222-222222222222";
+
+function sampleConnection(
+  overrides: Partial<BrokerConnection> = {},
+): BrokerConnection {
+  return {
+    id: CONNECTION_ID,
+    name: "Home Assistant",
+    host: "homeassistant.local",
+    port: 1883,
+    client_id: "bme",
+    username: null,
+    password: null,
+    use_tls: false,
+    keep_alive_secs: 30,
+    subscriptions: [],
+    ...overrides,
+  };
+}
 
 function pointerEvent(x: number, y: number): PointerEvent {
   return {
@@ -29,12 +48,13 @@ async function setup(
   options: {
     connect?: ReturnType<typeof vi.fn>;
     disconnect?: ReturnType<typeof vi.fn>;
+    get?: ReturnType<typeof vi.fn>;
   } = {},
 ) {
   const connect = options.connect ?? vi.fn().mockResolvedValue(undefined);
   const disconnect =
     options.disconnect ?? vi.fn().mockResolvedValue(undefined);
-  const get = vi.fn().mockResolvedValue(null);
+  const get = options.get ?? vi.fn().mockResolvedValue(null);
   const events$ = new Subject<MqttEvent>();
 
   TestBed.configureTestingModule({
@@ -88,6 +108,25 @@ describe("BrokerWorkspace", () => {
     await fixture.whenStable();
 
     expect(connect).toHaveBeenCalledWith(CONNECTION_ID);
+  });
+
+  it("shows the connection's name and host:port in the header once loaded", async () => {
+    const get = vi.fn().mockResolvedValue(sampleConnection());
+    const { fixture } = await setup({ get });
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(get).toHaveBeenCalledWith(CONNECTION_ID);
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? "";
+    expect(text).toContain("Home Assistant");
+    expect(text).toContain("homeassistant.local:1883");
+  });
+
+  it("falls back to a generic title before the connection has loaded", async () => {
+    const { fixture } = await setup();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? "";
+    expect(text).toContain("Broker Workspace");
   });
 
   it("keeps showing the connecting indicator after the connect command is accepted, until the broker confirms", async () => {
