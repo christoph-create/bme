@@ -1,6 +1,6 @@
 <div class="section-header">
   <span class="section-label">Subscriptions · {{ subscriptions().length }}</span>
-  <span class="add-link" (click)="toggleAdd()" (keydown.enter)="toggleAdd()" role="button" tabindex="0">+ Add</span>
+  <span class="add-link" (click)="toggleAdd()" (keydown.enter)="toggleAdd()" role="button" tabindex="0">{{ adding() ? "Cancel" : "+ Add" }}</span>
 </div>
 
 @if (adding()) {

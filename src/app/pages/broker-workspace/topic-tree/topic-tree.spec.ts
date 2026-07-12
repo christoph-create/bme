@@ -102,12 +102,12 @@ describe("TopicTree", () => {
     );
     const component = fixture.componentInstance;
 
-    expect(component.isFullyExpanded()).toBe(false);
+    expect(component.allExpanded()).toBe(false);
 
     component.toggleExpandAll();
     fixture.detectChanges();
 
-    expect(component.isFullyExpanded()).toBe(true);
+    expect(component.allExpanded()).toBe(true);
     let text = (fixture.nativeElement as HTMLElement).textContent ?? "";
     expect(text).toContain("temp");
     expect(text).toContain("battery");
@@ -116,7 +116,7 @@ describe("TopicTree", () => {
     component.toggleExpandAll();
     fixture.detectChanges();
 
-    expect(component.isFullyExpanded()).toBe(false);
+    expect(component.allExpanded()).toBe(false);
     text = (fixture.nativeElement as HTMLElement).textContent ?? "";
     expect(text).not.toContain("temp");
     expect(text).not.toContain("battery");
@@ -213,6 +213,91 @@ describe("TopicTree", () => {
 
     vi.advanceTimersByTime(1);
     expect(component.isFlashing("device")).toBe(false);
+  });
+
+  it("flips the toggle label immediately on click, even with an empty tree", () => {
+    const { fixture } = setupStreaming();
+    const component = fixture.componentInstance;
+
+    expect(component.allExpanded()).toBe(false);
+    let text = (fixture.nativeElement as HTMLElement).textContent ?? "";
+    expect(text).toContain("Expand all");
+
+    component.toggleExpandAll();
+    fixture.detectChanges();
+
+    expect(component.allExpanded()).toBe(true);
+    text = (fixture.nativeElement as HTMLElement).textContent ?? "";
+    expect(text).toContain("Collapse all");
+  });
+
+  it("expands topics that arrive after 'expand all' was clicked on an empty tree", () => {
+    const { fixture, topics$ } = setupStreaming();
+    const component = fixture.componentInstance;
+
+    component.toggleExpandAll();
+    fixture.detectChanges();
+
+    topics$.next(new Map([["sensors/temp", [message()]]]));
+    fixture.detectChanges();
+
+    expect(component.isExpanded("sensors")).toBe(true);
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? "";
+    expect(text).toContain("temp");
+  });
+
+  it("expands a new folder that arrives after 'expand all', without collapsing existing ones", () => {
+    const { fixture, topics$ } = setupStreaming();
+    const component = fixture.componentInstance;
+
+    topics$.next(new Map([["sensors/temp", [message()]]]));
+    fixture.detectChanges();
+    component.toggleExpandAll();
+    fixture.detectChanges();
+    expect(component.isExpanded("sensors")).toBe(true);
+
+    topics$.next(
+      new Map([
+        ["sensors/temp", [message()]],
+        ["device/battery", [message()]],
+      ]),
+    );
+    fixture.detectChanges();
+
+    expect(component.isExpanded("sensors")).toBe(true);
+    expect(component.isExpanded("device")).toBe(true);
+  });
+
+  it("leaves a manually-collapsed folder collapsed even while 'expand all' is still in effect", () => {
+    const { fixture, topics$ } = setupStreaming();
+    const component = fixture.componentInstance;
+
+    topics$.next(
+      new Map([
+        ["sensors/temp", [message()]],
+        ["device/battery", [message()]],
+      ]),
+    );
+    fixture.detectChanges();
+    component.toggleExpandAll();
+    fixture.detectChanges();
+
+    component.toggleFolder("sensors");
+    fixture.detectChanges();
+    expect(component.isExpanded("sensors")).toBe(false);
+
+    topics$.next(
+      new Map([
+        ["sensors/temp", [message()]],
+        ["device/battery", [message()]],
+        ["other/leaf", [message()]],
+      ]),
+    );
+    fixture.detectChanges();
+
+    expect(component.isExpanded("sensors")).toBe(false);
+    expect(component.isExpanded("device")).toBe(true);
+    expect(component.isExpanded("other")).toBe(true);
   });
 
   it("only flashes the topic that actually received a new message", () => {

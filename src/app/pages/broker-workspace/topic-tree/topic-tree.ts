@@ -49,22 +49,26 @@ export class TopicTree implements OnInit {
     ReturnType<typeof setTimeout>
   >();
 
+  /** Whether "expand all" is the standing intent, independent of which
+   * folders exist right now - drives both the toggle label and whether
+   * folders that show up later (including the very first ones, if this was
+   * clicked while the tree was still empty) get swept in too, instead of
+   * the click being a one-time snapshot of whatever existed at click time. */
+  readonly allExpanded = signal(false);
+
   readonly totalTopics = computed(() => countLeaves(this.nodes()));
   private readonly folderPaths = computed(() =>
     collectFolderPaths(this.nodes()),
   );
-  readonly isFullyExpanded = computed(() => {
-    const folders = this.folderPaths();
-    return (
-      folders.length > 0 && folders.every((p) => this.expandedPaths().has(p))
-    );
-  });
 
   ngOnInit(): void {
     const subscription = this.messageStore
       .topicsFor(this.connectionId())
       .subscribe((topics) => {
         const nextNodes = buildTopicTree(topics);
+        if (this.allExpanded()) {
+          this.expandNewFolders(nextNodes);
+        }
         if (this.previousNodes !== null) {
           this.flashPaths(findUpdatedLeafPaths(this.previousNodes, nextNodes));
         }
@@ -104,9 +108,9 @@ export class TopicTree implements OnInit {
   }
 
   toggleExpandAll(): void {
-    this.expandedPaths.set(
-      this.isFullyExpanded() ? new Set() : new Set(this.folderPaths()),
-    );
+    const next = !this.allExpanded();
+    this.allExpanded.set(next);
+    this.expandedPaths.set(next ? new Set(this.folderPaths()) : new Set());
   }
 
   selectTopic(path: string): void {
@@ -120,6 +124,27 @@ export class TopicTree implements OnInit {
 
   payloadPreview(payload: readonly number[]): string {
     return formatPayloadPreview(payload);
+  }
+
+  /** Adds any folder paths in `nextNodes` that weren't already present in
+   * `this.previousNodes` to `expandedPaths` - only genuinely new folders,
+   * so a folder the user manually collapsed by hand stays collapsed even
+   * while the standing "expand all" intent is still in effect. */
+  private expandNewFolders(nextNodes: TopicNode[]): void {
+    const previousFolders = new Set(
+      this.previousNodes ? collectFolderPaths(this.previousNodes) : [],
+    );
+    const newFolders = collectFolderPaths(nextNodes).filter(
+      (path) => !previousFolders.has(path),
+    );
+    if (newFolders.length === 0) {
+      return;
+    }
+    const next = new Set(this.expandedPaths());
+    for (const path of newFolders) {
+      next.add(path);
+    }
+    this.expandedPaths.set(next);
   }
 
   private flashPaths(paths: readonly string[]): void {

@@ -1,84 +1,89 @@
-<header class="page-header">
+<div class="top-bar">
   <a class="back-link" routerLink="/connections">‹ Connections</a>
-  <h1>New Connection</h1>
-</header>
+</div>
 
-@if (editId()) {
-  <p class="status-text">Editing isn't supported yet.</p>
-} @else {
-  <form class="form" [formGroup]="form" (ngSubmit)="submit()">
-    <div class="field">
-      <label for="name">Name</label>
-      <input id="name" type="text" formControlName="name" placeholder="e.g. localhost" />
-    </div>
+<div class="content">
+  <header class="page-header">
+    <h1>New Connection</h1>
+  </header>
 
-    <div class="field-row">
-      <div class="field field-host">
-        <label for="host">Host</label>
-        <input id="host" type="text" formControlName="host" placeholder="broker.example.com" class="mono" />
+  @if (editId()) {
+    <p class="status-text">Editing isn't supported yet.</p>
+  } @else {
+    <form class="form" [formGroup]="form" (ngSubmit)="submit()">
+      <div class="field">
+        <label for="name">Name</label>
+        <input id="name" type="text" formControlName="name" placeholder="e.g. localhost" />
       </div>
-      <div class="field field-port">
-        <label for="port">Port</label>
-        <input id="port" type="text" formControlName="port" class="mono" />
-      </div>
-    </div>
 
-    <div class="field">
-      <label for="clientId">Client ID</label>
-      <input id="clientId" type="text" formControlName="clientId" class="mono" />
-    </div>
-
-    <div class="field">
-      <label for="keepAliveSecs">Keep-alive (seconds)</label>
-      <input id="keepAliveSecs" type="text" formControlName="keepAliveSecs" class="mono" />
-    </div>
-
-    <div class="field-row">
-      <label class="toggle-field">
-        <span>TLS / SSL</span>
-        <span class="switch">
-          <input type="checkbox" formControlName="useTls" />
-          <span class="switch-track"></span>
-        </span>
-      </label>
-    </div>
-
-    <label class="checkbox-field">
-      <span class="checkbox">
-        <input type="checkbox" formControlName="requiresAuth" />
-        <span class="checkbox-box">
-          <span class="checkbox-check">✓</span>
-        </span>
-      </span>
-      <span>Requires authentication</span>
-    </label>
-
-    @if (form.controls.requiresAuth.value) {
       <div class="field-row">
-        <div class="field">
-          <label for="username">Username</label>
-          <input id="username" type="text" formControlName="username" />
+        <div class="field field-host">
+          <label for="host">Host</label>
+          <input id="host" type="text" formControlName="host" placeholder="broker.example.com" class="mono" />
         </div>
-        <div class="field">
-          <label for="password">Password</label>
-          <input id="password" type="password" formControlName="password" />
+        <div class="field field-port">
+          <label for="port">Port</label>
+          <input id="port" type="text" formControlName="port" class="mono" />
         </div>
       </div>
-    }
 
-    @if (error()) {
-      <p class="status-text error">{{ error() }}</p>
-    }
+      <div class="field">
+        <label for="clientId">Client ID</label>
+        <input id="clientId" type="text" formControlName="clientId" class="mono" />
+      </div>
 
-    <footer class="page-footer">
-      <a class="btn-secondary" routerLink="/connections">Cancel</a>
-      <button
-        type="submit"
-        class="btn-primary"
-        [disabled]="form.invalid || submitting()"
-      >
-        Save &amp; Connect
-      </button>
-    </footer>
-  </form>
-}
+      <div class="field">
+        <label for="keepAliveSecs">Keep-alive (seconds)</label>
+        <input id="keepAliveSecs" type="text" formControlName="keepAliveSecs" class="mono" />
+      </div>
+
+      <div class="field-row">
+        <label class="toggle-field">
+          <span>TLS / SSL</span>
+          <span class="switch">
+            <input type="checkbox" formControlName="useTls" />
+            <span class="switch-track"></span>
+          </span>
+        </label>
+      </div>
+
+      <label class="checkbox-field">
+        <span class="checkbox">
+          <input type="checkbox" formControlName="requiresAuth" />
+          <span class="checkbox-box">
+            <span class="checkbox-check">✓</span>
+          </span>
+        </span>
+        <span>Requires authentication</span>
+      </label>
+
+      @if (form.controls.requiresAuth.value) {
+        <div class="field-row">
+          <div class="field">
+            <label for="username">Username</label>
+            <input id="username" type="text" formControlName="username" />
+          </div>
+          <div class="field">
+            <label for="password">Password</label>
+            <input id="password" type="password" formControlName="password" />
+          </div>
+        </div>
+      }
+
+      @if (error()) {
+        <p class="status-text error">{{ error() }}</p>
+      }
+
+      <footer class="page-footer">
+        <a class="btn-secondary" routerLink="/connections">Cancel</a>
+        <button
+          type="submit"
+          class="btn-primary"
+          [disabled]="form.invalid || submitting()"
+        >
+          Save &amp; Connect
+        </button>
+      </footer>
+    </form>
+  }
+</div>
