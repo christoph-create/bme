@@ -105,6 +105,35 @@ label {
   color: var(--color-accent);
 }
 
+.status-text.success {
+  color: var(--color-success);
+}
+
+.footer-status {
+  flex: 1;
+}
+
+.btn-test {
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-input-border);
+  cursor: pointer;
+}
+
+.btn-test:hover:not(:disabled) {
+  color: var(--color-text);
+  border-color: var(--color-text-secondary);
+}
+
+.btn-test:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .page-footer {
   display: flex;
   justify-content: flex-end;

@@ -1,12 +1,17 @@
-import { Component, inject, signal } from "@angular/core";
+import { Component, DestroyRef, inject, signal } from "@angular/core";
 import { FormBuilder, ReactiveFormsModule, Validators } from "@angular/forms";
 import { ActivatedRoute, Router, RouterLink } from "@angular/router";
 
 import { NewBrokerConnection } from "../../core/models/broker-connection.model";
+import { MqttEvent } from "../../core/models/mqtt-event.model";
 import { ConnectionsService } from "../../core/services/connections.service";
+import { MqttEventsService } from "../../core/services/mqtt-events.service";
 import { randomClientId } from "./client-id";
 
 const NUMERIC_PATTERN = /^\d+$/;
+const TEST_TIMEOUT_MS = 6000;
+
+export type TestStatus = "idle" | "testing" | "success" | "error";
 
 @Component({
   selector: "app-connection-form",
@@ -16,15 +21,19 @@ const NUMERIC_PATTERN = /^\d+$/;
 })
 export class ConnectionForm {
   private readonly connectionsService = inject(ConnectionsService);
+  private readonly mqttEvents = inject(MqttEventsService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly formBuilder = inject(FormBuilder);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly editId = signal<string | null>(
     this.route.snapshot.paramMap.get("id"),
   );
   readonly submitting = signal(false);
   readonly error = signal<string | null>(null);
+  readonly testStatus = signal<TestStatus>("idle");
+  readonly testError = signal<string | null>(null);
 
   readonly form = this.formBuilder.nonNullable.group({
     name: ["", Validators.required],
@@ -41,13 +50,132 @@ export class ConnectionForm {
     password: [""],
   });
 
+  constructor() {
+    // A test result only speaks to the values it was run with - once you
+    // change anything, it's stale and shouldn't keep showing "Connected
+    // successfully" (or a since-fixed error) next to the button.
+    const subscription = this.form.valueChanges.subscribe(() => {
+      if (this.testStatus() !== "testing") {
+        this.testStatus.set("idle");
+        this.testError.set(null);
+      }
+    });
+    this.destroyRef.onDestroy(() => subscription.unsubscribe());
+  }
+
   async submit(): Promise<void> {
     if (this.form.invalid || this.submitting()) {
       return;
     }
 
+    this.submitting.set(true);
+    this.error.set(null);
+    try {
+      const created = await this.connectionsService.create(
+        this.buildNewConnection(),
+      );
+      // BrokerWorkspace connects on its own when it mounts - connecting
+      // here too would race it: both attempts share the same client_id,
+      // so the broker disconnects whichever one loses the race, and
+      // BrokerWorkspace (which is now listening) reports that spurious
+      // disconnect as "Connection failed".
+      await this.router.navigate(["/broker", created.id]);
+    } catch (err) {
+      this.error.set(err instanceof Error ? err.message : String(err));
+    } finally {
+      this.submitting.set(false);
+    }
+  }
+
+  /** Tries connecting with the current form values without saving
+   * anything, so you can sanity-check host/port/credentials first. */
+  async testConnection(): Promise<void> {
+    if (this.testStatus() === "testing") {
+      return;
+    }
+    if (this.form.controls.host.invalid || this.form.controls.port.invalid) {
+      return;
+    }
+
+    this.testStatus.set("testing");
+    this.testError.set(null);
+
+    const seenEvents: MqttEvent[] = [];
+    let targetId: string | null = null;
+    let resolveMatch: ((event: MqttEvent) => void) | null = null;
+
+    const matches = (event: MqttEvent): boolean =>
+      targetId !== null &&
+      (("Connected" in event && event.Connected.connection_id === targetId) ||
+        ("Disconnected" in event &&
+          event.Disconnected.connection_id === targetId));
+
+    // Subscribe *before* kicking off the connect attempt below - a fast
+    // (e.g. local) broker can reply before an interleaved subscribe would
+    // even finish registering its Tauri event listener, silently dropping
+    // the event and stalling until the timeout instead of resolving right
+    // away. Buffer everything and match retroactively once the ephemeral
+    // id comes back, rather than only listening for events from then on.
+    const subscription = this.mqttEvents.events$.subscribe((event) => {
+      seenEvents.push(event);
+      if (matches(event)) {
+        resolveMatch?.(event);
+      }
+    });
+
+    let ephemeralId: string | null = null;
+    let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+    try {
+      const waitForLiveMatch = new Promise<MqttEvent>((resolve) => {
+        resolveMatch = resolve;
+      });
+
+      ephemeralId = await this.connectionsService.testConnection(
+        this.buildNewConnection(),
+      );
+      targetId = ephemeralId;
+
+      const alreadySeen = seenEvents.find(matches);
+      const result =
+        alreadySeen ??
+        (await new Promise<MqttEvent>((resolve, reject) => {
+          timeoutHandle = setTimeout(() => {
+            const timeoutErr = new Error(
+              "Timed out waiting for a response from the broker",
+            );
+            timeoutErr.name = "TimeoutError";
+            reject(timeoutErr);
+          }, TEST_TIMEOUT_MS);
+          void waitForLiveMatch.then(resolve);
+        }));
+
+      if ("Connected" in result) {
+        this.testStatus.set("success");
+      } else {
+        this.testStatus.set("error");
+        this.testError.set("Could not connect to the broker");
+      }
+    } catch (err) {
+      this.testStatus.set("error");
+      if (err instanceof Error && err.name === "TimeoutError") {
+        this.testError.set("Timed out waiting for a response from the broker");
+      } else {
+        this.testError.set(err instanceof Error ? err.message : String(err));
+      }
+    } finally {
+      if (timeoutHandle !== null) {
+        clearTimeout(timeoutHandle);
+      }
+      subscription.unsubscribe();
+      if (ephemeralId !== null) {
+        await this.connectionsService.disconnect(ephemeralId).catch(() => undefined);
+      }
+    }
+  }
+
+  private buildNewConnection(): NewBrokerConnection {
     const value = this.form.getRawValue();
-    const newConnection: NewBrokerConnection = {
+    return {
       name: value.name,
       host: value.host,
       port: Number(value.port),
@@ -58,17 +186,5 @@ export class ConnectionForm {
       keep_alive_secs: Number(value.keepAliveSecs),
       subscriptions: [],
     };
-
-    this.submitting.set(true);
-    this.error.set(null);
-    try {
-      const created = await this.connectionsService.create(newConnection);
-      await this.connectionsService.connect(created.id);
-      await this.router.navigate(["/broker", created.id]);
-    } catch (err) {
-      this.error.set(err instanceof Error ? err.message : String(err));
-    } finally {
-      this.submitting.set(false);
-    }
   }
 }

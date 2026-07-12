@@ -75,7 +75,24 @@
       }
 
       <footer class="page-footer">
+        @if (testStatus() === "success") {
+          <span class="status-text success footer-status">✓ Connected successfully</span>
+        } @else if (testStatus() === "error") {
+          <span class="status-text error footer-status">{{ testError() }}</span>
+        }
         <a class="btn-secondary" routerLink="/connections">Cancel</a>
+        <button
+          type="button"
+          class="btn-test"
+          [disabled]="
+            form.controls.host.invalid ||
+            form.controls.port.invalid ||
+            testStatus() === 'testing'
+          "
+          (click)="testConnection()"
+        >
+          {{ testStatus() === "testing" ? "Testing…" : "Test Connection" }}
+        </button>
         <button
           type="submit"
           class="btn-primary"
