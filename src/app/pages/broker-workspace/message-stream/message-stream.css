@@ -47,6 +47,7 @@
 .message-list {
   flex: 1;
   overflow: auto;
+  overscroll-behavior: none;
   padding: 10px 18px 18px;
   display: flex;
   flex-direction: column;

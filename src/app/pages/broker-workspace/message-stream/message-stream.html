@@ -15,16 +15,16 @@
     <div class="count-label">{{ messageCountLabel() }}</div>
   </div>
   <div class="message-list">
-    @for (m of messagesDescending(); track m) {
+    @for (v of messageViews(); track v.message) {
       <div class="message-card">
         <div class="meta">
-          <span class="ts">{{ timeAgo(m.receivedAt) }}</span>
-          <span class="qos-badge">QoS {{ qosNumber(m.qos) }}</span>
-          @if (m.retain) {
+          <span class="ts">{{ v.timeAgo }}</span>
+          <span class="qos-badge">QoS {{ v.qos }}</span>
+          @if (v.message.retain) {
             <span class="retain-badge">Retained</span>
           }
         </div>
-        <div class="payload">{{ body(m.payload) }}</div>
+        <div class="payload">{{ v.body }}</div>
       </div>
     }
     @if (messages().length === 0) {

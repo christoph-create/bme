@@ -1,4 +1,5 @@
 import {
+  ChangeDetectionStrategy,
   Component,
   DestroyRef,
   computed,
@@ -18,16 +19,27 @@ import { formatTimeAgo } from "../format/time-ago";
 
 const TICK_INTERVAL_MS = 1000;
 
+/** Pre-formatted view of a message, so expensive work (JSON parsing, text
+ * decoding) only re-runs when its inputs actually change, instead of on
+ * every change-detection pass - with hundreds of messages in a session,
+ * redoing that per template call made fast scrolling visibly janky. */
+interface MessageView {
+  readonly message: StoredMessage;
+  readonly timeAgo: string;
+  readonly qos: 0 | 1 | 2;
+  readonly body: string;
+}
+
 @Component({
   selector: "app-message-stream",
   imports: [],
   templateUrl: "./message-stream.html",
   styleUrl: "./message-stream.css",
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MessageStream {
   readonly connectionId = input.required<string>();
   readonly topic = input<string | null>(null);
-  readonly qosNumber = qosNumber;
 
   private readonly messageStore = inject(MessageStoreService);
   private readonly destroyRef = inject(DestroyRef);
@@ -35,15 +47,24 @@ export class MessageStream {
   readonly messages = signal<readonly StoredMessage[]>([]);
   private readonly now = signal(Date.now());
 
+  readonly prettyJson = signal(true);
+
   /** Newest first, matching how the panel displays received messages. */
-  readonly messagesDescending = computed(() => [...this.messages()].reverse());
+  readonly messageViews = computed<readonly MessageView[]>(() => {
+    const now = this.now();
+    const prettyPrintJson = this.prettyJson();
+    return [...this.messages()].reverse().map((message) => ({
+      message,
+      timeAgo: formatTimeAgo(now - message.receivedAt),
+      qos: qosNumber(message.qos),
+      body: formatMessageBody(message.payload, { prettyPrintJson }),
+    }));
+  });
 
   readonly messageCountLabel = computed(() => {
     const count = this.messages().length;
     return `${count} ${count === 1 ? "message" : "messages"} in this session`;
   });
-
-  readonly prettyJson = signal(true);
 
   private topicSubscription: Subscription | null = null;
 
@@ -62,14 +83,6 @@ export class MessageStream {
       clearInterval(tickHandle);
       this.topicSubscription?.unsubscribe();
     });
-  }
-
-  timeAgo(receivedAt: number): string {
-    return formatTimeAgo(this.now() - receivedAt);
-  }
-
-  body(payload: readonly number[]): string {
-    return formatMessageBody(payload, { prettyPrintJson: this.prettyJson() });
   }
 
   togglePrettyJson(): void {
