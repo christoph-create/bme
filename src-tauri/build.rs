@@ -7,6 +7,7 @@ fn main() {
             "delete_connection",
             "connect_broker",
             "disconnect_broker",
+            "test_connection",
             "publish_message",
             "subscribe_topic",
             "list_favorites",

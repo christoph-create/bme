@@ -13,6 +13,7 @@
     "allow-get-connection",
     "allow-connect-broker",
     "allow-disconnect-broker",
+    "allow-test-connection",
     "allow-publish-message",
     "allow-subscribe-topic",
     "allow-unsubscribe-topic",

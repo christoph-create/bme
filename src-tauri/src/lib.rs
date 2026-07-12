@@ -49,6 +49,7 @@ pub fn run() {
             commands::get_connection,
             commands::connect_broker,
             commands::disconnect_broker,
+            commands::test_connection,
             commands::publish_message,
             commands::subscribe_topic,
             commands::unsubscribe_topic,
@@ -80,6 +81,8 @@ mod tests {
                 commands::list_connections,
                 commands::connect_broker,
                 commands::subscribe_topic,
+                commands::unsubscribe_topic,
+                commands::test_connection,
             ])
             .build(tauri::generate_context!())
             .expect("failed to build mock app");
@@ -189,5 +192,90 @@ mod tests {
         assert_eq!(subscriptions.len(), 1);
         assert_eq!(subscriptions[0]["topic"], "sensors/#");
         assert_eq!(subscriptions[0]["qos"], "AtLeastOnce");
+    }
+
+    #[test]
+    fn test_connection_returns_an_id_without_persisting_anything() {
+        let app = build_test_app();
+        let webview = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+
+        let id = invoke(
+            &webview,
+            "test_connection",
+            serde_json::json!({
+                "connection": {
+                    "name": "Scratch",
+                    "host": "localhost",
+                    "port": 1883,
+                    "client_id": "bme-test-connection",
+                    "username": null,
+                    "password": null,
+                    "use_tls": false,
+                    "keep_alive_secs": 30,
+                    "subscriptions": []
+                }
+            }),
+        );
+        assert!(id.as_str().is_some(), "expected a Uuid string, got {id}");
+
+        let all = invoke(&webview, "list_connections", serde_json::json!({}));
+        assert_eq!(all.as_array().unwrap().len(), 0);
+    }
+
+    #[test]
+    fn subscribing_and_unsubscribing_work_without_ever_connecting() {
+        let app = build_test_app();
+        let webview = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+
+        let created = invoke(
+            &webview,
+            "create_connection",
+            serde_json::json!({
+                "newConnection": {
+                    "name": "Local",
+                    "host": "localhost",
+                    "port": 1883,
+                    "client_id": "bme-offline-test",
+                    "username": null,
+                    "password": null,
+                    "use_tls": false,
+                    "keep_alive_secs": 30,
+                    "subscriptions": []
+                }
+            }),
+        );
+        let id = created["id"].clone();
+
+        // Deliberately never invoke connect_broker - subscribe/unsubscribe
+        // manage the persisted list and must work regardless.
+        let subscription = invoke(
+            &webview,
+            "subscribe_topic",
+            serde_json::json!({
+                "connectionId": id,
+                "topic": "sensors/#",
+                "qos": "AtLeastOnce",
+            }),
+        );
+
+        let all = invoke(&webview, "list_connections", serde_json::json!({}));
+        assert_eq!(all[0]["subscriptions"].as_array().unwrap().len(), 1);
+
+        invoke(
+            &webview,
+            "unsubscribe_topic",
+            serde_json::json!({
+                "connectionId": id,
+                "subscriptionId": subscription["id"],
+                "topic": "sensors/#",
+            }),
+        );
+
+        let all = invoke(&webview, "list_connections", serde_json::json!({}));
+        assert_eq!(all[0]["subscriptions"].as_array().unwrap().len(), 0);
     }
 }

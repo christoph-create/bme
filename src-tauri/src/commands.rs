@@ -3,6 +3,7 @@ use bme_core::models::{
     QoS, Subscription,
 };
 use bme_core::mqtt::manager::MqttClientManager;
+use bme_core::mqtt::port::MqttError;
 use bme_core::mqtt::rumqttc_adapter::RumqttcAdapter;
 use bme_core::storage::connections_repo::{ConnectionsRepository, SqliteConnectionsRepository};
 use bme_core::storage::favorites_repo::{FavoritesRepository, SqliteFavoritesRepository};
@@ -65,6 +66,36 @@ pub fn disconnect_broker(manager: State<MqttManagerState>, id: Uuid) -> Result<(
     manager.disconnect(id).map_err(|err| err.to_string())
 }
 
+/// Kicks off a connection attempt for form data that hasn't been saved yet,
+/// so the frontend can offer a "Test Connection" button before creating a
+/// connection. Returns a throwaway id the frontend can watch for
+/// `Connected`/`Disconnected` events on, then clean up via
+/// `disconnect_broker` regardless of the outcome - this never touches the
+/// database.
+#[tauri::command]
+pub fn test_connection(
+    manager: State<MqttManagerState>,
+    connection: NewBrokerConnection,
+) -> Result<Uuid, String> {
+    let id = Uuid::new_v4();
+    let broker = BrokerConnection {
+        id,
+        name: connection.name,
+        host: connection.host,
+        port: connection.port,
+        client_id: connection.client_id,
+        username: connection.username,
+        password: connection.password,
+        use_tls: connection.use_tls,
+        keep_alive_secs: connection.keep_alive_secs,
+        subscriptions: Vec::new(),
+    };
+    manager
+        .connect(id, &broker)
+        .map_err(|err| err.to_string())?;
+    Ok(id)
+}
+
 #[tauri::command]
 pub fn publish_message(
     manager: State<MqttManagerState>,
@@ -79,6 +110,18 @@ pub fn publish_message(
         .map_err(|err| err.to_string())
 }
 
+/// Managing the subscription *list* (add/remove) should always work, even
+/// when not currently connected - it's persisted config that gets replayed
+/// on the next connect (see `connect_broker`). Only a real MQTT-level
+/// failure should block that; "there's no live session right now" just
+/// means there's nothing to tell the broker yet, which is fine.
+fn ignore_if_unknown_connection(result: Result<(), MqttError>) -> Result<(), String> {
+    match result {
+        Ok(()) | Err(MqttError::UnknownConnection(_)) => Ok(()),
+        Err(err) => Err(err.to_string()),
+    }
+}
+
 #[tauri::command]
 pub fn subscribe_topic(
     repo: State<SqliteConnectionsRepository>,
@@ -87,9 +130,7 @@ pub fn subscribe_topic(
     topic: String,
     qos: QoS,
 ) -> Result<Subscription, String> {
-    manager
-        .subscribe(connection_id, &topic, qos)
-        .map_err(|err| err.to_string())?;
+    ignore_if_unknown_connection(manager.subscribe(connection_id, &topic, qos))?;
     repo.add_subscription(connection_id, NewSubscription { topic, qos })
         .map_err(|err| err.to_string())
 }
@@ -102,9 +143,7 @@ pub fn unsubscribe_topic(
     subscription_id: Uuid,
     topic: String,
 ) -> Result<(), String> {
-    manager
-        .unsubscribe(connection_id, &topic)
-        .map_err(|err| err.to_string())?;
+    ignore_if_unknown_connection(manager.unsubscribe(connection_id, &topic))?;
     repo.remove_subscription(subscription_id)
         .map_err(|err| err.to_string())
 }

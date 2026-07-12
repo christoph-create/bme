@@ -128,6 +128,21 @@ describe("ConnectionsService", () => {
     ).resolves.toBeNull();
   });
 
+  it("tests a connection via the test_connection command, returning the ephemeral id", async () => {
+    const newConnection = sampleNewConnection();
+    mockIPC((cmd, args) => {
+      if (cmd === "test_connection") {
+        expect(args).toEqual({ connection: newConnection });
+        return "22222222-2222-2222-2222-222222222222";
+      }
+      throw new Error(`unexpected command: ${cmd}`);
+    });
+
+    await expect(
+      new ConnectionsService().testConnection(newConnection),
+    ).resolves.toBe("22222222-2222-2222-2222-222222222222");
+  });
+
   it("propagates command errors as rejected promises", async () => {
     mockIPC((cmd) => {
       if (cmd === "list_connections") {

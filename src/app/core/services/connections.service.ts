@@ -31,4 +31,11 @@ export class ConnectionsService {
   disconnect(id: string): Promise<void> {
     return invoke("disconnect_broker", { id });
   }
+
+  /** Kicks off a connection attempt for form data that hasn't been saved
+   * yet, returning a throwaway id to watch for Connected/Disconnected
+   * events on. Clean up with `disconnect()` once you're done with it. */
+  testConnection(newConnection: NewBrokerConnection): Promise<string> {
+    return invoke("test_connection", { connection: newConnection });
+  }
 }
