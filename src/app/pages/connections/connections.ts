@@ -1,5 +1,6 @@
 import { Component, HostListener, inject, signal } from "@angular/core";
 import { Router, RouterLink } from "@angular/router";
+import { invoke } from "@tauri-apps/api/core";
 
 import { BrokerConnection } from "../../core/models/broker-connection.model";
 import { ConnectionsService } from "../../core/services/connections.service";
@@ -25,6 +26,10 @@ export class Connections {
 
   openBroker(id: string): void {
     void this.router.navigate(["/broker", id]);
+  }
+
+  openLogDir(): void {
+    void invoke("open_log_dir");
   }
 
   toggleMenu(id: string, event: Event): void {

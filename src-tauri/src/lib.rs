@@ -18,7 +18,29 @@ fn greet(name: &str) -> String {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    std::panic::set_hook(Box::new(|info| {
+        let backtrace = std::backtrace::Backtrace::force_capture();
+        log::error!("panic: {info}\nbacktrace:\n{backtrace}");
+    }));
+
     tauri::Builder::default()
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                // `Builder::new()` already ships default Stdout + LogDir
+                // targets - `.target()` appends to those rather than
+                // replacing them, which would double-write every line.
+                // `.targets()` replaces the list outright.
+                .targets([
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir {
+                        file_name: Some("bme".to_string()),
+                    }),
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
+                ])
+                .level(log::LevelFilter::Debug)
+                .max_file_size(10 * 1024 * 1024)
+                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepOne)
+                .build(),
+        )
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let app_data_dir = app.path().app_data_dir()?;
@@ -43,6 +65,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             greet,
+            commands::open_log_dir,
             commands::list_connections,
             commands::create_connection,
             commands::delete_connection,

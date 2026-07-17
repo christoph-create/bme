@@ -2,6 +2,7 @@ import { Injectable, InjectionToken, inject } from "@angular/core";
 import { BehaviorSubject, Observable, distinctUntilChanged, map } from "rxjs";
 
 import { StoredMessage } from "../models/stored-message.model";
+import { LoggerService } from "./logger.service";
 import { MqttEventsService } from "./mqtt-events.service";
 
 const DEFAULT_MAX_MESSAGES_PER_TOPIC = 500;
@@ -24,6 +25,7 @@ type StoreState = ReadonlyMap<string, TopicHistory>;
 @Injectable({ providedIn: "root" })
 export class MessageStoreService {
   private readonly maxMessagesPerTopic = inject(MAX_MESSAGES_PER_TOPIC);
+  private readonly logger = inject(LoggerService);
   private readonly state$ = new BehaviorSubject<StoreState>(new Map());
 
   constructor() {
@@ -98,6 +100,10 @@ export class MessageStoreService {
 
     const updatedState = new Map(state);
     updatedState.set(message.connection_id, updatedConnectionHistory);
+
+    this.logger.debug(
+      `message store: connection=${message.connection_id} topic=${message.topic} payload_len=${message.payload.length} topic_count=${updatedTopicHistory.length}`,
+    );
 
     this.state$.next(updatedState);
   }

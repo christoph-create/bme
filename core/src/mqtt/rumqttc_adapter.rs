@@ -167,14 +167,24 @@ async fn run_connection(
     events_tx: mpsc::UnboundedSender<MqttEvent>,
     connections: Arc<Mutex<HashMap<Uuid, mpsc::UnboundedSender<Command>>>>,
 ) {
+    log::info!("mqtt connection {connection_id}: event loop started");
+
     loop {
         tokio::select! {
             event = eventloop.poll() => {
                 match event {
                     Ok(Event::Incoming(Packet::ConnAck(_))) => {
+                        log::info!("mqtt connection {connection_id}: connected (ConnAck)");
                         let _ = events_tx.send(MqttEvent::Connected { connection_id });
                     }
                     Ok(Event::Incoming(Packet::Publish(publish))) => {
+                        log::debug!(
+                            "mqtt connection {connection_id}: message received topic={} payload_len={} qos={:?} retain={}",
+                            publish.topic,
+                            publish.payload.len(),
+                            publish.qos,
+                            publish.retain,
+                        );
                         let _ = events_tx.send(MqttEvent::MessageReceived {
                             connection_id,
                             topic: publish.topic,
@@ -184,7 +194,9 @@ async fn run_connection(
                         });
                     }
                     Ok(_) => {}
-                    Err(_) => {
+                    Err(err) => {
+                        log::error!("mqtt connection {connection_id}: eventloop.poll() failed: {err} ({err:?})");
+                        log::warn!("mqtt connection {connection_id}: disconnected due to eventloop error");
                         connections.lock().unwrap().remove(&connection_id);
                         let _ = events_tx.send(MqttEvent::Disconnected { connection_id });
                         return;
@@ -203,6 +215,7 @@ async fn run_connection(
                         let _ = client.unsubscribe(topic).await;
                     }
                     Some(Command::Disconnect) | None => {
+                        log::info!("mqtt connection {connection_id}: disconnected (client requested)");
                         let _ = client.disconnect().await;
                         connections.lock().unwrap().remove(&connection_id);
                         let _ = events_tx.send(MqttEvent::Disconnected { connection_id });

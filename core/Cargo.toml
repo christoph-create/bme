@@ -13,3 +13,4 @@ thiserror = "2"
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
 rumqttc = "0.24"
+log = "0.4"
