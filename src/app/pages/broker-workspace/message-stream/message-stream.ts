@@ -2,12 +2,14 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  ElementRef,
   computed,
   effect,
   inject,
   input,
   signal,
   untracked,
+  viewChild,
 } from "@angular/core";
 import { Subscription } from "rxjs";
 
@@ -16,8 +18,22 @@ import { StoredMessage } from "../../../core/models/stored-message.model";
 import { MessageStoreService } from "../../../core/services/message-store.service";
 import { formatMessageBody } from "../format/payload-text";
 import { formatTimeAgo } from "../format/time-ago";
+import { MeasureHeight } from "./measure-height.directive";
+import { computeOffsets, computeVisibleRange } from "./virtual-range";
 
 const TICK_INTERVAL_MS = 1000;
+
+/** Estimated height (px) for a card that hasn't been measured yet - just
+ * needs to be in the right ballpark so the initial layout and buffered
+ * range aren't wildly off before a real measurement comes in. */
+const DEFAULT_ROW_HEIGHT_PX = 90;
+/** Vertical spacing between cards - previously the message list's flex
+ * `gap`, now folded into the virtual offsets since cards are positioned
+ * absolutely instead of relying on normal flex flow. */
+const ROW_GAP_PX = 8;
+/** Extra rows kept mounted beyond the visible viewport on each side, so
+ * scrolling doesn't flash blank space while new rows mount. */
+const BUFFER_ITEMS = 6;
 
 /** Pre-formatted view of a message, so expensive work (JSON parsing, text
  * decoding) only re-runs when its inputs actually change, instead of on
@@ -30,9 +46,14 @@ interface MessageView {
   readonly body: string;
 }
 
+interface PositionedMessageView {
+  readonly view: MessageView;
+  readonly top: number;
+}
+
 @Component({
   selector: "app-message-stream",
-  imports: [],
+  imports: [MeasureHeight],
   templateUrl: "./message-stream.html",
   styleUrl: "./message-stream.css",
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -66,13 +87,76 @@ export class MessageStream {
     return `${count} ${count === 1 ? "message" : "messages"} in this session`;
   });
 
+  // Virtualization: only the messages currently scrolled into view (plus a
+  // small buffer) are rendered as `.message-card` elements. Keeping every
+  // card in the DOM at once made panel resizing laggy - the browser had to
+  // re-wrap every card's payload text on every resize tick, even the ones
+  // scrolled off-screen. Cards are positioned absolutely at a measured (or
+  // estimated, until `MeasureHeight` reports back) offset instead of
+  // relying on normal flex flow, so only the visible slice needs to exist
+  // in the DOM at all.
+  private readonly listEl = viewChild<ElementRef<HTMLElement>>("list");
+  private readonly rowHeights = new Map<StoredMessage, number>();
+  private readonly heightVersion = signal(0);
+  private readonly scrollTop = signal(0);
+  private readonly viewportHeight = signal(0);
+
+  private readonly rowHeightsList = computed(() => {
+    this.heightVersion();
+    return this.messageViews().map(
+      (v) => this.rowHeights.get(v.message) ?? DEFAULT_ROW_HEIGHT_PX,
+    );
+  });
+
+  private readonly offsets = computed(() =>
+    computeOffsets(this.rowHeightsList(), ROW_GAP_PX),
+  );
+
+  readonly totalHeight = computed(() => {
+    const offsets = this.offsets();
+    return offsets[offsets.length - 1] ?? 0;
+  });
+
+  readonly visibleViews = computed<readonly PositionedMessageView[]>(() => {
+    const offsets = this.offsets();
+    const { startIndex, endIndex } = computeVisibleRange(
+      offsets,
+      this.scrollTop(),
+      this.viewportHeight(),
+      BUFFER_ITEMS,
+    );
+    const views = this.messageViews();
+    const positioned: PositionedMessageView[] = [];
+    for (let i = startIndex; i < endIndex; i++) {
+      positioned.push({ view: views[i], top: offsets[i] });
+    }
+    return positioned;
+  });
+
   private topicSubscription: Subscription | null = null;
+  private containerObserver: ResizeObserver | null = null;
 
   constructor() {
     effect(() => {
       const connectionId = this.connectionId();
       const topic = this.topic();
       untracked(() => this.subscribeTo(connectionId, topic));
+    });
+
+    effect(() => {
+      const el = this.listEl()?.nativeElement;
+      if (
+        el &&
+        this.containerObserver === null &&
+        typeof ResizeObserver !== "undefined"
+      ) {
+        this.containerObserver = new ResizeObserver(([entry]) => {
+          if (entry) {
+            this.viewportHeight.set(entry.contentRect.height);
+          }
+        });
+        this.containerObserver.observe(el);
+      }
     });
 
     const tickHandle = setInterval(
@@ -82,6 +166,7 @@ export class MessageStream {
     this.destroyRef.onDestroy(() => {
       clearInterval(tickHandle);
       this.topicSubscription?.unsubscribe();
+      this.containerObserver?.disconnect();
     });
   }
 
@@ -89,8 +174,23 @@ export class MessageStream {
     this.prettyJson.update((pretty) => !pretty);
   }
 
+  onScroll(event: Event): void {
+    this.scrollTop.set((event.target as HTMLElement).scrollTop);
+  }
+
+  onCardHeight(message: StoredMessage, height: number): void {
+    if (this.rowHeights.get(message) === height) {
+      return;
+    }
+    this.rowHeights.set(message, height);
+    this.heightVersion.update((v) => v + 1);
+  }
+
   private subscribeTo(connectionId: string, topic: string | null): void {
     this.topicSubscription?.unsubscribe();
+    this.rowHeights.clear();
+    this.heightVersion.update((v) => v + 1);
+    this.resetScroll();
     if (topic === null) {
       this.messages.set([]);
       return;
@@ -98,5 +198,16 @@ export class MessageStream {
     this.topicSubscription = this.messageStore
       .messagesFor(connectionId, topic)
       .subscribe((messages) => this.messages.set(messages));
+  }
+
+  /** New topic, new message history - the previous scroll position has no
+   * meaning here, and leaving it as-is could otherwise land the virtualized
+   * range past the end of the new (possibly much shorter) content. */
+  private resetScroll(): void {
+    this.scrollTop.set(0);
+    const el = this.listEl()?.nativeElement;
+    if (el) {
+      el.scrollTop = 0;
+    }
   }
 }

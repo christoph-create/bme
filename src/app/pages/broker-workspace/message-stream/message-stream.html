@@ -14,19 +14,26 @@
     </div>
     <div class="count-label">{{ messageCountLabel() }}</div>
   </div>
-  <div class="message-list">
-    @for (v of messageViews(); track v.message) {
-      <div class="message-card">
-        <div class="meta">
-          <span class="ts">{{ v.timeAgo }}</span>
-          <span class="qos-badge">QoS {{ v.qos }}</span>
-          @if (v.message.retain) {
-            <span class="retain-badge">Retained</span>
-          }
+  <div class="message-list" #list (scroll)="onScroll($event)">
+    <div class="virtual-content" [style.height.px]="totalHeight()">
+      @for (pv of visibleViews(); track pv.view.message) {
+        <div
+          class="message-card"
+          [style.top.px]="pv.top"
+          appMeasureHeight
+          (heightChange)="onCardHeight(pv.view.message, $event)"
+        >
+          <div class="meta">
+            <span class="ts">{{ pv.view.timeAgo }}</span>
+            <span class="qos-badge">QoS {{ pv.view.qos }}</span>
+            @if (pv.view.message.retain) {
+              <span class="retain-badge">Retained</span>
+            }
+          </div>
+          <div class="payload">{{ pv.view.body }}</div>
         </div>
-        <div class="payload">{{ v.body }}</div>
-      </div>
-    }
+      }
+    </div>
     @if (messages().length === 0) {
       <div class="empty-state">No messages yet on this topic</div>
     }
