@@ -26,8 +26,10 @@ serde_json = "1"
 bme-core = { path = "../core" }
 uuid = { version = "1", features = ["serde"] }
 tokio = { version = "1", features = ["sync"] }
-tauri-plugin-log = "2.9.0"
+tauri-plugin-log = { version = "2.9.0", features = ["colored"] }
 log = "0.4.33"
+chrono = "0.4.45"
+colored = "2.1"
 
 [dev-dependencies]
 tauri = { version = "2", features = ["test"] }
