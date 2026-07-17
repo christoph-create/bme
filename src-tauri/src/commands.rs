@@ -7,10 +7,17 @@ use bme_core::mqtt::port::MqttError;
 use bme_core::mqtt::rumqttc_adapter::RumqttcAdapter;
 use bme_core::storage::connections_repo::{ConnectionsRepository, SqliteConnectionsRepository};
 use bme_core::storage::favorites_repo::{FavoritesRepository, SqliteFavoritesRepository};
-use tauri::State;
+use tauri::{AppHandle, Manager, State};
 use uuid::Uuid;
 
 pub type MqttManagerState = MqttClientManager<RumqttcAdapter>;
+
+#[tauri::command]
+pub fn open_log_dir(app: AppHandle) -> Result<(), String> {
+    let log_dir = app.path().app_log_dir().map_err(|err| err.to_string())?;
+    tauri_plugin_opener::open_path(log_dir.to_string_lossy().to_string(), None::<&str>)
+        .map_err(|err| err.to_string())
+}
 
 #[tauri::command]
 pub fn list_connections(

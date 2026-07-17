@@ -6,7 +6,9 @@
   "permissions": [
     "core:default",
     "opener:default",
+    "log:default",
     "allow-greet",
+    "allow-open-log-dir",
     "allow-list-connections",
     "allow-create-connection",
     "allow-delete-connection",

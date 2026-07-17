@@ -2,6 +2,7 @@ fn main() {
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
             "greet",
+            "open_log_dir",
             "list_connections",
             "create_connection",
             "delete_connection",
