@@ -117,3 +117,48 @@ textarea::placeholder {
 .mono {
   font-family: var(--font-mono);
 }
+
+/* Global on/off toggle switch (e.g. TLS/SSL, Retain). */
+.switch {
+  position: relative;
+  display: inline-flex;
+  width: 32px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.switch input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.switch-track {
+  position: absolute;
+  inset: 0;
+  background: var(--color-toggle-track);
+  border-radius: 9px;
+  transition: background 0.15s;
+}
+
+.switch-track::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: white;
+  transition: left 0.15s;
+}
+
+.switch input:checked + .switch-track {
+  background: var(--color-accent);
+}
+
+.switch input:checked + .switch-track::before {
+  left: 16px;
+}

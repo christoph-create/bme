@@ -28,13 +28,16 @@
     </div>
     <app-qos-select [(value)]="qos" />
     <label class="retain-field">
-      <input
-        type="checkbox"
-        class="retain-checkbox"
-        [checked]="retain()"
-        (change)="toggleRetain()"
-      />
-      Retain
+      <span>Retain</span>
+      <span class="switch">
+        <input
+          type="checkbox"
+          class="retain-checkbox"
+          [checked]="retain()"
+          (change)="toggleRetain()"
+        />
+        <span class="switch-track"></span>
+      </span>
     </label>
   </div>
 

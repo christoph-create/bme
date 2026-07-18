@@ -236,7 +236,10 @@ mod tests {
 
         assert!(created.created_at >= before);
         assert_eq!(created.name.as_deref(), Some("Temperature reading"));
-        assert_eq!(created.description.as_deref(), Some("A sample sensor payload"));
+        assert_eq!(
+            created.description.as_deref(),
+            Some("A sample sensor payload")
+        );
         let fetched = favorites
             .get(created.id)
             .unwrap()
@@ -288,7 +291,10 @@ mod tests {
         assert!(updated.retain);
         assert_eq!(updated.created_at, created.created_at);
 
-        let fetched = favorites.get(created.id).unwrap().expect("favorite to exist");
+        let fetched = favorites
+            .get(created.id)
+            .unwrap()
+            .expect("favorite to exist");
         assert_eq!(fetched, updated);
     }
 
@@ -370,8 +376,7 @@ mod tests {
         };
 
         let (_connections, favorites) = repos();
-        let collections =
-            SqliteFavoriteCollectionsRepository::new(Arc::clone(&favorites.conn));
+        let collections = SqliteFavoriteCollectionsRepository::new(Arc::clone(&favorites.conn));
         let collection = collections
             .create(NewFavoriteCollection {
                 name: "Sensors".to_string(),
