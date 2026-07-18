@@ -18,6 +18,7 @@ function sampleNewFavorite(): NewFavoriteMessage {
     description: "A sample sensor payload",
     topic: "sensors/temp",
     payload: "42",
+    format: "json",
     qos: "AtMostOnce",
     retain: false,
   };
@@ -96,6 +97,7 @@ describe("FavoritesService", () => {
       description: null,
       topic: "sensors/humidity",
       payload: "55",
+      format: "raw",
       qos: "ExactlyOnce",
       retain: true,
     };

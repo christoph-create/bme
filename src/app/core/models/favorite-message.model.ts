@@ -1,3 +1,4 @@
+import { MessageFormat } from "./message-format.model";
 import { QoS } from "./qos";
 
 /** Mirrors `core::models::FavoriteMessage`. */
@@ -9,6 +10,7 @@ export interface FavoriteMessage {
   description: string | null;
   topic: string;
   payload: string;
+  format: MessageFormat;
   qos: QoS;
   retain: boolean;
   created_at: string;
@@ -22,6 +24,7 @@ export interface NewFavoriteMessage {
   description: string | null;
   topic: string;
   payload: string;
+  format: MessageFormat;
   qos: QoS;
   retain: boolean;
 }
@@ -34,6 +37,7 @@ export interface UpdateFavoriteMessage {
   description: string | null;
   topic: string;
   payload: string;
+  format: MessageFormat;
   qos: QoS;
   retain: boolean;
 }

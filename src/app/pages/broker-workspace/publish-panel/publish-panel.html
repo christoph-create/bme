@@ -61,7 +61,7 @@
     placeholder="payload"
   ></textarea>
 
-  @if (formatError() ?? publishError() ?? templateSaveError(); as message) {
+  @if (formatError() ?? publishError(); as message) {
     <p class="error">{{ message }}</p>
   }
 
@@ -69,11 +69,14 @@
     @if (templateSaved()) {
       <span class="flash">✓ Saved as template</span>
     }
+    <button type="button" class="btn-save-template" (click)="openLoadModal()">
+      Load Template
+    </button>
     <button
       type="button"
       class="btn-save-template"
       [disabled]="form.invalid"
-      (click)="saveAsTemplate()"
+      (click)="openSaveModal()"
     >
       Save as Template
     </button>
@@ -82,3 +85,18 @@
     </button>
   </div>
 </form>
+
+@if (saveModalDraft(); as draft) {
+  <app-save-template-modal
+    [draft]="draft"
+    (close_modal)="closeSaveModal()"
+    (saved)="onTemplateSaved()"
+  />
+}
+
+@if (showLoadModal()) {
+  <app-load-template-modal
+    (close_modal)="closeLoadModal()"
+    (selected)="onTemplateSelected($event)"
+  />
+}

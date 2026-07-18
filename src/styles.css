@@ -6,6 +6,12 @@
 
 /* Design tokens extracted from the click-through prototype's computed styles. */
 :root {
+  /* Tells the browser to render native form control chrome (select dropdown
+     popups, scrollbars, checkboxes) in dark mode - without this, a
+     <select>'s closed box picks up our CSS but its native options popup
+     stays light. */
+  color-scheme: dark;
+
   --color-bg: rgb(22 23 26);
   --color-surface: rgb(27 28 31);
   --color-surface-elevated: rgb(28 29 32);
@@ -34,6 +40,7 @@
   --color-info-tint: rgb(59 130 246 / 12%);
 
   --color-surface-hover: rgb(38 39 44);
+  --color-overlay: rgb(0 0 0 / 60%);
 
   --color-tree-name: rgb(199 200 204);
   --color-badge-bg: rgb(255 255 255 / 5%);

@@ -1,0 +1,23 @@
+<div class="backdrop" (click)="onBackdropClick()">
+  <div
+    class="panel"
+    role="dialog"
+    aria-modal="true"
+    (click)="$event.stopPropagation()"
+  >
+    <div class="panel-header">
+      <h2>{{ title() }}</h2>
+      <button
+        type="button"
+        class="close-button"
+        (click)="close_modal.emit()"
+        aria-label="Close"
+      >
+        ×
+      </button>
+    </div>
+    <div class="panel-body">
+      <ng-content></ng-content>
+    </div>
+  </div>
+</div>

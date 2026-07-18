@@ -1,0 +1,64 @@
+<app-modal title="Save as Template" (close_modal)="close_modal.emit()">
+  <div class="preview">
+    <div class="preview-line">
+      <span class="preview-label">Topic</span>
+      <span class="preview-topic mono">{{ draft().topic }}</span>
+      <span class="qos-badge">Q{{ qosNumber(draft().qos) }}</span>
+      @if (draft().retain) {
+        <span class="retain-badge">Retain</span>
+      }
+    </div>
+    <pre class="preview-payload mono">{{ draft().payload }}</pre>
+  </div>
+
+  <form class="form" [formGroup]="form" (ngSubmit)="save()">
+    <div class="field">
+      <label for="name">Name</label>
+      <input id="name" type="text" formControlName="name" />
+    </div>
+
+    <div class="field">
+      <label for="description">Description</label>
+      <textarea id="description" formControlName="description"></textarea>
+    </div>
+
+    <div class="field">
+      <label for="collectionId">Collection</label>
+      <select id="collectionId" formControlName="collectionId">
+        <option value="">No collection</option>
+        @for (collection of collections(); track collection.id) {
+          <option [value]="collection.id">{{ collection.name }}</option>
+        }
+        <option [value]="newCollectionValue">+ New collection…</option>
+      </select>
+    </div>
+
+    @if (form.controls.collectionId.value === newCollectionValue) {
+      <div class="field">
+        <label for="newCollectionName">New collection name</label>
+        <input
+          id="newCollectionName"
+          type="text"
+          formControlName="newCollectionName"
+        />
+      </div>
+    }
+
+    @if (error()) {
+      <p class="error">{{ error() }}</p>
+    }
+
+    <footer class="actions">
+      <button type="button" class="btn-secondary" (click)="close_modal.emit()">
+        Cancel
+      </button>
+      <button
+        type="submit"
+        class="btn-primary"
+        [disabled]="form.invalid || saving()"
+      >
+        {{ saving() ? "Saving…" : "Save" }}
+      </button>
+    </footer>
+  </form>
+</app-modal>

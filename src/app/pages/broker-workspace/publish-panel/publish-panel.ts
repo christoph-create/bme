@@ -8,20 +8,22 @@ import {
 } from "@angular/core";
 import { FormBuilder, ReactiveFormsModule, Validators } from "@angular/forms";
 
-import { NewFavoriteMessage } from "../../../core/models/favorite-message.model";
+import { FavoriteMessage } from "../../../core/models/favorite-message.model";
+import { MessageDraft } from "../../../core/models/message-draft.model";
+import { MessageFormat } from "../../../core/models/message-format.model";
 import { QoS } from "../../../core/models/qos";
-import { FavoritesService } from "../../../core/services/favorites.service";
 import { MqttService } from "../../../core/services/mqtt.service";
+import { LoadTemplateModal } from "../load-template-modal/load-template-modal";
 import { QosSelect } from "../qos-select/qos-select";
+import { SaveTemplateModal } from "../save-template-modal/save-template-modal";
 
 const FLASH_DURATION_MS = 1800;
 const FORMAT_ERROR_DURATION_MS = 2500;
-export type PublishFormat = "json" | "raw";
-const FORMAT_OPTIONS: readonly PublishFormat[] = ["json", "raw"];
+const FORMAT_OPTIONS: readonly MessageFormat[] = ["json", "raw"];
 
 @Component({
   selector: "app-publish-panel",
-  imports: [ReactiveFormsModule, QosSelect],
+  imports: [ReactiveFormsModule, QosSelect, SaveTemplateModal, LoadTemplateModal],
   templateUrl: "./publish-panel.html",
   styleUrl: "./publish-panel.css",
 })
@@ -32,7 +34,6 @@ export class PublishPanel {
   readonly topic = input<string | null>(null);
 
   private readonly mqttService = inject(MqttService);
-  private readonly favoritesService = inject(FavoritesService);
   private readonly formBuilder = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -41,14 +42,15 @@ export class PublishPanel {
     payload: ["", Validators.required],
   });
 
-  readonly format = signal<PublishFormat>("json");
+  readonly format = signal<MessageFormat>("json");
   readonly qos = signal<QoS>("AtMostOnce");
   readonly retain = signal(false);
   readonly publishedFlash = signal(false);
   readonly publishError = signal<string | null>(null);
   readonly formatError = signal<string | null>(null);
   readonly templateSaved = signal(false);
-  readonly templateSaveError = signal<string | null>(null);
+  readonly saveModalDraft = signal<MessageDraft | null>(null);
+  readonly showLoadModal = signal(false);
 
   private flashTimeout: ReturnType<typeof setTimeout> | null = null;
   private formatErrorTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -75,7 +77,7 @@ export class PublishPanel {
     });
   }
 
-  selectFormat(format: PublishFormat): void {
+  selectFormat(format: MessageFormat): void {
     this.format.set(format);
   }
 
@@ -124,36 +126,48 @@ export class PublishPanel {
     this.flashPublished();
   }
 
-  /** Saves the current topic/payload/QoS/retain as a reusable template,
-   * independent of any particular broker - see docs/plans/message-templates.md. */
-  async saveAsTemplate(): Promise<void> {
+  /** Opens the Save Template modal with a snapshot of the current
+   * topic/payload/QoS/retain/format - see docs/plans/message-templates.md. */
+  openSaveModal(): void {
     if (this.form.invalid) {
       return;
     }
 
     const { topic, payload } = this.form.getRawValue();
-    const newFavorite: NewFavoriteMessage = {
-      connection_id: null,
-      collection_id: null,
-      name: topic.split("/").filter(Boolean).pop() ?? topic,
-      description: null,
+    this.saveModalDraft.set({
       topic,
       payload: this.payloadText(payload),
+      format: this.format(),
       qos: this.qos(),
       retain: this.retain(),
-    };
+    });
+  }
 
-    try {
-      await this.favoritesService.create(newFavorite);
-    } catch (err) {
-      this.templateSaveError.set(
-        err instanceof Error ? err.message : String(err),
-      );
-      return;
-    }
+  closeSaveModal(): void {
+    this.saveModalDraft.set(null);
+  }
 
-    this.templateSaveError.set(null);
+  onTemplateSaved(): void {
+    this.saveModalDraft.set(null);
     this.flashTemplateSaved();
+  }
+
+  openLoadModal(): void {
+    this.showLoadModal.set(true);
+  }
+
+  closeLoadModal(): void {
+    this.showLoadModal.set(false);
+  }
+
+  /** Plainly overwrites the current draft with the selected template's
+   * fields - matches how clicking a topic in the tree already behaves. */
+  onTemplateSelected(favorite: FavoriteMessage): void {
+    this.form.setValue({ topic: favorite.topic, payload: favorite.payload });
+    this.format.set(favorite.format);
+    this.qos.set(favorite.qos);
+    this.retain.set(favorite.retain);
+    this.showLoadModal.set(false);
   }
 
   private payloadText(payload: string): string {

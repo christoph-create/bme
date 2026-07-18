@@ -1,0 +1,66 @@
+<app-modal title="Load Template" (close_modal)="close_modal.emit()">
+  <div class="filters">
+    <input
+      type="text"
+      class="search-input"
+      placeholder="Search templates…"
+      [value]="search()"
+      (input)="onSearchInput($event)"
+    />
+    <select
+      class="collection-filter"
+      [value]="collectionFilter()"
+      (change)="onCollectionFilterChange($event)"
+    >
+      <option value="">All collections</option>
+      @for (collection of collections(); track collection.id) {
+        <option [value]="collection.id">{{ collection.name }}</option>
+      }
+    </select>
+  </div>
+
+  @if (loading()) {
+    <p class="status-text">Loading templates…</p>
+  } @else if (error()) {
+    <p class="status-text error">{{ error() }}</p>
+  } @else if (favorites().length === 0) {
+    <p class="status-text">No templates yet.</p>
+  } @else if (filteredFavorites().length === 0) {
+    <p class="status-text">No matching templates.</p>
+  } @else {
+    <ul class="template-list">
+      @for (favorite of filteredFavorites(); track favorite.id) {
+        <li
+          class="template-row"
+          role="button"
+          tabindex="0"
+          (click)="select(favorite)"
+          (keydown.enter)="select(favorite)"
+        >
+          <div class="template-info">
+            <div class="template-name">
+              {{ favorite.name || favorite.topic }}
+              @if (collectionName(favorite.collection_id); as name) {
+                <span class="collection-badge">{{ name }}</span>
+              }
+            </div>
+            <div
+              class="template-detail"
+              [class.mono]="!favorite.description"
+              [title]="favorite.topic"
+            >
+              {{ favorite.description || favorite.topic }}
+            </div>
+          </div>
+          <span class="chevron">›</span>
+        </li>
+      }
+    </ul>
+  }
+
+  <footer class="actions">
+    <button type="button" class="btn-secondary" (click)="close_modal.emit()">
+      Cancel
+    </button>
+  </footer>
+</app-modal>
