@@ -90,6 +90,7 @@ pub struct UpdateBrokerConnection {
 pub struct FavoriteMessage {
     pub id: Uuid,
     pub connection_id: Option<Uuid>,
+    pub collection_id: Option<Uuid>,
     pub name: Option<String>,
     pub description: Option<String>,
     pub topic: String,
@@ -102,6 +103,7 @@ pub struct FavoriteMessage {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NewFavoriteMessage {
     pub connection_id: Option<Uuid>,
+    pub collection_id: Option<Uuid>,
     pub name: Option<String>,
     pub description: Option<String>,
     pub topic: String,
@@ -113,12 +115,33 @@ pub struct NewFavoriteMessage {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UpdateFavoriteMessage {
     pub connection_id: Option<Uuid>,
+    pub collection_id: Option<Uuid>,
     pub name: Option<String>,
     pub description: Option<String>,
     pub topic: String,
     pub payload: String,
     pub qos: QoS,
     pub retain: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FavoriteCollection {
+    pub id: Uuid,
+    pub name: String,
+    pub description: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NewFavoriteCollection {
+    pub name: String,
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UpdateFavoriteCollection {
+    pub name: String,
+    pub description: Option<String>,
 }
 
 #[cfg(test)]

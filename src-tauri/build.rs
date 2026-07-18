@@ -17,6 +17,11 @@ fn main() {
             "get_favorite",
             "update_favorite",
             "delete_favorite",
+            "list_favorite_collections",
+            "create_favorite_collection",
+            "get_favorite_collection",
+            "update_favorite_collection",
+            "delete_favorite_collection",
         ]),
     ))
     .expect("failed to run tauri-build");

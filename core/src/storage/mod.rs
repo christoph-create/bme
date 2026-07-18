@@ -1,4 +1,5 @@
 pub mod connections_repo;
+pub mod favorite_collections_repo;
 pub mod favorites_repo;
 
 use std::sync::LazyLock;
@@ -39,6 +40,7 @@ static MIGRATIONS: LazyLock<Migrations<'static>> = LazyLock::new(|| {
         M::up(include_str!(
             "migrations/0003_favorite_message_name_and_description.sql"
         )),
+        M::up(include_str!("migrations/0004_favorite_collections.sql")),
     ])
 });
 
