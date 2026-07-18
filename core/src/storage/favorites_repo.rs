@@ -43,8 +43,8 @@ impl FavoritesRepository for SqliteFavoritesRepository {
         let created_at = Utc::now();
         conn.execute(
             "INSERT INTO favorite_messages
-                (id, connection_id, collection_id, name, description, topic, payload, qos, retain, created_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                (id, connection_id, collection_id, name, description, topic, payload, format, qos, retain, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
             params![
                 id,
                 new.connection_id,
@@ -53,6 +53,7 @@ impl FavoritesRepository for SqliteFavoritesRepository {
                 new.description,
                 new.topic,
                 new.payload,
+                new.format,
                 new.qos,
                 new.retain,
                 created_at,
@@ -67,6 +68,7 @@ impl FavoritesRepository for SqliteFavoritesRepository {
             description: new.description,
             topic: new.topic,
             payload: new.payload,
+            format: new.format,
             qos: new.qos,
             retain: new.retain,
             created_at,
@@ -76,7 +78,7 @@ impl FavoritesRepository for SqliteFavoritesRepository {
     fn get(&self, id: Uuid) -> Result<Option<FavoriteMessage>, StorageError> {
         let conn = self.conn.lock().unwrap();
         conn.query_row(
-            "SELECT id, connection_id, collection_id, name, description, topic, payload, qos, retain, created_at
+            "SELECT id, connection_id, collection_id, name, description, topic, payload, format, qos, retain, created_at
              FROM favorite_messages WHERE id = ?1",
             params![id],
             row_to_favorite,
@@ -88,7 +90,7 @@ impl FavoritesRepository for SqliteFavoritesRepository {
     fn list(&self) -> Result<Vec<FavoriteMessage>, StorageError> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT id, connection_id, collection_id, name, description, topic, payload, qos, retain, created_at
+            "SELECT id, connection_id, collection_id, name, description, topic, payload, format, qos, retain, created_at
              FROM favorite_messages ORDER BY created_at DESC",
         )?;
         let favorites = stmt
@@ -103,7 +105,7 @@ impl FavoritesRepository for SqliteFavoritesRepository {
     ) -> Result<Vec<FavoriteMessage>, StorageError> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT id, connection_id, collection_id, name, description, topic, payload, qos, retain, created_at
+            "SELECT id, connection_id, collection_id, name, description, topic, payload, format, qos, retain, created_at
              FROM favorite_messages WHERE connection_id = ?1 ORDER BY created_at DESC",
         )?;
         let favorites = stmt
@@ -118,7 +120,7 @@ impl FavoritesRepository for SqliteFavoritesRepository {
     ) -> Result<Vec<FavoriteMessage>, StorageError> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT id, connection_id, collection_id, name, description, topic, payload, qos, retain, created_at
+            "SELECT id, connection_id, collection_id, name, description, topic, payload, format, qos, retain, created_at
              FROM favorite_messages WHERE collection_id = ?1 ORDER BY created_at DESC",
         )?;
         let favorites = stmt
@@ -136,8 +138,8 @@ impl FavoritesRepository for SqliteFavoritesRepository {
         let rows_changed = conn.execute(
             "UPDATE favorite_messages
              SET connection_id = ?1, collection_id = ?2, name = ?3, description = ?4,
-                 topic = ?5, payload = ?6, qos = ?7, retain = ?8
-             WHERE id = ?9",
+                 topic = ?5, payload = ?6, format = ?7, qos = ?8, retain = ?9
+             WHERE id = ?10",
             params![
                 update.connection_id,
                 update.collection_id,
@@ -145,6 +147,7 @@ impl FavoritesRepository for SqliteFavoritesRepository {
                 update.description,
                 update.topic,
                 update.payload,
+                update.format,
                 update.qos,
                 update.retain,
                 id,
@@ -169,6 +172,7 @@ impl FavoritesRepository for SqliteFavoritesRepository {
             description: update.description,
             topic: update.topic,
             payload: update.payload,
+            format: update.format,
             qos: update.qos,
             retain: update.retain,
             created_at,
@@ -191,16 +195,17 @@ fn row_to_favorite(row: &rusqlite::Row<'_>) -> rusqlite::Result<FavoriteMessage>
         description: row.get(4)?,
         topic: row.get(5)?,
         payload: row.get(6)?,
-        qos: row.get(7)?,
-        retain: row.get(8)?,
-        created_at: row.get(9)?,
+        format: row.get(7)?,
+        qos: row.get(8)?,
+        retain: row.get(9)?,
+        created_at: row.get(10)?,
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{NewBrokerConnection, QoS};
+    use crate::models::{MessageFormat, NewBrokerConnection, QoS};
     use crate::storage::connections_repo::{ConnectionsRepository, SqliteConnectionsRepository};
     use crate::storage::open_in_memory;
 
@@ -222,6 +227,7 @@ mod tests {
             description: Some("A sample sensor payload".to_string()),
             topic: "sensors/temperature".to_string(),
             payload: r#"{"celsius": 21.5}"#.to_string(),
+            format: MessageFormat::Json,
             qos: QoS::AtLeastOnce,
             retain: false,
         }
@@ -275,6 +281,7 @@ mod tests {
                     description: None,
                     topic: "sensors/humidity".to_string(),
                     payload: r#"{"pct": 55}"#.to_string(),
+                    format: MessageFormat::Raw,
                     qos: QoS::ExactlyOnce,
                     retain: true,
                 },
@@ -287,6 +294,7 @@ mod tests {
         assert_eq!(updated.description, None);
         assert_eq!(updated.topic, "sensors/humidity");
         assert_eq!(updated.payload, r#"{"pct": 55}"#);
+        assert_eq!(updated.format, MessageFormat::Raw);
         assert_eq!(updated.qos, QoS::ExactlyOnce);
         assert!(updated.retain);
         assert_eq!(updated.created_at, created.created_at);
@@ -312,6 +320,7 @@ mod tests {
                     description: None,
                     topic: "ghost".to_string(),
                     payload: "{}".to_string(),
+                    format: MessageFormat::Json,
                     qos: QoS::AtMostOnce,
                     retain: false,
                 },

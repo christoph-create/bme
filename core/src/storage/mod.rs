@@ -8,7 +8,7 @@ use rusqlite::types::{FromSql, FromSqlError, FromSqlResult, ToSql, ToSqlOutput, 
 use rusqlite::Connection;
 use rusqlite_migration::{Migrations, M};
 
-use crate::models::QoS;
+use crate::models::{MessageFormat, QoS};
 
 #[derive(Debug, thiserror::Error)]
 pub enum StorageError {
@@ -33,6 +33,22 @@ impl FromSql for QoS {
     }
 }
 
+// Same reasoning as QoS above, but stored as TEXT ("json"/"raw") rather than
+// an integer - a couple of fixed strings are more legible directly in the
+// sqlite file, and there's no wire-protocol encoding to match here.
+impl ToSql for MessageFormat {
+    fn to_sql(&self) -> rusqlite::Result<ToSqlOutput<'_>> {
+        Ok(ToSqlOutput::from(String::from(*self)))
+    }
+}
+
+impl FromSql for MessageFormat {
+    fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
+        let raw = value.as_str()?;
+        MessageFormat::try_from(raw).map_err(|_| FromSqlError::InvalidType)
+    }
+}
+
 static MIGRATIONS: LazyLock<Migrations<'static>> = LazyLock::new(|| {
     Migrations::new(vec![
         M::up(include_str!("migrations/0001_broker_connections.sql")),
@@ -41,6 +57,7 @@ static MIGRATIONS: LazyLock<Migrations<'static>> = LazyLock::new(|| {
             "migrations/0003_favorite_message_name_and_description.sql"
         )),
         M::up(include_str!("migrations/0004_favorite_collections.sql")),
+        M::up(include_str!("migrations/0005_favorite_message_format.sql")),
     ])
 });
 

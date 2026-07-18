@@ -303,6 +303,7 @@ mod tests {
                     "description": "A sample sensor payload",
                     "topic": "sensors/temperature",
                     "payload": "{\"celsius\": 21.5}",
+                    "format": "json",
                     "qos": "AtLeastOnce",
                     "retain": false
                 }
@@ -332,6 +333,7 @@ mod tests {
                     "description": null,
                     "topic": "sensors/temperature",
                     "payload": "{}",
+                    "format": "json",
                     "qos": "AtMostOnce",
                     "retain": false
                 }
@@ -363,6 +365,7 @@ mod tests {
                     "description": null,
                     "topic": "sensors/temperature",
                     "payload": "{}",
+                    "format": "json",
                     "qos": "AtMostOnce",
                     "retain": false
                 }
@@ -380,6 +383,7 @@ mod tests {
                     "description": "Now with a description",
                     "topic": "sensors/humidity",
                     "payload": "{\"pct\": 55}",
+                    "format": "json",
                     "qos": "ExactlyOnce",
                     "retain": true
                 }
@@ -409,6 +413,7 @@ mod tests {
                     "description": null,
                     "topic": "sensors/temperature",
                     "payload": "{}",
+                    "format": "json",
                     "qos": "AtMostOnce",
                     "retain": false
                 }
@@ -564,6 +569,7 @@ mod tests {
                     "description": null,
                     "topic": "sensors/temperature",
                     "payload": "{}",
+                    "format": "json",
                     "qos": "AtMostOnce",
                     "retain": false
                 }
@@ -583,6 +589,7 @@ mod tests {
                     "description": null,
                     "topic": "sensors/temperature",
                     "payload": "{}",
+                    "format": "json",
                     "qos": "AtMostOnce",
                     "retain": false
                 }
