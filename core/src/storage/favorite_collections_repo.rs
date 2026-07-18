@@ -106,7 +106,10 @@ impl FavoriteCollectionsRepository for SqliteFavoriteCollectionsRepository {
 
     fn delete(&self, id: Uuid) -> Result<(), StorageError> {
         let conn = self.conn.lock().unwrap();
-        conn.execute("DELETE FROM favorite_collections WHERE id = ?1", params![id])?;
+        conn.execute(
+            "DELETE FROM favorite_collections WHERE id = ?1",
+            params![id],
+        )?;
         Ok(())
     }
 }

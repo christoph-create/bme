@@ -444,11 +444,7 @@ mod tests {
         );
         assert_eq!(created["name"], "Sensor payloads");
 
-        let all = invoke(
-            &webview,
-            "list_favorite_collections",
-            serde_json::json!({}),
-        );
+        let all = invoke(&webview, "list_favorite_collections", serde_json::json!({}));
         assert_eq!(all.as_array().unwrap().len(), 1);
         assert_eq!(all[0]["id"], created["id"]);
     }
@@ -501,11 +497,7 @@ mod tests {
         );
         assert_eq!(updated["name"], "Renamed");
 
-        let all = invoke(
-            &webview,
-            "list_favorite_collections",
-            serde_json::json!({}),
-        );
+        let all = invoke(&webview, "list_favorite_collections", serde_json::json!({}));
         assert_eq!(all[0]["name"], "Renamed");
     }
 
@@ -530,11 +522,7 @@ mod tests {
             serde_json::json!({ "id": created["id"] }),
         );
 
-        let all = invoke(
-            &webview,
-            "list_favorite_collections",
-            serde_json::json!({}),
-        );
+        let all = invoke(&webview, "list_favorite_collections", serde_json::json!({}));
         assert_eq!(all.as_array().unwrap().len(), 0);
     }
 

@@ -1,10 +1,11 @@
-<div class="backdrop" (click)="onBackdropClick()">
-  <div
-    class="panel"
-    role="dialog"
-    aria-modal="true"
-    (click)="$event.stopPropagation()"
-  >
+<div class="overlay">
+  <button
+    type="button"
+    class="backdrop"
+    aria-label="Close dialog"
+    (click)="onBackdropClick()"
+  ></button>
+  <div class="panel" role="dialog" aria-modal="true">
     <div class="panel-header">
       <h2>{{ title() }}</h2>
       <button
