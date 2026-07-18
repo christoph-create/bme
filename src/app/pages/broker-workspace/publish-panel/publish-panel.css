@@ -92,22 +92,6 @@
   white-space: nowrap;
 }
 
-.format-row {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.format-action {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-}
-
-.format-action:hover {
-  color: var(--color-text);
-}
-
 .payload-input {
   flex: 1;
   min-height: 56px;

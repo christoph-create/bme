@@ -16,6 +16,7 @@ import { Subscription } from "rxjs";
 import { qosNumber } from "../../../core/models/qos";
 import { StoredMessage } from "../../../core/models/stored-message.model";
 import { MessageStoreService } from "../../../core/services/message-store.service";
+import { FormattedPayload } from "../../../shared/formatted-payload/formatted-payload";
 import { formatMessageBody } from "../format/payload-text";
 import { formatTimeAgo } from "../format/time-ago";
 import { MeasureHeight } from "./measure-height.directive";
@@ -53,7 +54,7 @@ interface PositionedMessageView {
 
 @Component({
   selector: "app-message-stream",
-  imports: [MeasureHeight],
+  imports: [MeasureHeight, FormattedPayload],
   templateUrl: "./message-stream.html",
   styleUrl: "./message-stream.css",
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -73,12 +74,11 @@ export class MessageStream {
   /** Newest first, matching how the panel displays received messages. */
   readonly messageViews = computed<readonly MessageView[]>(() => {
     const now = this.now();
-    const prettyPrintJson = this.prettyJson();
     return [...this.messages()].reverse().map((message) => ({
       message,
       timeAgo: formatTimeAgo(now - message.receivedAt),
       qos: qosNumber(message.qos),
-      body: formatMessageBody(message.payload, { prettyPrintJson }),
+      body: formatMessageBody(message.payload),
     }));
   });
 

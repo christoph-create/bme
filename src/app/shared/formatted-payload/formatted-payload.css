@@ -1,0 +1,30 @@
+:host {
+  display: block;
+  font-family: var(--font-mono);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.tok-key {
+  color: var(--color-json-key);
+}
+
+.tok-string {
+  color: var(--color-json-string);
+}
+
+.tok-number {
+  color: var(--color-json-number);
+}
+
+.tok-boolean {
+  color: var(--color-json-boolean);
+}
+
+.tok-null {
+  color: var(--color-json-null);
+}
+
+.tok-punctuation {
+  color: var(--color-json-punctuation);
+}

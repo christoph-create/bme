@@ -19,23 +19,12 @@
     </div>
 
     <div class="field">
-      <div class="payload-label-row">
-        <label for="payload">Payload</label>
-        @if (format() === "json") {
-          <button
-            type="button"
-            class="format-action"
-            (click)="formatPayload()"
-          >
-            Format
-          </button>
-        }
-      </div>
-      <textarea
-        id="payload"
-        class="mono payload-input"
+      <span class="field-label">Payload</span>
+      <app-payload-input
+        class="payload-input"
         formControlName="payload"
-      ></textarea>
+        [format]="format()"
+      />
     </div>
 
     <div class="field-row">
@@ -109,7 +98,7 @@
       <button
         type="submit"
         class="btn-primary"
-        [disabled]="form.invalid || saving()"
+        [disabled]="form.invalid || saving() || payloadInvalid()"
       >
         {{ saving() ? "Saving…" : "Save" }}
       </button>

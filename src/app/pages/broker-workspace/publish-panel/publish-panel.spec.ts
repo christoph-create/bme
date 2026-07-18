@@ -123,11 +123,24 @@ describe("PublishPanel", () => {
     );
   });
 
-  it("sends invalid JSON as raw text rather than blocking, in JSON format", async () => {
+  it("blocks publishing invalid JSON while in JSON format", async () => {
     const { fixture, publish } = await setup();
     const component = fixture.componentInstance;
     component.form.controls.topic.setValue("sensors/zone-a");
     component.form.controls.payload.setValue("not valid json");
+
+    await component.publish();
+
+    expect(publish).not.toHaveBeenCalled();
+    expect(component.payloadInvalid()).toBe(true);
+  });
+
+  it("allows publishing the same invalid text once switched to RAW format", async () => {
+    const { fixture, publish } = await setup();
+    const component = fixture.componentInstance;
+    component.form.controls.topic.setValue("sensors/zone-a");
+    component.form.controls.payload.setValue("not valid json");
+    component.selectFormat("raw");
 
     await component.publish();
 
@@ -293,82 +306,54 @@ describe("PublishPanel", () => {
     expect(component.qos()).toBe("AtLeastOnce");
   });
 
-  describe("formatPayload", () => {
-    it("pretty-prints valid JSON in the payload field", async () => {
+  describe("payloadInvalid", () => {
+    it("is false while the payload is empty", async () => {
       const { fixture } = await setup();
-      const component = fixture.componentInstance;
-      component.form.controls.payload.setValue('{"a": 1,   "b": 2}');
 
-      component.formatPayload();
-
-      expect(component.form.controls.payload.value).toBe(
-        '{\n  "a": 1,\n  "b": 2\n}',
-      );
+      expect(fixture.componentInstance.payloadInvalid()).toBe(false);
     });
 
-    it("shows an error and leaves the field untouched for invalid JSON", async () => {
+    it("is true for malformed JSON while in JSON format", async () => {
       const { fixture } = await setup();
-      const component = fixture.componentInstance;
-      component.form.controls.payload.setValue("not valid json");
+      fixture.componentInstance.form.controls.payload.setValue("not json");
 
-      component.formatPayload();
-
-      expect(component.form.controls.payload.value).toBe("not valid json");
-      expect(component.formatError()).toBeTruthy();
+      expect(fixture.componentInstance.payloadInvalid()).toBe(true);
     });
 
-    it("clears the format error on its own after a short timeout", async () => {
-      vi.useFakeTimers();
+    it("is false for malformed JSON once switched to RAW format", async () => {
       const { fixture } = await setup();
       const component = fixture.componentInstance;
-      component.form.controls.payload.setValue("not valid json");
+      component.form.controls.payload.setValue("not json");
+      component.selectFormat("raw");
 
-      component.formatPayload();
-      expect(component.formatError()).toBeTruthy();
-
-      vi.advanceTimersByTime(5000);
-
-      expect(component.formatError()).toBeNull();
+      expect(component.payloadInvalid()).toBe(false);
     });
 
-    it("does not leave a stale format error behind a rejected publish's error message", async () => {
+    it("disables the Publish and Save as Template buttons in the DOM", async () => {
       const { fixture } = await setup();
       const component = fixture.componentInstance;
-      component.form.controls.payload.setValue("not valid json");
-      component.formatPayload();
-      expect(component.formatError()).toBeTruthy();
-
       component.form.controls.topic.setValue("sensors/zone-a");
-      component.form.controls.payload.setValue("hello");
-      component.selectFormat("raw");
-      await component.publish();
-
-      expect(component.formatError()).toBeNull();
-    });
-
-    it("only shows the Format action while in JSON format", async () => {
-      const { fixture } = await setup();
-      const component = fixture.componentInstance;
-
-      let button = (fixture.nativeElement as HTMLElement).querySelector(
-        ".format-action",
-      );
-      expect(button).not.toBeNull();
-
-      component.selectFormat("raw");
+      component.form.controls.payload.setValue("not json");
       fixture.detectChanges();
 
-      button = (fixture.nativeElement as HTMLElement).querySelector(
-        ".format-action",
-      );
-      expect(button).toBeNull();
+      const publishButton = (fixture.nativeElement as HTMLElement).querySelector(
+        ".btn-publish",
+      ) as HTMLButtonElement;
+      const saveButton = Array.from(
+        (fixture.nativeElement as HTMLElement).querySelectorAll(
+          ".btn-save-template",
+        ),
+      ).find((el) => el.textContent?.trim() === "Save as Template") as HTMLButtonElement;
+
+      expect(publishButton.disabled).toBe(true);
+      expect(saveButton.disabled).toBe(true);
     });
   });
 
   describe("Save Template modal", () => {
     it("does not open the modal when the topic field is empty", async () => {
       const { fixture } = await setup();
-      fixture.componentInstance.form.controls.payload.setValue("hello");
+      fixture.componentInstance.form.controls.payload.setValue("{}");
 
       fixture.componentInstance.openSaveModal();
 
@@ -412,7 +397,7 @@ describe("PublishPanel", () => {
       const { fixture } = await setup();
       const component = fixture.componentInstance;
       component.form.controls.topic.setValue("sensors/zone-a");
-      component.form.controls.payload.setValue("hello");
+      component.form.controls.payload.setValue("{}");
       component.openSaveModal();
       fixture.detectChanges();
 
@@ -426,7 +411,7 @@ describe("PublishPanel", () => {
       const { fixture } = await setup();
       const component = fixture.componentInstance;
       component.form.controls.topic.setValue("sensors/zone-a");
-      component.form.controls.payload.setValue("hello");
+      component.form.controls.payload.setValue("{}");
       component.openSaveModal();
 
       component.onTemplateSaved();

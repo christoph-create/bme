@@ -37,31 +37,6 @@
   min-height: 100px;
 }
 
-.payload-label-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--space-2);
-}
-
-.payload-label-row label {
-  margin-bottom: 0;
-}
-
-.format-action {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--color-text-secondary);
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0;
-}
-
-.format-action:hover {
-  color: var(--color-text);
-}
-
 .field select {
   height: var(--control-height);
   background: var(--color-input-bg);

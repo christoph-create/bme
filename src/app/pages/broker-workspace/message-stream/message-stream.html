@@ -30,7 +30,12 @@
               <span class="retain-badge">Retained</span>
             }
           </div>
-          <div class="payload">{{ pv.view.body }}</div>
+          <app-formatted-payload
+            class="payload"
+            [payload]="pv.view.body"
+            format="json"
+            [prettyPrint]="prettyJson()"
+          />
         </div>
       }
     </div>

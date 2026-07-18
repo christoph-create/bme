@@ -1,15 +1,25 @@
-import { Component, effect, inject, input, output, signal } from "@angular/core";
+import {
+  Component,
+  computed,
+  effect,
+  inject,
+  input,
+  output,
+  signal,
+  viewChild,
+} from "@angular/core";
 import { FormBuilder, ReactiveFormsModule, Validators } from "@angular/forms";
 
 import { FavoriteCollection } from "../../../core/models/favorite-collection.model";
 import { FavoriteMessage } from "../../../core/models/favorite-message.model";
 import { MessageFormat } from "../../../core/models/message-format.model";
-import { prettyPayload } from "../../../core/models/pretty-payload";
 import { QoS } from "../../../core/models/qos";
 import { FavoriteCollectionsService } from "../../../core/services/favorite-collections.service";
 import { FavoritesService } from "../../../core/services/favorites.service";
+import { JsonFormatService } from "../../../core/services/json-format.service";
 import { QosSelect } from "../../broker-workspace/qos-select/qos-select";
 import { Modal } from "../../../shared/modal/modal";
+import { PayloadInput } from "../../../shared/payload-input/payload-input";
 
 /** Sentinel `collectionId` form value meaning "create a new collection from
  * `newCollectionName` and use that", distinct from "" (no collection). */
@@ -18,7 +28,7 @@ const FORMAT_OPTIONS: readonly MessageFormat[] = ["json", "raw"];
 
 @Component({
   selector: "app-template-form",
-  imports: [Modal, QosSelect, ReactiveFormsModule],
+  imports: [Modal, QosSelect, ReactiveFormsModule, PayloadInput],
   templateUrl: "./template-form.html",
   styleUrl: "./template-form.css",
 })
@@ -29,6 +39,7 @@ export class TemplateForm {
 
   private readonly favoritesService = inject(FavoritesService);
   private readonly collectionsService = inject(FavoriteCollectionsService);
+  private readonly jsonFormat = inject(JsonFormatService);
   private readonly formBuilder = inject(FormBuilder);
 
   readonly newCollectionValue = NEW_COLLECTION;
@@ -51,6 +62,25 @@ export class TemplateForm {
     newCollectionName: [""],
   });
 
+  private readonly payloadInputRef = viewChild(PayloadInput);
+
+  /** True while `format` is "json" and the payload doesn't parse - a
+   * template declared JSON with malformed JSON isn't worth saving.
+   *
+   * Reads PayloadInput's `value` signal directly via the view child ref,
+   * rather than going through its `format` *input* - an input only updates
+   * on the next change-detection pass, which CodeMirror's edits don't
+   * trigger (they're not an Angular-bound DOM event), so that would lag a
+   * beat behind the live error text below the field. `value` is set
+   * directly by PayloadInput itself on every keystroke, no such lag. */
+  readonly payloadInvalid = computed(() => {
+    if (this.format() !== "json") {
+      return false;
+    }
+    const text = this.payloadInputRef()?.value() ?? this.form.controls.payload.value;
+    return text.trim() !== "" && !this.jsonFormat.format(text).ok;
+  });
+
   get isEditMode(): boolean {
     return this.favorite() !== null;
   }
@@ -69,7 +99,10 @@ export class TemplateForm {
         name: favorite.name ?? "",
         description: favorite.description ?? "",
         topic: favorite.topic,
-        payload: prettyPayload(favorite.payload, favorite.format),
+        payload:
+          favorite.format === "json"
+            ? this.jsonFormat.tryFormat(favorite.payload)
+            : favorite.payload,
         collectionId: favorite.collection_id ?? "",
       });
       this.format.set(favorite.format);
@@ -88,20 +121,8 @@ export class TemplateForm {
     this.retain.set(!this.retain());
   }
 
-  /** Pretty-prints the payload field as JSON, in place. */
-  formatPayload(): void {
-    const payload = this.form.controls.payload.value;
-    try {
-      const pretty = JSON.stringify(JSON.parse(payload), null, 2);
-      this.form.controls.payload.setValue(pretty);
-      this.error.set(null);
-    } catch {
-      this.error.set("Payload isn't valid JSON");
-    }
-  }
-
   async save(): Promise<void> {
-    if (this.form.invalid || this.saving()) {
+    if (this.form.invalid || this.saving() || this.payloadInvalid()) {
       return;
     }
 

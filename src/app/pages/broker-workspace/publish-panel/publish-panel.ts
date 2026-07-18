@@ -1,10 +1,12 @@
 import {
   Component,
   DestroyRef,
+  computed,
   effect,
   inject,
   input,
   signal,
+  viewChild,
 } from "@angular/core";
 import { FormBuilder, ReactiveFormsModule, Validators } from "@angular/forms";
 
@@ -12,18 +14,25 @@ import { FavoriteMessage } from "../../../core/models/favorite-message.model";
 import { MessageDraft } from "../../../core/models/message-draft.model";
 import { MessageFormat } from "../../../core/models/message-format.model";
 import { QoS } from "../../../core/models/qos";
+import { JsonFormatService } from "../../../core/services/json-format.service";
 import { MqttService } from "../../../core/services/mqtt.service";
+import { PayloadInput } from "../../../shared/payload-input/payload-input";
 import { LoadTemplateModal } from "../load-template-modal/load-template-modal";
 import { QosSelect } from "../qos-select/qos-select";
 import { SaveTemplateModal } from "../save-template-modal/save-template-modal";
 
 const FLASH_DURATION_MS = 1800;
-const FORMAT_ERROR_DURATION_MS = 2500;
 const FORMAT_OPTIONS: readonly MessageFormat[] = ["json", "raw"];
 
 @Component({
   selector: "app-publish-panel",
-  imports: [ReactiveFormsModule, QosSelect, SaveTemplateModal, LoadTemplateModal],
+  imports: [
+    ReactiveFormsModule,
+    QosSelect,
+    SaveTemplateModal,
+    LoadTemplateModal,
+    PayloadInput,
+  ],
   templateUrl: "./publish-panel.html",
   styleUrl: "./publish-panel.css",
 })
@@ -34,6 +43,7 @@ export class PublishPanel {
   readonly topic = input<string | null>(null);
 
   private readonly mqttService = inject(MqttService);
+  private readonly jsonFormat = inject(JsonFormatService);
   private readonly formBuilder = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -47,14 +57,32 @@ export class PublishPanel {
   readonly retain = signal(false);
   readonly publishedFlash = signal(false);
   readonly publishError = signal<string | null>(null);
-  readonly formatError = signal<string | null>(null);
   readonly templateSaved = signal(false);
   readonly saveModalDraft = signal<MessageDraft | null>(null);
   readonly showLoadModal = signal(false);
 
   private flashTimeout: ReturnType<typeof setTimeout> | null = null;
-  private formatErrorTimeout: ReturnType<typeof setTimeout> | null = null;
   private templateSavedTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  private readonly payloadInputRef = viewChild(PayloadInput);
+
+  /** True while `format` is "json" and the payload doesn't parse - gates
+   * publishing and saving as a template, since neither makes sense for a
+   * payload that's declared JSON but isn't.
+   *
+   * Reads PayloadInput's `value` signal directly via the view child ref,
+   * rather than going through its `format` *input* - an input only updates
+   * on the next change-detection pass, which CodeMirror's edits don't
+   * trigger (they're not an Angular-bound DOM event), so that would lag a
+   * beat behind the live error text below the field. `value` is set
+   * directly by PayloadInput itself on every keystroke, no such lag. */
+  readonly payloadInvalid = computed(() => {
+    if (this.format() !== "json") {
+      return false;
+    }
+    const text = this.payloadInputRef()?.value() ?? this.form.controls.payload.value;
+    return text.trim() !== "" && !this.jsonFormat.format(text).ok;
+  });
 
   constructor() {
     effect(() => {
@@ -67,9 +95,6 @@ export class PublishPanel {
     this.destroyRef.onDestroy(() => {
       if (this.flashTimeout !== null) {
         clearTimeout(this.flashTimeout);
-      }
-      if (this.formatErrorTimeout !== null) {
-        clearTimeout(this.formatErrorTimeout);
       }
       if (this.templateSavedTimeout !== null) {
         clearTimeout(this.templateSavedTimeout);
@@ -85,19 +110,8 @@ export class PublishPanel {
     this.retain.set(!this.retain());
   }
 
-  /** Pretty-prints the payload field as JSON, in place. */
-  formatPayload(): void {
-    const payload = this.form.controls.payload.value;
-    try {
-      const pretty = JSON.stringify(JSON.parse(payload), null, 2);
-      this.form.controls.payload.setValue(pretty);
-    } catch {
-      this.flashFormatError("Payload isn't valid JSON");
-    }
-  }
-
   async publish(): Promise<void> {
-    if (this.form.invalid) {
+    if (this.form.invalid || this.payloadInvalid()) {
       return;
     }
 
@@ -118,18 +132,13 @@ export class PublishPanel {
     }
 
     this.publishError.set(null);
-    if (this.formatErrorTimeout !== null) {
-      clearTimeout(this.formatErrorTimeout);
-      this.formatErrorTimeout = null;
-    }
-    this.formatError.set(null);
     this.flashPublished();
   }
 
   /** Opens the Save Template modal with a snapshot of the current
    * topic/payload/QoS/retain/format - see docs/plans/message-templates.md. */
   openSaveModal(): void {
-    if (this.form.invalid) {
+    if (this.form.invalid || this.payloadInvalid()) {
       return;
     }
 
@@ -171,7 +180,9 @@ export class PublishPanel {
   }
 
   private payloadText(payload: string): string {
-    return this.format() === "json" ? compactJson(payload) : payload;
+    return this.format() === "json"
+      ? this.jsonFormat.compact(payload)
+      : payload;
   }
 
   private encodePayload(payload: string): Uint8Array {
@@ -200,23 +211,4 @@ export class PublishPanel {
     }, FLASH_DURATION_MS);
   }
 
-  private flashFormatError(message: string): void {
-    if (this.formatErrorTimeout !== null) {
-      clearTimeout(this.formatErrorTimeout);
-    }
-    this.formatError.set(message);
-    this.formatErrorTimeout = setTimeout(() => {
-      this.formatError.set(null);
-      this.formatErrorTimeout = null;
-    }, FORMAT_ERROR_DURATION_MS);
-  }
-}
-
-/** Best-effort JSON compaction - falls back to the raw text if it's not valid JSON. */
-function compactJson(text: string): string {
-  try {
-    return JSON.stringify(JSON.parse(text));
-  } catch {
-    return text;
-  }
 }
