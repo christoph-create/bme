@@ -40,6 +40,7 @@ export class PublishPanel {
 
   readonly format = signal<PublishFormat>("json");
   readonly qos = signal<QoS>("AtMostOnce");
+  readonly retain = signal(false);
   readonly publishedFlash = signal(false);
   readonly publishError = signal<string | null>(null);
   readonly formatError = signal<string | null>(null);
@@ -69,6 +70,10 @@ export class PublishPanel {
     this.format.set(format);
   }
 
+  toggleRetain(): void {
+    this.retain.set(!this.retain());
+  }
+
   /** Pretty-prints the payload field as JSON, in place. */
   formatPayload(): void {
     const payload = this.form.controls.payload.value;
@@ -94,7 +99,7 @@ export class PublishPanel {
         topic,
         bytes,
         this.qos(),
-        false,
+        this.retain(),
       );
     } catch (err) {
       this.publishError.set(err instanceof Error ? err.message : String(err));

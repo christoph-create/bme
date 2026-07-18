@@ -27,6 +27,15 @@
       }
     </div>
     <app-qos-select [(value)]="qos" />
+    <label class="retain-field">
+      <input
+        type="checkbox"
+        class="retain-checkbox"
+        [checked]="retain()"
+        (change)="toggleRetain()"
+      />
+      Retain
+    </label>
   </div>
 
   @if (format() === "json") {

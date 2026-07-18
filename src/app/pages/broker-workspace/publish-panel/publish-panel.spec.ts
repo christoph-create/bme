@@ -162,6 +162,59 @@ describe("PublishPanel", () => {
     );
   });
 
+  it("does not retain by default", async () => {
+    const { fixture, publish } = await setup();
+    const component = fixture.componentInstance;
+    component.form.controls.topic.setValue("sensors/zone-a");
+    component.form.controls.payload.setValue("hello");
+    component.selectFormat("raw");
+
+    await component.publish();
+
+    expect(publish).toHaveBeenCalledWith(
+      CONNECTION_ID,
+      "sensors/zone-a",
+      encode("hello"),
+      "AtMostOnce",
+      false,
+    );
+  });
+
+  it("passes retain=true when the retain checkbox is checked", async () => {
+    const { fixture, publish } = await setup();
+    const component = fixture.componentInstance;
+    component.form.controls.topic.setValue("sensors/zone-a");
+    component.form.controls.payload.setValue("hello");
+    component.selectFormat("raw");
+    component.toggleRetain();
+
+    await component.publish();
+
+    expect(publish).toHaveBeenCalledWith(
+      CONNECTION_ID,
+      "sensors/zone-a",
+      encode("hello"),
+      "AtMostOnce",
+      true,
+    );
+  });
+
+  it("toggles the retain checkbox in the DOM", async () => {
+    const { fixture } = await setup();
+    const component = fixture.componentInstance;
+
+    expect(component.retain()).toBe(false);
+
+    const checkbox = (fixture.nativeElement as HTMLElement).querySelector(
+      ".retain-checkbox",
+    ) as HTMLInputElement;
+    checkbox.click();
+    fixture.detectChanges();
+
+    expect(component.retain()).toBe(true);
+    expect(checkbox.checked).toBe(true);
+  });
+
   it("shows a published flash after a successful publish, and it clears after a timeout", async () => {
     vi.useFakeTimers();
     const { fixture } = await setup();
