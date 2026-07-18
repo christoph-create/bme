@@ -3,13 +3,20 @@ use std::sync::{Arc, Mutex};
 use rusqlite::{params, Connection, OptionalExtension};
 use uuid::Uuid;
 
-use crate::models::{BrokerConnection, NewBrokerConnection, NewSubscription, Subscription};
+use crate::models::{
+    BrokerConnection, NewBrokerConnection, NewSubscription, Subscription, UpdateBrokerConnection,
+};
 use crate::storage::StorageError;
 
 pub trait ConnectionsRepository {
     fn create(&self, new: NewBrokerConnection) -> Result<BrokerConnection, StorageError>;
     fn get(&self, id: Uuid) -> Result<Option<BrokerConnection>, StorageError>;
     fn list(&self) -> Result<Vec<BrokerConnection>, StorageError>;
+    fn update(
+        &self,
+        id: Uuid,
+        update: UpdateBrokerConnection,
+    ) -> Result<Option<BrokerConnection>, StorageError>;
     fn delete(&self, id: Uuid) -> Result<(), StorageError>;
     fn add_subscription(
         &self,
@@ -158,6 +165,50 @@ impl ConnectionsRepository for SqliteConnectionsRepository {
         Ok(connections)
     }
 
+    fn update(
+        &self,
+        id: Uuid,
+        update: UpdateBrokerConnection,
+    ) -> Result<Option<BrokerConnection>, StorageError> {
+        let conn = self.conn.lock().unwrap();
+        let rows_changed = conn.execute(
+            "UPDATE broker_connections
+             SET name = ?1, host = ?2, port = ?3, client_id = ?4, username = ?5,
+                 password = ?6, use_tls = ?7, keep_alive_secs = ?8
+             WHERE id = ?9",
+            params![
+                update.name,
+                update.host,
+                update.port,
+                update.client_id,
+                update.username,
+                update.password,
+                update.use_tls,
+                update.keep_alive_secs,
+                id,
+            ],
+        )?;
+
+        if rows_changed == 0 {
+            return Ok(None);
+        }
+
+        let subscriptions = load_subscriptions(&conn, id)?;
+
+        Ok(Some(BrokerConnection {
+            id,
+            name: update.name,
+            host: update.host,
+            port: update.port,
+            client_id: update.client_id,
+            username: update.username,
+            password: update.password,
+            use_tls: update.use_tls,
+            keep_alive_secs: update.keep_alive_secs,
+            subscriptions,
+        }))
+    }
+
     fn delete(&self, id: Uuid) -> Result<(), StorageError> {
         let conn = self.conn.lock().unwrap();
         conn.execute("DELETE FROM broker_connections WHERE id = ?1", params![id])?;
@@ -280,6 +331,66 @@ mod tests {
         assert_eq!(all.len(), 2);
         assert_eq!(all[0].name, "Cloud Broker");
         assert_eq!(all[1].name, "Local Mosquitto");
+    }
+
+    #[test]
+    fn update_changes_the_stored_fields_and_preserves_subscriptions() {
+        let repo = repo();
+        let created = repo.create(sample_connection()).unwrap();
+
+        let updated = repo
+            .update(
+                created.id,
+                UpdateBrokerConnection {
+                    name: "Renamed".to_string(),
+                    host: "renamed.local".to_string(),
+                    port: 8883,
+                    client_id: "bme-renamed".to_string(),
+                    username: Some("alice".to_string()),
+                    password: Some("hunter2".to_string()),
+                    use_tls: true,
+                    keep_alive_secs: 45,
+                },
+            )
+            .unwrap()
+            .expect("connection to exist");
+
+        assert_eq!(updated.id, created.id);
+        assert_eq!(updated.name, "Renamed");
+        assert_eq!(updated.host, "renamed.local");
+        assert_eq!(updated.port, 8883);
+        assert_eq!(updated.client_id, "bme-renamed");
+        assert_eq!(updated.username.as_deref(), Some("alice"));
+        assert_eq!(updated.password.as_deref(), Some("hunter2"));
+        assert!(updated.use_tls);
+        assert_eq!(updated.keep_alive_secs, 45);
+        assert_eq!(updated.subscriptions.len(), 1);
+
+        let fetched = repo.get(created.id).unwrap().expect("connection to exist");
+        assert_eq!(fetched, updated);
+    }
+
+    #[test]
+    fn update_returns_none_for_unknown_id() {
+        let repo = repo();
+
+        let result = repo
+            .update(
+                Uuid::new_v4(),
+                UpdateBrokerConnection {
+                    name: "Ghost".to_string(),
+                    host: "ghost.local".to_string(),
+                    port: 1883,
+                    client_id: "bme-ghost".to_string(),
+                    username: None,
+                    password: None,
+                    use_tls: false,
+                    keep_alive_secs: 30,
+                },
+            )
+            .unwrap();
+
+        assert_eq!(result, None);
     }
 
     #[test]

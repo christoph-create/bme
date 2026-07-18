@@ -4,11 +4,13 @@
 
 <div class="content">
   <header class="page-header">
-    <h1>New Connection</h1>
+    <h1>{{ editId() ? "Edit Connection" : "New Connection" }}</h1>
   </header>
 
-  @if (editId()) {
-    <p class="status-text">Editing isn't supported yet.</p>
+  @if (loading()) {
+    <p class="status-text">Loading connection…</p>
+  } @else if (loadError()) {
+    <p class="status-text error">{{ loadError() }}</p>
   } @else {
     <form class="form" [formGroup]="form" (ngSubmit)="submit()">
       <div class="field">
@@ -98,7 +100,7 @@
           class="btn-primary"
           [disabled]="form.invalid || submitting()"
         >
-          Save &amp; Connect
+          {{ editId() ? "Save Changes" : "Save & Connect" }}
         </button>
       </footer>
     </form>

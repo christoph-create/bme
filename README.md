@@ -62,7 +62,6 @@ No Windows or macOS build yet — see the roadmap below.
 
 Rough order of what's next, no promises on timing:
 
-- [ ] Editing an existing broker connection (host, port, and its other settings) after it's been saved
 - [ ] A message favorites feature — save frequently-used payloads for quick re-publishing, independent of any particular broker or topic
 - [ ] Client certificate support for brokers that require mutual TLS
 - [ ] A Windows release

@@ -1,6 +1,6 @@
 use bme_core::models::{
     BrokerConnection, FavoriteMessage, NewBrokerConnection, NewFavoriteMessage, NewSubscription,
-    QoS, Subscription,
+    QoS, Subscription, UpdateBrokerConnection,
 };
 use bme_core::mqtt::manager::MqttClientManager;
 use bme_core::mqtt::port::MqttError;
@@ -32,6 +32,17 @@ pub fn create_connection(
     new_connection: NewBrokerConnection,
 ) -> Result<BrokerConnection, String> {
     repo.create(new_connection).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub fn update_connection(
+    repo: State<SqliteConnectionsRepository>,
+    id: Uuid,
+    update: UpdateBrokerConnection,
+) -> Result<BrokerConnection, String> {
+    repo.update(id, update)
+        .map_err(|err| err.to_string())?
+        .ok_or_else(|| format!("connection {id} not found"))
 }
 
 #[tauri::command]

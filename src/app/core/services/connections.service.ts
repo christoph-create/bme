@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import {
   BrokerConnection,
   NewBrokerConnection,
+  UpdateBrokerConnection,
 } from "../models/broker-connection.model";
 
 @Injectable({ providedIn: "root" })
@@ -18,6 +19,10 @@ export class ConnectionsService {
 
   create(newConnection: NewBrokerConnection): Promise<BrokerConnection> {
     return invoke("create_connection", { newConnection });
+  }
+
+  update(id: string, update: UpdateBrokerConnection): Promise<BrokerConnection> {
+    return invoke("update_connection", { id, update });
   }
 
   delete(id: string): Promise<void> {

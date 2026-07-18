@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   BrokerConnection,
   NewBrokerConnection,
+  UpdateBrokerConnection,
 } from "../models/broker-connection.model";
 import { ConnectionsService } from "./connections.service";
 
@@ -84,6 +85,31 @@ describe("ConnectionsService", () => {
     await expect(
       new ConnectionsService().create(newConnection),
     ).resolves.toEqual(created);
+  });
+
+  it("updates a connection via the update_connection command with camelCased args", async () => {
+    const update: UpdateBrokerConnection = {
+      name: "Renamed",
+      host: "renamed.local",
+      port: 8883,
+      client_id: "bme",
+      username: null,
+      password: null,
+      use_tls: true,
+      keep_alive_secs: 45,
+    };
+    const updated: BrokerConnection = { ...sampleConnection(), ...update };
+    mockIPC((cmd, args) => {
+      if (cmd === "update_connection") {
+        expect(args).toEqual({ id: SAMPLE_ID, update });
+        return updated;
+      }
+      throw new Error(`unexpected command: ${cmd}`);
+    });
+
+    await expect(
+      new ConnectionsService().update(SAMPLE_ID, update),
+    ).resolves.toEqual(updated);
   });
 
   it("deletes a connection via the delete_connection command", async () => {

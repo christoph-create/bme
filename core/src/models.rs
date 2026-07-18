@@ -75,6 +75,18 @@ pub struct NewBrokerConnection {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UpdateBrokerConnection {
+    pub name: String,
+    pub host: String,
+    pub port: u16,
+    pub client_id: String,
+    pub username: Option<String>,
+    pub password: Option<String>,
+    pub use_tls: bool,
+    pub keep_alive_secs: u16,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FavoriteMessage {
     pub id: Uuid,
     pub connection_id: Option<Uuid>,

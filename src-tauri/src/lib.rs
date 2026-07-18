@@ -109,6 +109,7 @@ pub fn run() {
             commands::open_log_dir,
             commands::list_connections,
             commands::create_connection,
+            commands::update_connection,
             commands::delete_connection,
             commands::get_connection,
             commands::connect_broker,
@@ -142,6 +143,7 @@ mod tests {
         let app = mock_builder()
             .invoke_handler(tauri::generate_handler![
                 commands::create_connection,
+                commands::update_connection,
                 commands::list_connections,
                 commands::connect_broker,
                 commands::subscribe_topic,
@@ -211,6 +213,56 @@ mod tests {
         let all = invoke(&webview, "list_connections", serde_json::json!({}));
         assert_eq!(all.as_array().unwrap().len(), 1);
         assert_eq!(all[0]["id"], created["id"]);
+    }
+
+    #[test]
+    fn update_connection_persists_and_is_visible_on_the_listed_connection() {
+        let app = build_test_app();
+        let webview = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+
+        let created = invoke(
+            &webview,
+            "create_connection",
+            serde_json::json!({
+                "newConnection": {
+                    "name": "Local",
+                    "host": "localhost",
+                    "port": 1883,
+                    "client_id": "bme-update-test",
+                    "username": null,
+                    "password": null,
+                    "use_tls": false,
+                    "keep_alive_secs": 30,
+                    "subscriptions": []
+                }
+            }),
+        );
+        let id = created["id"].clone();
+
+        let updated = invoke(
+            &webview,
+            "update_connection",
+            serde_json::json!({
+                "id": id,
+                "update": {
+                    "name": "Renamed",
+                    "host": "renamed.local",
+                    "port": 8883,
+                    "client_id": "bme-update-test",
+                    "username": null,
+                    "password": null,
+                    "use_tls": true,
+                    "keep_alive_secs": 45,
+                }
+            }),
+        );
+        assert_eq!(updated["name"], "Renamed");
+        assert_eq!(updated["host"], "renamed.local");
+
+        let all = invoke(&webview, "list_connections", serde_json::json!({}));
+        assert_eq!(all[0]["name"], "Renamed");
     }
 
     #[test]
