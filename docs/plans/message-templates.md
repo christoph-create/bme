@@ -21,7 +21,7 @@ Already built, but never wired to any UI — pure unused plumbing:
 
 Also relevant: `PublishPanel` (`src/app/pages/broker-workspace/publish-panel/`) currently has **no retain control at all** — `publish()` hardcodes `retain: false`. Templates carry a `retain` flag, so this gap has to close before templates can round-trip faithfully through the live publish form.
 
-## Step 1 — Complete favorite-message CRUD (backend + service layer)
+## Step 1 — Complete favorite-message CRUD (backend + service layer) — done
 
 Backend (`core/`):
 - Add `name: Option<String>` and `description: Option<String>` to `FavoriteMessage` and `NewFavoriteMessage`.
@@ -43,7 +43,7 @@ Frontend (`src/app/core/`):
 
 No UI changes yet — this step just makes the backend capable of everything the feature needs.
 
-## Step 2 — Collections
+## Step 2 — Collections — done
 
 Backend:
 - New table `favorite_collections`: `id, name, description, created_at`. New migration `0004_favorite_collections.sql`, which also adds `collection_id BLOB REFERENCES favorite_collections(id) ON DELETE SET NULL` to `favorite_messages`.
@@ -64,7 +64,7 @@ Frontend:
 
 Still no UI — this step finishes the data model.
 
-## Step 3 — Retain toggle in the publish panel (frontend)
+## Step 3 — Retain toggle in the publish panel (frontend) — done
 
 Prerequisite fix, independent of templates: `PublishPanel` needs a real retain control before a template's `retain` flag means anything when loaded into it.
 - Add a `retain` form control (checkbox, next to the QoS selector) to `publish-panel.ts`/`.html`.
@@ -73,11 +73,12 @@ Prerequisite fix, independent of templates: `PublishPanel` needs a real retain c
 
 This is a small, self-contained, shippable change.
 
-## Step 4 — "Save as template" from the publish panel
+## Step 4 — "Save as template" from the publish panel — done
 
 - Add a save action to `PublishPanel` that calls `FavoritesService.create(...)` with the current `topic`/`payload`/`qos`/`retain` plus a name (and optional description) captured from the user.
 - Decision: saved templates default to `connection_id: null` (broker-independent), matching "independent of any particular broker or topic" from the original ask — even when saved from a specific broker's workspace. `connection_id` stays in the model for a possible future "scope to this broker" option, but nothing sets it yet.
 - Exact interaction (inline field vs. a small dialog for name/description) is a frontend-design decision, deferred — this step just needs the service call wired to *some* trigger so it's testable.
+- Shipped as a plain "Save as Template" button; name auto-derives from the topic's last path segment (matching the prototype's `saveFavorite()`), no dialog. Button placement/styling is a placeholder, not a final design.
 
 ## Step 5 — Template library page (frontend)
 
