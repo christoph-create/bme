@@ -112,13 +112,22 @@ describe("TemplatesManagement", () => {
     expect(text).toContain("Temperature");
     expect(text).toContain("Zone A temperature reading");
     expect(text).toContain("sensors/zone-a/temperature");
-    expect(text).toContain('{"celsius": 21.5}');
+    expect(text).toContain(JSON.stringify({ celsius: 21.5 }, null, 2));
     expect(text).toContain("Q1");
     expect(text).toContain("Retain");
     expect(text).toContain("Sensors");
 
     expect(text).toContain("Humidity");
     expect(text).toContain("sensors/zone-a/humidity");
+  });
+
+  it("shows the raw payload unformatted for raw-format templates", async () => {
+    const { fixture } = await setup({
+      favorites: [favorite({ payload: "plain text", format: "raw" })],
+    });
+
+    const preview = fixture.nativeElement.querySelector(".template-payload");
+    expect(preview.textContent).toBe("plain text");
   });
 
   it("shows an empty state when there are no templates", async () => {

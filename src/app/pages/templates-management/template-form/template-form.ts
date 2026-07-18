@@ -4,6 +4,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from "@angular/forms";
 import { FavoriteCollection } from "../../../core/models/favorite-collection.model";
 import { FavoriteMessage } from "../../../core/models/favorite-message.model";
 import { MessageFormat } from "../../../core/models/message-format.model";
+import { prettyPayload } from "../../../core/models/pretty-payload";
 import { QoS } from "../../../core/models/qos";
 import { FavoriteCollectionsService } from "../../../core/services/favorite-collections.service";
 import { FavoritesService } from "../../../core/services/favorites.service";
@@ -68,7 +69,7 @@ export class TemplateForm {
         name: favorite.name ?? "",
         description: favorite.description ?? "",
         topic: favorite.topic,
-        payload: favorite.payload,
+        payload: prettyPayload(favorite.payload, favorite.format),
         collectionId: favorite.collection_id ?? "",
       });
       this.format.set(favorite.format);
@@ -85,6 +86,18 @@ export class TemplateForm {
 
   toggleRetain(): void {
     this.retain.set(!this.retain());
+  }
+
+  /** Pretty-prints the payload field as JSON, in place. */
+  formatPayload(): void {
+    const payload = this.form.controls.payload.value;
+    try {
+      const pretty = JSON.stringify(JSON.parse(payload), null, 2);
+      this.form.controls.payload.setValue(pretty);
+      this.error.set(null);
+    } catch {
+      this.error.set("Payload isn't valid JSON");
+    }
   }
 
   async save(): Promise<void> {

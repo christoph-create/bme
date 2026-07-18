@@ -168,7 +168,7 @@ describe("TemplateForm", () => {
         "sensors/zone-a/temperature",
       );
       expect(component.form.controls.payload.value).toBe(
-        '{"celsius": 21.5}',
+        JSON.stringify({ celsius: 21.5 }, null, 2),
       );
       expect(component.form.controls.collectionId.value).toBe(COLLECTION.id);
       expect(component.format()).toBe("json");
@@ -202,6 +202,50 @@ describe("TemplateForm", () => {
         qos: "AtMostOnce",
         retain: false,
       });
+    });
+  });
+
+  describe("payload formatting", () => {
+    it("pretty-prints the payload when Format is clicked", async () => {
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+      component.form.controls.payload.setValue('{"a":1}');
+
+      component.formatPayload();
+
+      expect(component.form.controls.payload.value).toBe(
+        JSON.stringify({ a: 1 }, null, 2),
+      );
+    });
+
+    it("shows an error and leaves the payload untouched when it isn't valid JSON", async () => {
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+      component.form.controls.payload.setValue("not json");
+
+      component.formatPayload();
+
+      expect(component.form.controls.payload.value).toBe("not json");
+      expect(component.error()).toBe("Payload isn't valid JSON");
+    });
+
+    it("shows the Format action only when the format is json", async () => {
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+
+      component.format.set("json");
+      fixture.detectChanges();
+      let formatButton = Array.from(
+        (fixture.nativeElement as HTMLElement).querySelectorAll("button"),
+      ).find((button) => button.textContent?.trim() === "Format");
+      expect(formatButton).toBeTruthy();
+
+      component.format.set("raw");
+      fixture.detectChanges();
+      formatButton = Array.from(
+        (fixture.nativeElement as HTMLElement).querySelectorAll("button"),
+      ).find((button) => button.textContent?.trim() === "Format");
+      expect(formatButton).toBeFalsy();
     });
   });
 

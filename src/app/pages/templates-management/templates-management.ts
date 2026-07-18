@@ -3,6 +3,7 @@ import { RouterLink } from "@angular/router";
 
 import { FavoriteCollection } from "../../core/models/favorite-collection.model";
 import { FavoriteMessage } from "../../core/models/favorite-message.model";
+import { prettyPayload } from "../../core/models/pretty-payload";
 import { qosNumber } from "../../core/models/qos";
 import { FavoriteCollectionsService } from "../../core/services/favorite-collections.service";
 import { FavoritesService } from "../../core/services/favorites.service";
@@ -23,6 +24,7 @@ export class TemplatesManagement {
   private readonly collectionsService = inject(FavoriteCollectionsService);
 
   readonly qosNumber = qosNumber;
+  readonly prettyPayload = prettyPayload;
   readonly favorites = signal<FavoriteMessage[]>([]);
   readonly collections = signal<FavoriteCollection[]>([]);
   readonly loading = signal(true);

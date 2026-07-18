@@ -8,7 +8,7 @@
         <span class="retain-badge">Retain</span>
       }
     </div>
-    <pre class="preview-payload mono">{{ draft().payload }}</pre>
+    <pre class="preview-payload mono">{{ prettyPayload(draft().payload, draft().format) }}</pre>
   </div>
 
   <form class="form" [formGroup]="form" (ngSubmit)="save()">

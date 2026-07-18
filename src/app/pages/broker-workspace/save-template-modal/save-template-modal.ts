@@ -3,6 +3,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from "@angular/forms";
 
 import { FavoriteCollection } from "../../../core/models/favorite-collection.model";
 import { MessageDraft } from "../../../core/models/message-draft.model";
+import { prettyPayload } from "../../../core/models/pretty-payload";
 import { qosNumber } from "../../../core/models/qos";
 import { FavoriteCollectionsService } from "../../../core/services/favorite-collections.service";
 import { FavoritesService } from "../../../core/services/favorites.service";
@@ -29,6 +30,7 @@ export class SaveTemplateModal {
 
   readonly newCollectionValue = NEW_COLLECTION;
   readonly qosNumber = qosNumber;
+  readonly prettyPayload = prettyPayload;
   readonly collections = signal<FavoriteCollection[]>([]);
   readonly loadingCollections = signal(true);
   readonly saving = signal(false);

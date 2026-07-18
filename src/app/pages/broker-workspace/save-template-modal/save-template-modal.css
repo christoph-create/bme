@@ -59,7 +59,7 @@
   background: var(--color-bg);
   border-radius: var(--radius-sm);
   white-space: pre-wrap;
-  word-break: break-all;
+  word-break: break-word;
 }
 
 .form {

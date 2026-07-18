@@ -74,6 +74,22 @@ describe("SaveTemplateModal", () => {
     expect(fixture.componentInstance.form.controls.name.value).toBe("zone-a");
   });
 
+  it("pretty-prints the payload preview when the draft is valid JSON", async () => {
+    const { fixture } = await setup();
+
+    const preview = fixture.nativeElement.querySelector(".preview-payload");
+    expect(preview.textContent).toBe(JSON.stringify({ a: 1 }, null, 2));
+  });
+
+  it("shows the raw payload preview when the draft format is raw", async () => {
+    const { fixture } = await setup({
+      draft: { ...DRAFT, format: "raw", payload: "plain text" },
+    });
+
+    const preview = fixture.nativeElement.querySelector(".preview-payload");
+    expect(preview.textContent).toBe("plain text");
+  });
+
   it("loads and lists the available collections", async () => {
     const { fixture, collectionsService } = await setup();
 

@@ -19,7 +19,18 @@
     </div>
 
     <div class="field">
-      <label for="payload">Payload</label>
+      <div class="payload-label-row">
+        <label for="payload">Payload</label>
+        @if (format() === "json") {
+          <button
+            type="button"
+            class="format-action"
+            (click)="formatPayload()"
+          >
+            Format
+          </button>
+        }
+      </div>
       <textarea
         id="payload"
         class="mono payload-input"

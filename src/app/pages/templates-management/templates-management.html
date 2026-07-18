@@ -136,7 +136,7 @@
           @if (favorite.description) {
             <div class="template-description">{{ favorite.description }}</div>
           }
-          <pre class="template-payload mono">{{ favorite.payload }}</pre>
+          <pre class="template-payload mono">{{ prettyPayload(favorite.payload, favorite.format) }}</pre>
         </li>
       }
     </ul>
