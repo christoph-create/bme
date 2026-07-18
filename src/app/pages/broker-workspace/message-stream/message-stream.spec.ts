@@ -179,4 +179,47 @@ describe("MessageStream", () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? "";
     expect(text).toContain("other/topic");
   });
+
+  describe("virtualization", () => {
+    function manyMessages(count: number): StoredMessage[] {
+      return Array.from({ length: count }, (_, i) =>
+        message({
+          payload: encode(`msg-${i}`),
+          receivedAt: Date.now() - (count - i) * 1000,
+        }),
+      );
+    }
+
+    it("keeps the DOM node count far below the message count for a long history", async () => {
+      const { fixture } = await setup({ device: manyMessages(500) });
+      await selectTopic(fixture, "device");
+
+      const text = (fixture.nativeElement as HTMLElement).textContent ?? "";
+      expect(text).toContain("500 messages in this session");
+
+      const cards = (fixture.nativeElement as HTMLElement).querySelectorAll(
+        ".message-card",
+      );
+      expect(cards.length).toBeGreaterThan(0);
+      expect(cards.length).toBeLessThan(50);
+    });
+
+    it("renders a different slice of messages after scrolling", async () => {
+      const { fixture } = await setup({ device: manyMessages(500) });
+      await selectTopic(fixture, "device");
+
+      const element = fixture.nativeElement as HTMLElement;
+      // Newest-first: the most recent message starts out on screen.
+      expect(element.textContent).toContain("msg-499");
+
+      const list = element.querySelector(".message-list") as HTMLElement;
+      list.scrollTop = 5000;
+      list.dispatchEvent(new Event("scroll"));
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(element.textContent).not.toContain("msg-499");
+    });
+  });
 });

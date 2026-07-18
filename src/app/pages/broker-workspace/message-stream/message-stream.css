@@ -49,12 +49,16 @@
   overflow: auto;
   overscroll-behavior: none;
   padding: 10px 18px 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+}
+
+.virtual-content {
+  position: relative;
 }
 
 .message-card {
+  position: absolute;
+  left: 0;
+  right: 0;
   background: var(--color-input-bg);
   border: 1px solid var(--color-border-faint);
   border-radius: var(--radius-md);
