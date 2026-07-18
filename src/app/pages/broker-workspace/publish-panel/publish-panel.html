@@ -58,11 +58,22 @@
     placeholder="payload"
   ></textarea>
 
-  @if (formatError() ?? publishError(); as message) {
+  @if (formatError() ?? publishError() ?? templateSaveError(); as message) {
     <p class="error">{{ message }}</p>
   }
 
   <div class="actions">
+    @if (templateSaved()) {
+      <span class="flash">✓ Saved as template</span>
+    }
+    <button
+      type="button"
+      class="btn-save-template"
+      [disabled]="form.invalid"
+      (click)="saveAsTemplate()"
+    >
+      Save as Template
+    </button>
     <button type="submit" class="btn-publish" [disabled]="form.invalid">
       Publish
     </button>

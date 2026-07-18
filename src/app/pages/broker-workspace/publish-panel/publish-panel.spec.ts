@@ -1,6 +1,8 @@
 import { TestBed } from "@angular/core/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { FavoriteMessage } from "../../../core/models/favorite-message.model";
+import { FavoritesService } from "../../../core/services/favorites.service";
 import { MqttService } from "../../../core/services/mqtt.service";
 import { PublishPanel } from "./publish-panel";
 
@@ -10,12 +12,32 @@ function encode(text: string): Uint8Array {
   return new TextEncoder().encode(text);
 }
 
-async function setup(publish = vi.fn().mockResolvedValue(undefined)) {
+const SAVED_FAVORITE: FavoriteMessage = {
+  id: "44444444-4444-4444-4444-444444444444",
+  connection_id: null,
+  collection_id: null,
+  name: "zone-a",
+  description: null,
+  topic: "sensors/zone-a",
+  payload: "hello",
+  qos: "AtMostOnce",
+  retain: false,
+  created_at: "2026-07-18T00:00:00Z",
+};
+
+async function setup(
+  publish = vi.fn().mockResolvedValue(undefined),
+  create = vi.fn().mockResolvedValue(SAVED_FAVORITE),
+) {
   const mqttService = { publish };
+  const favoritesService = { create };
 
   TestBed.configureTestingModule({
     imports: [PublishPanel],
-    providers: [{ provide: MqttService, useValue: mqttService }],
+    providers: [
+      { provide: MqttService, useValue: mqttService },
+      { provide: FavoritesService, useValue: favoritesService },
+    ],
   });
 
   const fixture = TestBed.createComponent(PublishPanel);
@@ -24,7 +46,7 @@ async function setup(publish = vi.fn().mockResolvedValue(undefined)) {
   await fixture.whenStable();
   fixture.detectChanges();
 
-  return { fixture, mqttService, publish };
+  return { fixture, mqttService, publish, favoritesService, create };
 }
 
 function clickSegment(
@@ -347,6 +369,90 @@ describe("PublishPanel", () => {
         ".format-action",
       );
       expect(button).toBeNull();
+    });
+  });
+
+  describe("saveAsTemplate", () => {
+    it("does not save when the topic field is empty", async () => {
+      const { fixture, create } = await setup();
+      fixture.componentInstance.form.controls.payload.setValue("hello");
+
+      await fixture.componentInstance.saveAsTemplate();
+
+      expect(create).not.toHaveBeenCalled();
+    });
+
+    it("does not save when the payload field is empty", async () => {
+      const { fixture, create } = await setup();
+      fixture.componentInstance.form.controls.topic.setValue("sensors/zone-a");
+
+      await fixture.componentInstance.saveAsTemplate();
+
+      expect(create).not.toHaveBeenCalled();
+    });
+
+    it("saves the current topic/payload/qos/retain as a broker-independent template, naming it after the topic's last segment", async () => {
+      const { fixture, create } = await setup();
+      const component = fixture.componentInstance;
+      component.form.controls.topic.setValue("sensors/zone-a");
+      component.form.controls.payload.setValue('{"a": 1,   "b": 2}');
+      component.toggleRetain();
+
+      await component.saveAsTemplate();
+
+      expect(create).toHaveBeenCalledWith({
+        connection_id: null,
+        collection_id: null,
+        name: "zone-a",
+        description: null,
+        topic: "sensors/zone-a",
+        payload: '{"a":1,"b":2}',
+        qos: "AtMostOnce",
+        retain: true,
+      });
+    });
+
+    it("saves the raw, un-compacted payload when in RAW format", async () => {
+      const { fixture, create } = await setup();
+      const component = fixture.componentInstance;
+      component.form.controls.topic.setValue("sensors/zone-a");
+      component.form.controls.payload.setValue('{"a": 1}');
+      component.selectFormat("raw");
+
+      await component.saveAsTemplate();
+
+      expect(create).toHaveBeenCalledWith(
+        expect.objectContaining({ payload: '{"a": 1}' }),
+      );
+    });
+
+    it("shows a confirmation flash after saving, and it clears after a timeout", async () => {
+      vi.useFakeTimers();
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+      component.form.controls.topic.setValue("sensors/zone-a");
+      component.form.controls.payload.setValue("hello");
+
+      await component.saveAsTemplate();
+
+      expect(component.templateSaved()).toBe(true);
+
+      vi.advanceTimersByTime(5000);
+
+      expect(component.templateSaved()).toBe(false);
+    });
+
+    it("shows an error if saving fails", async () => {
+      const create = vi.fn().mockRejectedValue(new Error("disk full"));
+      const { fixture } = await setup(undefined, create);
+      const component = fixture.componentInstance;
+      component.form.controls.topic.setValue("sensors/zone-a");
+      component.form.controls.payload.setValue("hello");
+
+      await component.saveAsTemplate();
+
+      expect(component.templateSaveError()).toBe("disk full");
+      expect(component.templateSaved()).toBe(false);
     });
   });
 });

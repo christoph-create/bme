@@ -8,7 +8,9 @@ import {
 } from "@angular/core";
 import { FormBuilder, ReactiveFormsModule, Validators } from "@angular/forms";
 
+import { NewFavoriteMessage } from "../../../core/models/favorite-message.model";
 import { QoS } from "../../../core/models/qos";
+import { FavoritesService } from "../../../core/services/favorites.service";
 import { MqttService } from "../../../core/services/mqtt.service";
 import { QosSelect } from "../qos-select/qos-select";
 
@@ -30,6 +32,7 @@ export class PublishPanel {
   readonly topic = input<string | null>(null);
 
   private readonly mqttService = inject(MqttService);
+  private readonly favoritesService = inject(FavoritesService);
   private readonly formBuilder = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -44,9 +47,12 @@ export class PublishPanel {
   readonly publishedFlash = signal(false);
   readonly publishError = signal<string | null>(null);
   readonly formatError = signal<string | null>(null);
+  readonly templateSaved = signal(false);
+  readonly templateSaveError = signal<string | null>(null);
 
   private flashTimeout: ReturnType<typeof setTimeout> | null = null;
   private formatErrorTimeout: ReturnType<typeof setTimeout> | null = null;
+  private templateSavedTimeout: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     effect(() => {
@@ -62,6 +68,9 @@ export class PublishPanel {
       }
       if (this.formatErrorTimeout !== null) {
         clearTimeout(this.formatErrorTimeout);
+      }
+      if (this.templateSavedTimeout !== null) {
+        clearTimeout(this.templateSavedTimeout);
       }
     });
   }
@@ -115,9 +124,44 @@ export class PublishPanel {
     this.flashPublished();
   }
 
+  /** Saves the current topic/payload/QoS/retain as a reusable template,
+   * independent of any particular broker - see docs/plans/message-templates.md. */
+  async saveAsTemplate(): Promise<void> {
+    if (this.form.invalid) {
+      return;
+    }
+
+    const { topic, payload } = this.form.getRawValue();
+    const newFavorite: NewFavoriteMessage = {
+      connection_id: null,
+      collection_id: null,
+      name: topic.split("/").filter(Boolean).pop() ?? topic,
+      description: null,
+      topic,
+      payload: this.payloadText(payload),
+      qos: this.qos(),
+      retain: this.retain(),
+    };
+
+    try {
+      await this.favoritesService.create(newFavorite);
+    } catch (err) {
+      this.templateSaveError.set(
+        err instanceof Error ? err.message : String(err),
+      );
+      return;
+    }
+
+    this.templateSaveError.set(null);
+    this.flashTemplateSaved();
+  }
+
+  private payloadText(payload: string): string {
+    return this.format() === "json" ? compactJson(payload) : payload;
+  }
+
   private encodePayload(payload: string): Uint8Array {
-    const text = this.format() === "json" ? compactJson(payload) : payload;
-    return new TextEncoder().encode(text);
+    return new TextEncoder().encode(this.payloadText(payload));
   }
 
   private flashPublished(): void {
@@ -128,6 +172,17 @@ export class PublishPanel {
     this.flashTimeout = setTimeout(() => {
       this.publishedFlash.set(false);
       this.flashTimeout = null;
+    }, FLASH_DURATION_MS);
+  }
+
+  private flashTemplateSaved(): void {
+    if (this.templateSavedTimeout !== null) {
+      clearTimeout(this.templateSavedTimeout);
+    }
+    this.templateSaved.set(true);
+    this.templateSavedTimeout = setTimeout(() => {
+      this.templateSaved.set(false);
+      this.templateSavedTimeout = null;
     }, FLASH_DURATION_MS);
   }
 
