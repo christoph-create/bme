@@ -5,6 +5,7 @@ fn main() {
             "open_log_dir",
             "list_connections",
             "create_connection",
+            "update_connection",
             "delete_connection",
             "connect_broker",
             "disconnect_broker",

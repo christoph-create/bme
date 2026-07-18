@@ -2,7 +2,10 @@ import { Component, DestroyRef, inject, signal } from "@angular/core";
 import { FormBuilder, ReactiveFormsModule, Validators } from "@angular/forms";
 import { ActivatedRoute, Router, RouterLink } from "@angular/router";
 
-import { NewBrokerConnection } from "../../core/models/broker-connection.model";
+import {
+  NewBrokerConnection,
+  UpdateBrokerConnection,
+} from "../../core/models/broker-connection.model";
 import { MqttEvent } from "../../core/models/mqtt-event.model";
 import { ConnectionsService } from "../../core/services/connections.service";
 import { MqttEventsService } from "../../core/services/mqtt-events.service";
@@ -30,6 +33,8 @@ export class ConnectionForm {
   readonly editId = signal<string | null>(
     this.route.snapshot.paramMap.get("id"),
   );
+  readonly loading = signal(this.editId() !== null);
+  readonly loadError = signal<string | null>(null);
   readonly submitting = signal(false);
   readonly error = signal<string | null>(null);
   readonly testStatus = signal<TestStatus>("idle");
@@ -61,6 +66,11 @@ export class ConnectionForm {
       }
     });
     this.destroyRef.onDestroy(() => subscription.unsubscribe());
+
+    const id = this.editId();
+    if (id !== null) {
+      void this.loadExistingConnection(id);
+    }
   }
 
   async submit(): Promise<void> {
@@ -71,19 +81,52 @@ export class ConnectionForm {
     this.submitting.set(true);
     this.error.set(null);
     try {
-      const created = await this.connectionsService.create(
-        this.buildNewConnection(),
-      );
-      // BrokerWorkspace connects on its own when it mounts - connecting
-      // here too would race it: both attempts share the same client_id,
-      // so the broker disconnects whichever one loses the race, and
-      // BrokerWorkspace (which is now listening) reports that spurious
-      // disconnect as "Connection failed".
-      await this.router.navigate(["/broker", created.id]);
+      const id = this.editId();
+      if (id !== null) {
+        await this.connectionsService.update(id, this.buildConnectionFields());
+        await this.router.navigate(["/connections"]);
+      } else {
+        const created = await this.connectionsService.create(
+          this.buildNewConnection(),
+        );
+        // BrokerWorkspace connects on its own when it mounts - connecting
+        // here too would race it: both attempts share the same client_id,
+        // so the broker disconnects whichever one loses the race, and
+        // BrokerWorkspace (which is now listening) reports that spurious
+        // disconnect as "Connection failed".
+        await this.router.navigate(["/broker", created.id]);
+      }
     } catch (err) {
       this.error.set(err instanceof Error ? err.message : String(err));
     } finally {
       this.submitting.set(false);
+    }
+  }
+
+  private async loadExistingConnection(id: string): Promise<void> {
+    this.loading.set(true);
+    this.loadError.set(null);
+    try {
+      const connection = await this.connectionsService.get(id);
+      if (connection === null) {
+        this.loadError.set("Connection not found");
+        return;
+      }
+      this.form.setValue({
+        name: connection.name,
+        host: connection.host,
+        port: String(connection.port),
+        clientId: connection.client_id,
+        keepAliveSecs: String(connection.keep_alive_secs),
+        useTls: connection.use_tls,
+        requiresAuth: connection.username !== null,
+        username: connection.username ?? "",
+        password: connection.password ?? "",
+      });
+    } catch (err) {
+      this.loadError.set(err instanceof Error ? err.message : String(err));
+    } finally {
+      this.loading.set(false);
     }
   }
 
@@ -173,7 +216,7 @@ export class ConnectionForm {
     }
   }
 
-  private buildNewConnection(): NewBrokerConnection {
+  private buildConnectionFields(): UpdateBrokerConnection {
     const value = this.form.getRawValue();
     return {
       name: value.name,
@@ -184,7 +227,10 @@ export class ConnectionForm {
       password: value.requiresAuth ? value.password : null,
       use_tls: value.useTls,
       keep_alive_secs: Number(value.keepAliveSecs),
-      subscriptions: [],
     };
+  }
+
+  private buildNewConnection(): NewBrokerConnection {
+    return { ...this.buildConnectionFields(), subscriptions: [] };
   }
 }

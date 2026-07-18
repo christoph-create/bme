@@ -11,6 +11,7 @@
     "allow-open-log-dir",
     "allow-list-connections",
     "allow-create-connection",
+    "allow-update-connection",
     "allow-delete-connection",
     "allow-get-connection",
     "allow-connect-broker",

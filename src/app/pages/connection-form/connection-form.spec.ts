@@ -45,11 +45,15 @@ async function setup(
   overrides: {
     events$?: Subject<MqttEvent>;
     testConnection?: ReturnType<typeof vi.fn>;
+    get?: ReturnType<typeof vi.fn>;
+    update?: ReturnType<typeof vi.fn>;
   } = {},
 ) {
   const events$ = overrides.events$ ?? new Subject<MqttEvent>();
   const fake = {
     create: vi.fn().mockResolvedValue(CREATED),
+    update: overrides.update ?? vi.fn().mockResolvedValue(CREATED),
+    get: overrides.get ?? vi.fn().mockResolvedValue(CREATED),
     connect: vi.fn().mockResolvedValue(undefined),
     testConnection: overrides.testConnection ?? vi.fn().mockResolvedValue(TEST_ID),
     disconnect: vi.fn().mockResolvedValue(undefined),
@@ -156,12 +160,71 @@ describe("ConnectionForm", () => {
     );
   });
 
-  it("shows a not-supported message in edit mode and never creates", async () => {
-    const { fixture, fake } = await setup("some-id");
+  describe("edit mode", () => {
+    it("loads and prefills the existing connection", async () => {
+      const get = vi.fn().mockResolvedValue(CREATED);
+      const { fixture } = await setup(CREATED.id, { get });
 
-    const text = (fixture.nativeElement as HTMLElement).textContent ?? "";
-    expect(text).toContain("Editing isn't supported yet");
-    expect(fake.create).not.toHaveBeenCalled();
+      expect(get).toHaveBeenCalledWith(CREATED.id);
+      expect(fixture.componentInstance.loading()).toBe(false);
+      expect(fixture.componentInstance.form.getRawValue()).toEqual({
+        name: CREATED.name,
+        host: CREATED.host,
+        port: String(CREATED.port),
+        clientId: CREATED.client_id,
+        keepAliveSecs: String(CREATED.keep_alive_secs),
+        useTls: CREATED.use_tls,
+        requiresAuth: false,
+        username: "",
+        password: "",
+      });
+    });
+
+    it("prefills credentials and checks 'requires authentication' when a username is stored", async () => {
+      const withAuth: BrokerConnection = {
+        ...CREATED,
+        username: "alice",
+        password: "hunter2",
+      };
+      const { fixture } = await setup(CREATED.id, {
+        get: vi.fn().mockResolvedValue(withAuth),
+      });
+
+      const value = fixture.componentInstance.form.getRawValue();
+      expect(value.requiresAuth).toBe(true);
+      expect(value.username).toBe("alice");
+      expect(value.password).toBe("hunter2");
+    });
+
+    it("shows an error and never updates when the connection is not found", async () => {
+      const { fixture, fake } = await setup(CREATED.id, {
+        get: vi.fn().mockResolvedValue(null),
+      });
+
+      fixture.detectChanges();
+      const text = (fixture.nativeElement as HTMLElement).textContent ?? "";
+      expect(text).toContain("Connection not found");
+      expect(fake.update).not.toHaveBeenCalled();
+    });
+
+    it("updates the connection and navigates back to the connections list on submit", async () => {
+      const { fixture, fake, navigate } = await setup(CREATED.id);
+
+      await fixture.componentInstance.submit();
+
+      expect(fake.update).toHaveBeenCalledWith(CREATED.id, {
+        name: CREATED.name,
+        host: CREATED.host,
+        port: CREATED.port,
+        client_id: CREATED.client_id,
+        username: null,
+        password: null,
+        use_tls: CREATED.use_tls,
+        keep_alive_secs: CREATED.keep_alive_secs,
+      });
+      expect(fake.create).not.toHaveBeenCalled();
+      expect(navigate).toHaveBeenCalledWith(["/connections"]);
+    });
   });
 
   describe("testConnection", () => {

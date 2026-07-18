@@ -40,3 +40,15 @@ export interface NewBrokerConnection {
   keep_alive_secs: number;
   subscriptions: NewSubscription[];
 }
+
+/** Mirrors `core::models::UpdateBrokerConnection`. */
+export interface UpdateBrokerConnection {
+  name: string;
+  host: string;
+  port: number;
+  client_id: string;
+  username: string | null;
+  password: string | null;
+  use_tls: boolean;
+  keep_alive_secs: number;
+}
