@@ -3,7 +3,10 @@
     <h1>Connections</h1>
     <p class="subtitle">Select a broker to connect, or create a new one</p>
   </div>
-  <button class="btn-primary" [routerLink]="['/connections/new']">+ New Connection</button>
+  <div class="header-actions">
+    <a class="btn-secondary" routerLink="/templates">Manage Templates</a>
+    <button class="btn-primary" [routerLink]="['/connections/new']">+ New Connection</button>
+  </div>
 </header>
 
 @if (loading()) {

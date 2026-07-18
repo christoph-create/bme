@@ -11,8 +11,6 @@ pub trait FavoritesRepository {
     fn create(&self, new: NewFavoriteMessage) -> Result<FavoriteMessage, StorageError>;
     fn get(&self, id: Uuid) -> Result<Option<FavoriteMessage>, StorageError>;
     fn list(&self) -> Result<Vec<FavoriteMessage>, StorageError>;
-    fn list_by_connection(&self, connection_id: Uuid)
-        -> Result<Vec<FavoriteMessage>, StorageError>;
     fn list_by_collection(&self, collection_id: Uuid)
         -> Result<Vec<FavoriteMessage>, StorageError>;
     fn update(
@@ -43,11 +41,10 @@ impl FavoritesRepository for SqliteFavoritesRepository {
         let created_at = Utc::now();
         conn.execute(
             "INSERT INTO favorite_messages
-                (id, connection_id, collection_id, name, description, topic, payload, format, qos, retain, created_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+                (id, collection_id, name, description, topic, payload, format, qos, retain, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
             params![
                 id,
-                new.connection_id,
                 new.collection_id,
                 new.name,
                 new.description,
@@ -62,7 +59,6 @@ impl FavoritesRepository for SqliteFavoritesRepository {
 
         Ok(FavoriteMessage {
             id,
-            connection_id: new.connection_id,
             collection_id: new.collection_id,
             name: new.name,
             description: new.description,
@@ -78,7 +74,7 @@ impl FavoritesRepository for SqliteFavoritesRepository {
     fn get(&self, id: Uuid) -> Result<Option<FavoriteMessage>, StorageError> {
         let conn = self.conn.lock().unwrap();
         conn.query_row(
-            "SELECT id, connection_id, collection_id, name, description, topic, payload, format, qos, retain, created_at
+            "SELECT id, collection_id, name, description, topic, payload, format, qos, retain, created_at
              FROM favorite_messages WHERE id = ?1",
             params![id],
             row_to_favorite,
@@ -90,26 +86,11 @@ impl FavoritesRepository for SqliteFavoritesRepository {
     fn list(&self) -> Result<Vec<FavoriteMessage>, StorageError> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT id, connection_id, collection_id, name, description, topic, payload, format, qos, retain, created_at
+            "SELECT id, collection_id, name, description, topic, payload, format, qos, retain, created_at
              FROM favorite_messages ORDER BY created_at DESC",
         )?;
         let favorites = stmt
             .query_map([], row_to_favorite)?
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(favorites)
-    }
-
-    fn list_by_connection(
-        &self,
-        connection_id: Uuid,
-    ) -> Result<Vec<FavoriteMessage>, StorageError> {
-        let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare(
-            "SELECT id, connection_id, collection_id, name, description, topic, payload, format, qos, retain, created_at
-             FROM favorite_messages WHERE connection_id = ?1 ORDER BY created_at DESC",
-        )?;
-        let favorites = stmt
-            .query_map(params![connection_id], row_to_favorite)?
             .collect::<Result<Vec<_>, _>>()?;
         Ok(favorites)
     }
@@ -120,7 +101,7 @@ impl FavoritesRepository for SqliteFavoritesRepository {
     ) -> Result<Vec<FavoriteMessage>, StorageError> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT id, connection_id, collection_id, name, description, topic, payload, format, qos, retain, created_at
+            "SELECT id, collection_id, name, description, topic, payload, format, qos, retain, created_at
              FROM favorite_messages WHERE collection_id = ?1 ORDER BY created_at DESC",
         )?;
         let favorites = stmt
@@ -137,11 +118,10 @@ impl FavoritesRepository for SqliteFavoritesRepository {
         let conn = self.conn.lock().unwrap();
         let rows_changed = conn.execute(
             "UPDATE favorite_messages
-             SET connection_id = ?1, collection_id = ?2, name = ?3, description = ?4,
-                 topic = ?5, payload = ?6, format = ?7, qos = ?8, retain = ?9
-             WHERE id = ?10",
+             SET collection_id = ?1, name = ?2, description = ?3,
+                 topic = ?4, payload = ?5, format = ?6, qos = ?7, retain = ?8
+             WHERE id = ?9",
             params![
-                update.connection_id,
                 update.collection_id,
                 update.name,
                 update.description,
@@ -166,7 +146,6 @@ impl FavoritesRepository for SqliteFavoritesRepository {
 
         Ok(Some(FavoriteMessage {
             id,
-            connection_id: update.connection_id,
             collection_id: update.collection_id,
             name: update.name,
             description: update.description,
@@ -189,24 +168,23 @@ impl FavoritesRepository for SqliteFavoritesRepository {
 fn row_to_favorite(row: &rusqlite::Row<'_>) -> rusqlite::Result<FavoriteMessage> {
     Ok(FavoriteMessage {
         id: row.get(0)?,
-        connection_id: row.get(1)?,
-        collection_id: row.get(2)?,
-        name: row.get(3)?,
-        description: row.get(4)?,
-        topic: row.get(5)?,
-        payload: row.get(6)?,
-        format: row.get(7)?,
-        qos: row.get(8)?,
-        retain: row.get(9)?,
-        created_at: row.get(10)?,
+        collection_id: row.get(1)?,
+        name: row.get(2)?,
+        description: row.get(3)?,
+        topic: row.get(4)?,
+        payload: row.get(5)?,
+        format: row.get(6)?,
+        qos: row.get(7)?,
+        retain: row.get(8)?,
+        created_at: row.get(9)?,
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{MessageFormat, NewBrokerConnection, QoS};
-    use crate::storage::connections_repo::{ConnectionsRepository, SqliteConnectionsRepository};
+    use crate::models::{MessageFormat, QoS};
+    use crate::storage::connections_repo::SqliteConnectionsRepository;
     use crate::storage::open_in_memory;
 
     /// Both repos share one connection, exactly like the real app will
@@ -221,7 +199,6 @@ mod tests {
 
     fn sample_favorite() -> NewFavoriteMessage {
         NewFavoriteMessage {
-            connection_id: None,
             collection_id: None,
             name: Some("Temperature reading".to_string()),
             description: Some("A sample sensor payload".to_string()),
@@ -275,7 +252,6 @@ mod tests {
             .update(
                 created.id,
                 UpdateFavoriteMessage {
-                    connection_id: None,
                     collection_id: None,
                     name: Some("Renamed".to_string()),
                     description: None,
@@ -314,7 +290,6 @@ mod tests {
             .update(
                 Uuid::new_v4(),
                 UpdateFavoriteMessage {
-                    connection_id: None,
                     collection_id: None,
                     name: None,
                     description: None,
@@ -347,34 +322,6 @@ mod tests {
         let all = favorites.list().unwrap();
 
         assert_eq!(all, vec![second, first]);
-    }
-
-    #[test]
-    fn list_by_connection_only_returns_matching_favorites() {
-        let (connections, favorites) = repos();
-        let broker = connections
-            .create(NewBrokerConnection {
-                name: "Local".to_string(),
-                host: "localhost".to_string(),
-                port: 1883,
-                client_id: "bme".to_string(),
-                username: None,
-                password: None,
-                use_tls: false,
-                keep_alive_secs: 30,
-                subscriptions: vec![],
-            })
-            .unwrap();
-
-        let mut linked = sample_favorite();
-        linked.connection_id = Some(broker.id);
-        let linked = favorites.create(linked).unwrap();
-        let unrelated = favorites.create(sample_favorite()).unwrap();
-
-        let for_broker = favorites.list_by_connection(broker.id).unwrap();
-
-        assert_eq!(for_broker, vec![linked]);
-        assert!(!for_broker.contains(&unrelated));
     }
 
     #[test]

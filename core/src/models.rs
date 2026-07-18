@@ -119,7 +119,6 @@ impl From<MessageFormat> for String {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FavoriteMessage {
     pub id: Uuid,
-    pub connection_id: Option<Uuid>,
     pub collection_id: Option<Uuid>,
     pub name: Option<String>,
     pub description: Option<String>,
@@ -133,7 +132,6 @@ pub struct FavoriteMessage {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NewFavoriteMessage {
-    pub connection_id: Option<Uuid>,
     pub collection_id: Option<Uuid>,
     pub name: Option<String>,
     pub description: Option<String>,
@@ -146,7 +144,6 @@ pub struct NewFavoriteMessage {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UpdateFavoriteMessage {
-    pub connection_id: Option<Uuid>,
     pub collection_id: Option<Uuid>,
     pub name: Option<String>,
     pub description: Option<String>,

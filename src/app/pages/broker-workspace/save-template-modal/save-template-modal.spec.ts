@@ -25,7 +25,6 @@ const COLLECTION: FavoriteCollection = {
 
 const CREATED_FAVORITE: FavoriteMessage = {
   id: "66666666-6666-6666-6666-666666666666",
-  connection_id: null,
   collection_id: null,
   name: "zone-a",
   description: null,
@@ -92,13 +91,12 @@ describe("SaveTemplateModal", () => {
     expect(favoritesService.create).not.toHaveBeenCalled();
   });
 
-  it("saves with connection_id and collection_id null when no collection is selected", async () => {
+  it("saves with collection_id null when no collection is selected", async () => {
     const { fixture, favoritesService } = await setup();
 
     await fixture.componentInstance.save();
 
     expect(favoritesService.create).toHaveBeenCalledWith({
-      connection_id: null,
       collection_id: null,
       name: "zone-a",
       description: null,

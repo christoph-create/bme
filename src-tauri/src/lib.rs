@@ -298,7 +298,6 @@ mod tests {
             "create_favorite",
             serde_json::json!({
                 "newFavorite": {
-                    "connection_id": null,
                     "name": "Temperature reading",
                     "description": "A sample sensor payload",
                     "topic": "sensors/temperature",
@@ -328,7 +327,6 @@ mod tests {
             "create_favorite",
             serde_json::json!({
                 "newFavorite": {
-                    "connection_id": null,
                     "name": null,
                     "description": null,
                     "topic": "sensors/temperature",
@@ -360,7 +358,6 @@ mod tests {
             "create_favorite",
             serde_json::json!({
                 "newFavorite": {
-                    "connection_id": null,
                     "name": "Original",
                     "description": null,
                     "topic": "sensors/temperature",
@@ -378,7 +375,6 @@ mod tests {
             serde_json::json!({
                 "id": created["id"],
                 "update": {
-                    "connection_id": null,
                     "name": "Renamed",
                     "description": "Now with a description",
                     "topic": "sensors/humidity",
@@ -408,7 +404,6 @@ mod tests {
             "create_favorite",
             serde_json::json!({
                 "newFavorite": {
-                    "connection_id": null,
                     "name": null,
                     "description": null,
                     "topic": "sensors/temperature",
@@ -563,7 +558,6 @@ mod tests {
             "create_favorite",
             serde_json::json!({
                 "newFavorite": {
-                    "connection_id": null,
                     "collection_id": collection["id"],
                     "name": null,
                     "description": null,
@@ -583,7 +577,6 @@ mod tests {
             serde_json::json!({
                 "id": created["id"],
                 "update": {
-                    "connection_id": null,
                     "collection_id": null,
                     "name": null,
                     "description": null,

@@ -58,6 +58,12 @@ h1 {
   margin: 4px 0 0;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
 .btn-primary {
   background: var(--color-accent);
   color: var(--color-accent-ink);
@@ -75,6 +81,20 @@ h1 {
 
 .btn-primary:hover {
   filter: brightness(1.1);
+}
+
+.btn-secondary {
+  color: var(--color-text-secondary);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 9px 16px;
+  border-radius: var(--radius-md);
+  text-decoration: none;
+}
+
+.btn-secondary:hover {
+  color: var(--color-text);
+  background: var(--color-surface-hover);
 }
 
 .status-text {

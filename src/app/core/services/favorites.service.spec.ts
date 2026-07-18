@@ -12,7 +12,6 @@ const SAMPLE_ID = "22222222-2222-2222-2222-222222222222";
 
 function sampleNewFavorite(): NewFavoriteMessage {
   return {
-    connection_id: null,
     collection_id: null,
     name: "Temperature reading",
     description: "A sample sensor payload",
@@ -91,7 +90,6 @@ describe("FavoritesService", () => {
 
   it("updates a favorite via the update_favorite command with camelCased args", async () => {
     const update: UpdateFavoriteMessage = {
-      connection_id: null,
       collection_id: null,
       name: "Renamed",
       description: null,

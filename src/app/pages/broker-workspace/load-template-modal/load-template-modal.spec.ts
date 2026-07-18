@@ -10,7 +10,6 @@ import { LoadTemplateModal } from "./load-template-modal";
 function favorite(overrides: Partial<FavoriteMessage>): FavoriteMessage {
   return {
     id: "11111111-1111-1111-1111-111111111111",
-    connection_id: null,
     collection_id: null,
     name: null,
     description: null,

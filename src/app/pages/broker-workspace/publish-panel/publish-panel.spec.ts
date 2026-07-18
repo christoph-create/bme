@@ -443,7 +443,6 @@ describe("PublishPanel", () => {
   describe("Load Template modal", () => {
     const TEMPLATE: FavoriteMessage = {
       id: "55555555-5555-5555-5555-555555555555",
-      connection_id: null,
       collection_id: null,
       name: "Zone A",
       description: null,

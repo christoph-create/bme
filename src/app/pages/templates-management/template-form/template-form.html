@@ -1,0 +1,107 @@
+<app-modal
+  [title]="isEditMode ? 'Edit Template' : 'New Template'"
+  (close_modal)="close_modal.emit()"
+>
+  <form class="form" [formGroup]="form" (ngSubmit)="save()">
+    <div class="field">
+      <label for="name">Name</label>
+      <input id="name" type="text" formControlName="name" />
+    </div>
+
+    <div class="field">
+      <label for="description">Description</label>
+      <textarea id="description" formControlName="description"></textarea>
+    </div>
+
+    <div class="field">
+      <label for="topic">Topic</label>
+      <input id="topic" type="text" class="mono" formControlName="topic" />
+    </div>
+
+    <div class="field">
+      <label for="payload">Payload</label>
+      <textarea
+        id="payload"
+        class="mono payload-input"
+        formControlName="payload"
+      ></textarea>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>Format</label>
+        <div class="segmented">
+          @for (opt of formatOptions; track opt) {
+            <div
+              class="segment"
+              [class.selected]="format() === opt"
+              (click)="selectFormat(opt)"
+              (keydown.enter)="selectFormat(opt)"
+              role="button"
+              tabindex="0"
+            >
+              {{ opt.toUpperCase() }}
+            </div>
+          }
+        </div>
+      </div>
+
+      <div class="field">
+        <label>QoS</label>
+        <app-qos-select [(value)]="qos" />
+      </div>
+
+      <label class="retain-field">
+        <span>Retain</span>
+        <span class="switch">
+          <input
+            type="checkbox"
+            class="retain-checkbox"
+            [checked]="retain()"
+            (change)="toggleRetain()"
+          />
+          <span class="switch-track"></span>
+        </span>
+      </label>
+    </div>
+
+    <div class="field">
+      <label for="collectionId">Collection</label>
+      <select id="collectionId" formControlName="collectionId">
+        <option value="">No collection</option>
+        @for (collection of collections(); track collection.id) {
+          <option [value]="collection.id">{{ collection.name }}</option>
+        }
+        <option [value]="newCollectionValue">+ New collection…</option>
+      </select>
+    </div>
+
+    @if (form.controls.collectionId.value === newCollectionValue) {
+      <div class="field">
+        <label for="newCollectionName">New collection name</label>
+        <input
+          id="newCollectionName"
+          type="text"
+          formControlName="newCollectionName"
+        />
+      </div>
+    }
+
+    @if (error()) {
+      <p class="error">{{ error() }}</p>
+    }
+
+    <footer class="actions">
+      <button type="button" class="btn-secondary" (click)="close_modal.emit()">
+        Cancel
+      </button>
+      <button
+        type="submit"
+        class="btn-primary"
+        [disabled]="form.invalid || saving()"
+      >
+        {{ saving() ? "Saving…" : "Save" }}
+      </button>
+    </footer>
+  </form>
+</app-modal>
