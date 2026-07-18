@@ -9,11 +9,16 @@
   flex-direction: column;
 }
 
-.field label {
+.field label,
+.field-label {
   font-size: 12px;
   font-weight: 600;
   color: var(--color-text-secondary);
   margin-bottom: var(--space-2);
+}
+
+.field-label {
+  display: block;
 }
 
 .field textarea {

@@ -33,7 +33,7 @@ It's built with [Tauri](https://tauri.app) (a Rust backend, SQLite for local sto
 <table align="center">
   <tr>
     <td align="center" width="50%">
-      <img src="docs/screenshots/connections.png" width="380" alt="Connections list showing three saved broker connections">
+      <img src="docs/screenshots/connections.png" width="380" alt="Connections list showing three saved broker connections, with a Manage Templates button in the header">
       <br><em>Saved connections</em>
     </td>
     <td align="center" width="50%">
@@ -43,12 +43,25 @@ It's built with [Tauri](https://tauri.app) (a Rust backend, SQLite for local sto
   </tr>
 </table>
 
+<p align="center">
+  <img src="docs/screenshots/templates-management.png" width="820" alt="Templates page listing saved message templates grouped into Sensors and Actuators collections, each showing topic, description, formatted JSON or raw payload, QoS, retain and format">
+  <br>
+  <em>Templates — every saved message in one place, with collections, search, and full edit/delete.</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/save-template-modal.png" width="820" alt="Save as Template dialog over the Broker Workspace, showing a read-only preview of the topic, QoS and pretty-printed JSON payload, plus editable name, description and collection fields">
+  <br>
+  <em>Save as Template — grab the current publish draft into your library, optionally into a collection.</em>
+</p>
+
 ### How to use it
 
 1. **Add a broker** — `+ New Connection`, fill in host/port (and TLS or credentials if the broker needs them), then **Save & Connect** (or **Test Connection** first to sanity-check it).
 2. **Subscribe** to a topic filter from the sidebar — subscriptions persist and are replayed automatically next time you connect.
 3. **Browse** the live topic tree as messages arrive; click any topic to see its full session history (payload, QoS, retained flag, time received).
 4. **Publish** a message from the panel on the right — topic is pre-filled from whatever you've selected in the tree, payload as JSON or raw text, pick a QoS, hit Publish.
+5. **Save frequently-used payloads as templates** — from the publish panel, "Save as Template" (broker-independent, optionally grouped into a collection) or "Load Template" to pull one back in. Manage the full set — edit any field, delete, or reorganize collections — from **Manage Templates** on the Connections page.
 
 ## Download
 
@@ -62,7 +75,6 @@ No Windows or macOS build yet — see the roadmap below.
 
 Rough order of what's next, no promises on timing:
 
-- [ ] A message favorites feature — save frequently-used payloads for quick re-publishing, independent of any particular broker or topic
 - [ ] Client certificate support for brokers that require mutual TLS
 - [ ] A Windows release
 
