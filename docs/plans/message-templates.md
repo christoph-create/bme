@@ -80,17 +80,45 @@ This is a small, self-contained, shippable change.
 - Exact interaction (inline field vs. a small dialog for name/description) is a frontend-design decision, deferred — this step just needs the service call wired to *some* trigger so it's testable.
 - Shipped as a plain "Save as Template" button; name auto-derives from the topic's last path segment (matching the prototype's `saveFavorite()`), no dialog. Button placement/styling is a placeholder, not a final design.
 
-## Step 5 — Template library page (frontend)
+## Frontend design decisions (resolved)
 
-- New route (name/path TBD in the design discussion) listing all favorite messages, grouped/filterable by collection.
-- Actions: create a template directly (not just via "save from publish"), edit (name/description/topic/payload/qos/retain), delete, create/rename/delete collections, move a template between collections.
-- Layout, navigation entry point, and interaction details: **deferred to the later frontend design discussion**, per your note.
+Both "save" and "load" are **modals**, not routes — templates are broker-independent, so navigating away from the broker workspace and back would just reintroduce a "how do we carry draft state across a route" problem for no benefit. A modal is a component conditionally rendered over the current view via a signal (no Angular CDK; this app has no modal precedent yet, but nothing here needs more than what the existing "⋯" menu's conditional rendering already does).
 
-## Step 6 — Load a template back into the publish panel
+Resolved:
+1. **`format` (`"json" | "raw"`) is added back to the favorite-message record.** It was dropped when the model was first extended (step 1) because the pre-existing `FavoriteMessage` didn't have it, but the prototype's original favorites always carried it, and without it, loading a template back can't know whether to treat its payload as pretty-printable JSON or opaque raw text.
+2. **"Load Template" is a plain pick-and-load modal** — search/filter a list, click a row, it loads into the publish form and the modal closes. No inline edit/delete/rename/collection-management UI in this pass; the previously-planned full "Template Library" page is dropped from scope for now (can be revisited later if managing templates from a list-only picker turns out to be too limited).
+3. **Collection assignment happens in the Save modal** — a picker (existing collections + "+ New collection" inline creation), not a separate step.
+4. **Save modal is preview-only** for topic/payload/QoS/retain — only `name` (prefilled from the topic's last segment, as today) and `description` are editable. Editing the message itself belongs in the compose form, not a second copy of it in the modal.
+5. **Loading a template plainly overwrites** the current topic/payload/format/QoS/retain — no dirty-form confirmation. Matches how clicking a topic in the tree already overwrites the topic field today.
 
-- `PublishPanel` needs a way to receive a full draft (topic + payload + format + qos + retain), not just the `topic` input it has today (used for tree-click prefill). Likely an additional `input()` or a method invoked by the parent, mirroring the existing `topic` effect in `publish-panel.ts`.
-- Navigation flow from the template library (which has no fixed broker) to a specific broker's workspace with the template preloaded needs a carrier — router query params or navigation `state` are the two natural options. **Left open for the design discussion**, since it's coupled to how the library page looks/behaves.
+## Step 5 — Add `format` to the favorite-message record (backend)
+
+- `core::models`: new `MessageFormat` enum (`Json`, `Raw`), mirroring `QoS`'s shape (`ToSql`/`FromSql` impls in `core/src/storage/mod.rs`, stored as `TEXT` rather than `QoS`'s integer encoding — a couple of fixed string values are more legible directly in the sqlite file than reusing QoS's int-mapping convention, and there's no wire-protocol reason to match MQTT's encoding here).
+- Add `format: MessageFormat` to `FavoriteMessage`, `NewFavoriteMessage`, `UpdateFavoriteMessage`.
+- Migration `0005_favorite_message_format.sql`: `ALTER TABLE favorite_messages ADD COLUMN format TEXT NOT NULL DEFAULT 'json';` — `NOT NULL DEFAULT` rather than nullable, since every existing/future row has an unambiguous format and there's no "unknown" state worth representing.
+- `favorites_repo.rs` insert/select/update statements and `row_to_favorite` gain the column; repo tests cover the round-trip.
+- Tauri commands need no signature changes (they already pass the whole struct through) — just the IPC round-trip tests picking up the new field.
+- Frontend: `FavoriteMessage`/`NewFavoriteMessage`/`UpdateFavoriteMessage` gain `format: PublishFormat` (reuse `publish-panel.ts`'s existing `"json" | "raw"` union — move it to `core/models/` since it stops being publish-panel-private once the favorite model uses it too).
+
+## Step 6 — Save Template modal (frontend)
+
+Replaces step 4's immediate one-click save with a review step:
+- New component (e.g. `src/app/pages/broker-workspace/save-template-modal/`), opened from `PublishPanel`'s "Save as Template" button instead of saving immediately.
+- Shows: read-only preview of topic/payload/QoS/retain from the current compose form; editable `name` (prefilled from the topic's last segment) and `description`; a collection picker sourced from `FavoriteCollectionsService.list()` plus inline "+ New collection" (calls `FavoriteCollectionsService.create()`).
+- Confirm calls `FavoritesService.create(...)` with `connection_id: null`, the chosen `collection_id`, `name`, `description`, and the compose form's `topic`/`payload`/`format`/`qos`/`retain`; Cancel/Escape/backdrop-click discards.
+- `publish-panel.spec.ts`'s existing step-4 tests (which assert an immediate `create` call) need updating to open-the-modal-then-confirm instead.
+
+## Step 7 — Load Template modal (frontend)
+
+- New component (e.g. `src/app/pages/broker-workspace/load-template-modal/`), opened from a new "Load Template" button in `PublishPanel` (next to "Save as Template").
+- Lists `FavoritesService.list()` with a text filter (name/topic) and an optional collection filter; click a row to select.
+- On selection: `PublishPanel` needs a way to receive a full draft (topic + payload + format + qos + retain), not just the `topic` input it has today (used for tree-click prefill) — likely a method the parent calls directly on selection, rather than another `input()`, since this is an imperative "apply this once" action rather than a reactively-bound value. Overwrites the form outright (see resolved decision 5) and closes the modal.
+
+## Still open before implementing steps 6-7
+
+- Does the Load modal need *any* delete affordance (the backend already supports it — `delete_favorite` from step 1), or is deleting a mis-saved template deferred entirely until a future management UI? Right now there'd be no way to remove a template at all once "Load Template" ships.
+- Should Save/Load modals share a generic modal shell component (backdrop, Escape/backdrop-to-close, focus trap), given this is the app's first modal and there'll be exactly two of them built back-to-back? Recommend yes, for the same reason the retain toggle got pulled into a shared `.switch` class.
 
 ## Suggested delivery order
 
-Steps 1–4 are backend/plumbing-heavy and don't depend on any UI decisions — safe to build and merge now. Steps 5–6 need the frontend design discussion first; step 3 (retain toggle) can happen any time before step 6 needs it, and is worth doing early since it's a real gap in the existing publish panel regardless of templates.
+Steps 1–4 are done. Step 5 (format field) is backend-only and safe to build immediately. Steps 6–7 depend on the two open questions above being resolved, and step 7 depends on step 6 existing (shared modal shell, if we build one).
