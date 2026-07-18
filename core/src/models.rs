@@ -90,6 +90,8 @@ pub struct UpdateBrokerConnection {
 pub struct FavoriteMessage {
     pub id: Uuid,
     pub connection_id: Option<Uuid>,
+    pub name: Option<String>,
+    pub description: Option<String>,
     pub topic: String,
     pub payload: String,
     pub qos: QoS,
@@ -100,6 +102,19 @@ pub struct FavoriteMessage {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NewFavoriteMessage {
     pub connection_id: Option<Uuid>,
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub topic: String,
+    pub payload: String,
+    pub qos: QoS,
+    pub retain: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UpdateFavoriteMessage {
+    pub connection_id: Option<Uuid>,
+    pub name: Option<String>,
+    pub description: Option<String>,
     pub topic: String,
     pub payload: String,
     pub qos: QoS,

@@ -13,7 +13,10 @@ fn main() {
             "publish_message",
             "subscribe_topic",
             "list_favorites",
-            "save_favorite",
+            "create_favorite",
+            "get_favorite",
+            "update_favorite",
+            "delete_favorite",
         ]),
     ))
     .expect("failed to run tauri-build");

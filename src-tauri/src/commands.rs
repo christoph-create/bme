@@ -1,6 +1,6 @@
 use bme_core::models::{
     BrokerConnection, FavoriteMessage, NewBrokerConnection, NewFavoriteMessage, NewSubscription,
-    QoS, Subscription, UpdateBrokerConnection,
+    QoS, Subscription, UpdateBrokerConnection, UpdateFavoriteMessage,
 };
 use bme_core::mqtt::manager::MqttClientManager;
 use bme_core::mqtt::port::MqttError;
@@ -174,9 +174,33 @@ pub fn list_favorites(
 }
 
 #[tauri::command]
-pub fn save_favorite(
+pub fn create_favorite(
     repo: State<SqliteFavoritesRepository>,
     new_favorite: NewFavoriteMessage,
 ) -> Result<FavoriteMessage, String> {
     repo.create(new_favorite).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub fn get_favorite(
+    repo: State<SqliteFavoritesRepository>,
+    id: Uuid,
+) -> Result<Option<FavoriteMessage>, String> {
+    repo.get(id).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub fn update_favorite(
+    repo: State<SqliteFavoritesRepository>,
+    id: Uuid,
+    update: UpdateFavoriteMessage,
+) -> Result<FavoriteMessage, String> {
+    repo.update(id, update)
+        .map_err(|err| err.to_string())?
+        .ok_or_else(|| format!("favorite {id} not found"))
+}
+
+#[tauri::command]
+pub fn delete_favorite(repo: State<SqliteFavoritesRepository>, id: Uuid) -> Result<(), String> {
+    repo.delete(id).map_err(|err| err.to_string())
 }

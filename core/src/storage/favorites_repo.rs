@@ -1,10 +1,10 @@
 use std::sync::{Arc, Mutex};
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection, OptionalExtension};
 use uuid::Uuid;
 
-use crate::models::{FavoriteMessage, NewFavoriteMessage};
+use crate::models::{FavoriteMessage, NewFavoriteMessage, UpdateFavoriteMessage};
 use crate::storage::StorageError;
 
 pub trait FavoritesRepository {
@@ -13,6 +13,11 @@ pub trait FavoritesRepository {
     fn list(&self) -> Result<Vec<FavoriteMessage>, StorageError>;
     fn list_by_connection(&self, connection_id: Uuid)
         -> Result<Vec<FavoriteMessage>, StorageError>;
+    fn update(
+        &self,
+        id: Uuid,
+        update: UpdateFavoriteMessage,
+    ) -> Result<Option<FavoriteMessage>, StorageError>;
     fn delete(&self, id: Uuid) -> Result<(), StorageError>;
 }
 
@@ -36,11 +41,13 @@ impl FavoritesRepository for SqliteFavoritesRepository {
         let created_at = Utc::now();
         conn.execute(
             "INSERT INTO favorite_messages
-                (id, connection_id, topic, payload, qos, retain, created_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                (id, connection_id, name, description, topic, payload, qos, retain, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
             params![
                 id,
                 new.connection_id,
+                new.name,
+                new.description,
                 new.topic,
                 new.payload,
                 new.qos,
@@ -52,6 +59,8 @@ impl FavoritesRepository for SqliteFavoritesRepository {
         Ok(FavoriteMessage {
             id,
             connection_id: new.connection_id,
+            name: new.name,
+            description: new.description,
             topic: new.topic,
             payload: new.payload,
             qos: new.qos,
@@ -63,7 +72,7 @@ impl FavoritesRepository for SqliteFavoritesRepository {
     fn get(&self, id: Uuid) -> Result<Option<FavoriteMessage>, StorageError> {
         let conn = self.conn.lock().unwrap();
         conn.query_row(
-            "SELECT id, connection_id, topic, payload, qos, retain, created_at
+            "SELECT id, connection_id, name, description, topic, payload, qos, retain, created_at
              FROM favorite_messages WHERE id = ?1",
             params![id],
             row_to_favorite,
@@ -75,7 +84,7 @@ impl FavoritesRepository for SqliteFavoritesRepository {
     fn list(&self) -> Result<Vec<FavoriteMessage>, StorageError> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT id, connection_id, topic, payload, qos, retain, created_at
+            "SELECT id, connection_id, name, description, topic, payload, qos, retain, created_at
              FROM favorite_messages ORDER BY created_at DESC",
         )?;
         let favorites = stmt
@@ -90,13 +99,59 @@ impl FavoritesRepository for SqliteFavoritesRepository {
     ) -> Result<Vec<FavoriteMessage>, StorageError> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT id, connection_id, topic, payload, qos, retain, created_at
+            "SELECT id, connection_id, name, description, topic, payload, qos, retain, created_at
              FROM favorite_messages WHERE connection_id = ?1 ORDER BY created_at DESC",
         )?;
         let favorites = stmt
             .query_map(params![connection_id], row_to_favorite)?
             .collect::<Result<Vec<_>, _>>()?;
         Ok(favorites)
+    }
+
+    fn update(
+        &self,
+        id: Uuid,
+        update: UpdateFavoriteMessage,
+    ) -> Result<Option<FavoriteMessage>, StorageError> {
+        let conn = self.conn.lock().unwrap();
+        let rows_changed = conn.execute(
+            "UPDATE favorite_messages
+             SET connection_id = ?1, name = ?2, description = ?3, topic = ?4,
+                 payload = ?5, qos = ?6, retain = ?7
+             WHERE id = ?8",
+            params![
+                update.connection_id,
+                update.name,
+                update.description,
+                update.topic,
+                update.payload,
+                update.qos,
+                update.retain,
+                id,
+            ],
+        )?;
+
+        if rows_changed == 0 {
+            return Ok(None);
+        }
+
+        let created_at: DateTime<Utc> = conn.query_row(
+            "SELECT created_at FROM favorite_messages WHERE id = ?1",
+            params![id],
+            |row| row.get(0),
+        )?;
+
+        Ok(Some(FavoriteMessage {
+            id,
+            connection_id: update.connection_id,
+            name: update.name,
+            description: update.description,
+            topic: update.topic,
+            payload: update.payload,
+            qos: update.qos,
+            retain: update.retain,
+            created_at,
+        }))
     }
 
     fn delete(&self, id: Uuid) -> Result<(), StorageError> {
@@ -110,11 +165,13 @@ fn row_to_favorite(row: &rusqlite::Row<'_>) -> rusqlite::Result<FavoriteMessage>
     Ok(FavoriteMessage {
         id: row.get(0)?,
         connection_id: row.get(1)?,
-        topic: row.get(2)?,
-        payload: row.get(3)?,
-        qos: row.get(4)?,
-        retain: row.get(5)?,
-        created_at: row.get(6)?,
+        name: row.get(2)?,
+        description: row.get(3)?,
+        topic: row.get(4)?,
+        payload: row.get(5)?,
+        qos: row.get(6)?,
+        retain: row.get(7)?,
+        created_at: row.get(8)?,
     })
 }
 
@@ -138,6 +195,8 @@ mod tests {
     fn sample_favorite() -> NewFavoriteMessage {
         NewFavoriteMessage {
             connection_id: None,
+            name: Some("Temperature reading".to_string()),
+            description: Some("A sample sensor payload".to_string()),
             topic: "sensors/temperature".to_string(),
             payload: r#"{"celsius": 21.5}"#.to_string(),
             qos: QoS::AtLeastOnce,
@@ -153,11 +212,82 @@ mod tests {
         let created = favorites.create(sample_favorite()).unwrap();
 
         assert!(created.created_at >= before);
+        assert_eq!(created.name.as_deref(), Some("Temperature reading"));
+        assert_eq!(created.description.as_deref(), Some("A sample sensor payload"));
         let fetched = favorites
             .get(created.id)
             .unwrap()
             .expect("favorite to exist");
         assert_eq!(fetched, created);
+    }
+
+    #[test]
+    fn create_allows_omitting_name_and_description() {
+        let (_connections, favorites) = repos();
+        let mut new = sample_favorite();
+        new.name = None;
+        new.description = None;
+
+        let created = favorites.create(new).unwrap();
+
+        assert_eq!(created.name, None);
+        assert_eq!(created.description, None);
+    }
+
+    #[test]
+    fn update_changes_the_stored_fields() {
+        let (_connections, favorites) = repos();
+        let created = favorites.create(sample_favorite()).unwrap();
+
+        let updated = favorites
+            .update(
+                created.id,
+                UpdateFavoriteMessage {
+                    connection_id: None,
+                    name: Some("Renamed".to_string()),
+                    description: None,
+                    topic: "sensors/humidity".to_string(),
+                    payload: r#"{"pct": 55}"#.to_string(),
+                    qos: QoS::ExactlyOnce,
+                    retain: true,
+                },
+            )
+            .unwrap()
+            .expect("favorite to exist");
+
+        assert_eq!(updated.id, created.id);
+        assert_eq!(updated.name.as_deref(), Some("Renamed"));
+        assert_eq!(updated.description, None);
+        assert_eq!(updated.topic, "sensors/humidity");
+        assert_eq!(updated.payload, r#"{"pct": 55}"#);
+        assert_eq!(updated.qos, QoS::ExactlyOnce);
+        assert!(updated.retain);
+        assert_eq!(updated.created_at, created.created_at);
+
+        let fetched = favorites.get(created.id).unwrap().expect("favorite to exist");
+        assert_eq!(fetched, updated);
+    }
+
+    #[test]
+    fn update_returns_none_for_unknown_id() {
+        let (_connections, favorites) = repos();
+
+        let result = favorites
+            .update(
+                Uuid::new_v4(),
+                UpdateFavoriteMessage {
+                    connection_id: None,
+                    name: None,
+                    description: None,
+                    topic: "ghost".to_string(),
+                    payload: "{}".to_string(),
+                    qos: QoS::AtMostOnce,
+                    retain: false,
+                },
+            )
+            .unwrap();
+
+        assert_eq!(result, None);
     }
 
     #[test]

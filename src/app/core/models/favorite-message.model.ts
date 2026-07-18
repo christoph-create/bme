@@ -4,6 +4,8 @@ import { QoS } from "./qos";
 export interface FavoriteMessage {
   id: string;
   connection_id: string | null;
+  name: string | null;
+  description: string | null;
   topic: string;
   payload: string;
   qos: QoS;
@@ -14,6 +16,19 @@ export interface FavoriteMessage {
 /** Mirrors `core::models::NewFavoriteMessage`. */
 export interface NewFavoriteMessage {
   connection_id: string | null;
+  name: string | null;
+  description: string | null;
+  topic: string;
+  payload: string;
+  qos: QoS;
+  retain: boolean;
+}
+
+/** Mirrors `core::models::UpdateFavoriteMessage`. */
+export interface UpdateFavoriteMessage {
+  connection_id: string | null;
+  name: string | null;
+  description: string | null;
   topic: string;
   payload: string;
   qos: QoS;

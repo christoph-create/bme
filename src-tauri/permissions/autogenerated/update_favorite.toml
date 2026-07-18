@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-update-favorite"
+description = "Enables the update_favorite command without any pre-configured scope."
+commands.allow = ["update_favorite"]
+
+[[permission]]
+identifier = "deny-update-favorite"
+description = "Denies the update_favorite command without any pre-configured scope."
+commands.deny = ["update_favorite"]

@@ -119,7 +119,10 @@ pub fn run() {
             commands::subscribe_topic,
             commands::unsubscribe_topic,
             commands::list_favorites,
-            commands::save_favorite,
+            commands::create_favorite,
+            commands::get_favorite,
+            commands::update_favorite,
+            commands::delete_favorite,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -149,6 +152,11 @@ mod tests {
                 commands::subscribe_topic,
                 commands::unsubscribe_topic,
                 commands::test_connection,
+                commands::list_favorites,
+                commands::create_favorite,
+                commands::get_favorite,
+                commands::update_favorite,
+                commands::delete_favorite,
             ])
             .build(tauri::generate_context!())
             .expect("failed to build mock app");
@@ -263,6 +271,145 @@ mod tests {
 
         let all = invoke(&webview, "list_connections", serde_json::json!({}));
         assert_eq!(all[0]["name"], "Renamed");
+    }
+
+    #[test]
+    fn create_favorite_then_list_favorites_round_trips_over_ipc() {
+        let app = build_test_app();
+        let webview = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+
+        let created = invoke(
+            &webview,
+            "create_favorite",
+            serde_json::json!({
+                "newFavorite": {
+                    "connection_id": null,
+                    "name": "Temperature reading",
+                    "description": "A sample sensor payload",
+                    "topic": "sensors/temperature",
+                    "payload": "{\"celsius\": 21.5}",
+                    "qos": "AtLeastOnce",
+                    "retain": false
+                }
+            }),
+        );
+        assert_eq!(created["name"], "Temperature reading");
+
+        let all = invoke(&webview, "list_favorites", serde_json::json!({}));
+        assert_eq!(all.as_array().unwrap().len(), 1);
+        assert_eq!(all[0]["id"], created["id"]);
+    }
+
+    #[test]
+    fn get_favorite_returns_a_previously_created_favorite() {
+        let app = build_test_app();
+        let webview = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+
+        let created = invoke(
+            &webview,
+            "create_favorite",
+            serde_json::json!({
+                "newFavorite": {
+                    "connection_id": null,
+                    "name": null,
+                    "description": null,
+                    "topic": "sensors/temperature",
+                    "payload": "{}",
+                    "qos": "AtMostOnce",
+                    "retain": false
+                }
+            }),
+        );
+
+        let fetched = invoke(
+            &webview,
+            "get_favorite",
+            serde_json::json!({ "id": created["id"] }),
+        );
+        assert_eq!(fetched, created);
+    }
+
+    #[test]
+    fn update_favorite_persists_and_is_visible_on_the_listed_favorite() {
+        let app = build_test_app();
+        let webview = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+
+        let created = invoke(
+            &webview,
+            "create_favorite",
+            serde_json::json!({
+                "newFavorite": {
+                    "connection_id": null,
+                    "name": "Original",
+                    "description": null,
+                    "topic": "sensors/temperature",
+                    "payload": "{}",
+                    "qos": "AtMostOnce",
+                    "retain": false
+                }
+            }),
+        );
+
+        let updated = invoke(
+            &webview,
+            "update_favorite",
+            serde_json::json!({
+                "id": created["id"],
+                "update": {
+                    "connection_id": null,
+                    "name": "Renamed",
+                    "description": "Now with a description",
+                    "topic": "sensors/humidity",
+                    "payload": "{\"pct\": 55}",
+                    "qos": "ExactlyOnce",
+                    "retain": true
+                }
+            }),
+        );
+        assert_eq!(updated["name"], "Renamed");
+        assert_eq!(updated["topic"], "sensors/humidity");
+
+        let all = invoke(&webview, "list_favorites", serde_json::json!({}));
+        assert_eq!(all[0]["name"], "Renamed");
+    }
+
+    #[test]
+    fn delete_favorite_removes_it_from_the_list() {
+        let app = build_test_app();
+        let webview = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+
+        let created = invoke(
+            &webview,
+            "create_favorite",
+            serde_json::json!({
+                "newFavorite": {
+                    "connection_id": null,
+                    "name": null,
+                    "description": null,
+                    "topic": "sensors/temperature",
+                    "payload": "{}",
+                    "qos": "AtMostOnce",
+                    "retain": false
+                }
+            }),
+        );
+
+        invoke(
+            &webview,
+            "delete_favorite",
+            serde_json::json!({ "id": created["id"] }),
+        );
+
+        let all = invoke(&webview, "list_favorites", serde_json::json!({}));
+        assert_eq!(all.as_array().unwrap().len(), 0);
     }
 
     #[test]
