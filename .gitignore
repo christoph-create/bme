@@ -46,3 +46,6 @@ Thumbs.db
 
 # Claude Code local state
 /.claude
+
+# Scratch planning docs, not for the repo
+/docs/plans

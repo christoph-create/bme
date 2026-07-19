@@ -8,9 +8,17 @@
       <h1>Templates</h1>
       <p class="subtitle">Manage your saved message templates and collections</p>
     </div>
-    <button class="btn-primary" type="button" (click)="openCreateForm()">
-      + New Template
-    </button>
+    <div class="header-actions">
+      <button class="btn-secondary" type="button" (click)="openImportModal()">
+        Import
+      </button>
+      <button class="btn-secondary" type="button" (click)="openExportAll()">
+        Export All
+      </button>
+      <button class="btn-primary" type="button" (click)="openCreateForm()">
+        + New Template
+      </button>
+    </div>
   </header>
 
   <div class="filters">
@@ -46,9 +54,15 @@
               (keydown.enter)="saveRenameCollection(collection.id)"
               (keydown.escape)="cancelRenameCollection()"
             />
+            @if (renameCollectionNameConflict()) {
+              <span class="collection-name-error">
+                A collection named "{{ collectionNameDraft() }}" already exists.
+              </span>
+            }
             <button
               type="button"
               class="collection-action"
+              [disabled]="renameCollectionNameConflict()"
               (click)="saveRenameCollection(collection.id)"
             >
               Save
@@ -68,6 +82,13 @@
               (click)="startRenameCollection(collection)"
             >
               Rename
+            </button>
+            <button
+              type="button"
+              class="collection-action"
+              (click)="openExportCollection(collection)"
+            >
+              Export
             </button>
             <button
               type="button"
@@ -123,6 +144,13 @@
                   </button>
                   <button
                     type="button"
+                    class="menu-item"
+                    (click)="openExportTemplate(favorite, $event)"
+                  >
+                    Export
+                  </button>
+                  <button
+                    type="button"
                     class="menu-item menu-item-danger"
                     (click)="deleteTemplate(favorite.id, $event)"
                   >
@@ -153,4 +181,12 @@
     (close_modal)="closeForm()"
     (saved)="onFormSaved($event)"
   />
+}
+
+@if (exportDocument(); as document) {
+  <app-export-modal [document]="document" (close_modal)="closeExportModal()" />
+}
+
+@if (showImportModal()) {
+  <app-import-modal (close_modal)="closeImportModal()" (imported)="onImported()" />
 }

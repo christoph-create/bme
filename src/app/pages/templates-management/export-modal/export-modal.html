@@ -1,0 +1,13 @@
+<app-modal [title]="title()" (close_modal)="close_modal.emit()">
+  <div class="export-body">
+    <pre class="json-preview"><app-formatted-payload [payload]="serialized()" format="json" /></pre>
+    <footer class="actions">
+      <button type="button" class="btn-secondary" (click)="close_modal.emit()">
+        Close
+      </button>
+      <button type="button" class="btn-primary" (click)="copyToClipboard()">
+        {{ copied() ? "Copied!" : "Copy to clipboard" }}
+      </button>
+    </footer>
+  </div>
+</app-modal>

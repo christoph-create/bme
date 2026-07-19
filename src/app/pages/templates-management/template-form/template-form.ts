@@ -10,7 +10,10 @@ import {
 } from "@angular/core";
 import { FormBuilder, ReactiveFormsModule, Validators } from "@angular/forms";
 
-import { FavoriteCollection } from "../../../core/models/favorite-collection.model";
+import {
+  collectionNameConflict,
+  FavoriteCollection,
+} from "../../../core/models/favorite-collection.model";
 import { FavoriteMessage } from "../../../core/models/favorite-message.model";
 import { MessageFormat } from "../../../core/models/message-format.model";
 import { QoS } from "../../../core/models/qos";
@@ -85,6 +88,22 @@ export class TemplateForm {
     return this.favorite() !== null;
   }
 
+  /** True while the "+ New collection…" field is selected and its name
+   * collides with an existing collection - read directly from the form
+   * controls (rather than a computed signal) since the template already
+   * reads `collectionId`'s raw value the same way for its own `@if`, and
+   * both re-evaluate on every change-detection pass triggered by user
+   * input. */
+  newCollectionNameConflict(): boolean {
+    if (this.form.controls.collectionId.value !== NEW_COLLECTION) {
+      return false;
+    }
+    return collectionNameConflict(
+      this.form.controls.newCollectionName.value,
+      this.collections(),
+    );
+  }
+
   constructor() {
     // `favorite` is an optional input - reading it in a field initializer
     // would only ever see the default (null), since Angular applies input
@@ -122,7 +141,12 @@ export class TemplateForm {
   }
 
   async save(): Promise<void> {
-    if (this.form.invalid || this.saving() || this.payloadInvalid()) {
+    if (
+      this.form.invalid ||
+      this.saving() ||
+      this.payloadInvalid() ||
+      this.newCollectionNameConflict()
+    ) {
       return;
     }
 

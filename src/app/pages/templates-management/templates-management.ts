@@ -1,12 +1,19 @@
 import { Component, HostListener, computed, inject, signal } from "@angular/core";
 import { RouterLink } from "@angular/router";
 
-import { FavoriteCollection } from "../../core/models/favorite-collection.model";
+import {
+  collectionNameConflict,
+  FavoriteCollection,
+} from "../../core/models/favorite-collection.model";
 import { FavoriteMessage } from "../../core/models/favorite-message.model";
 import { qosNumber } from "../../core/models/qos";
+import { ExchangeDocument } from "../../core/models/template-exchange.model";
 import { FavoriteCollectionsService } from "../../core/services/favorite-collections.service";
 import { FavoritesService } from "../../core/services/favorites.service";
+import { TemplateExchangeService } from "../../core/services/template-exchange.service";
 import { FormattedPayload } from "../../shared/formatted-payload/formatted-payload";
+import { ExportModal } from "./export-modal/export-modal";
+import { ImportModal } from "./import-modal/import-modal";
 import { TemplateForm } from "./template-form/template-form";
 
 /** Sentinel `formTarget` value meaning "create form, no existing favorite",
@@ -15,13 +22,14 @@ type FormTarget = FavoriteMessage | "new" | null;
 
 @Component({
   selector: "app-templates-management",
-  imports: [RouterLink, TemplateForm, FormattedPayload],
+  imports: [RouterLink, TemplateForm, FormattedPayload, ExportModal, ImportModal],
   templateUrl: "./templates-management.html",
   styleUrl: "./templates-management.css",
 })
 export class TemplatesManagement {
   private readonly favoritesService = inject(FavoritesService);
   private readonly collectionsService = inject(FavoriteCollectionsService);
+  private readonly templateExchange = inject(TemplateExchangeService);
 
   readonly qosNumber = qosNumber;
   readonly favorites = signal<FavoriteMessage[]>([]);
@@ -34,6 +42,8 @@ export class TemplatesManagement {
   readonly formTarget = signal<FormTarget>(null);
   readonly editingCollectionId = signal<string | null>(null);
   readonly collectionNameDraft = signal("");
+  readonly exportDocument = signal<ExchangeDocument | null>(null);
+  readonly showImportModal = signal(false);
 
   readonly formFavorite = computed(() => {
     const target = this.formTarget();
@@ -114,6 +124,47 @@ export class TemplatesManagement {
     this.formTarget.set(null);
   }
 
+  openExportTemplate(favorite: FavoriteMessage, event: Event): void {
+    event.stopPropagation();
+    this.openMenuId.set(null);
+    this.exportDocument.set(this.templateExchange.buildTemplateDocument(favorite));
+  }
+
+  openExportCollection(collection: FavoriteCollection): void {
+    const templates = this.favorites().filter(
+      (favorite) => favorite.collection_id === collection.id,
+    );
+    this.exportDocument.set(
+      this.templateExchange.buildCollectionDocument(collection, templates),
+    );
+  }
+
+  openExportAll(): void {
+    this.exportDocument.set(
+      this.templateExchange.buildBundleDocument(
+        this.collections(),
+        this.favorites(),
+      ),
+    );
+  }
+
+  closeExportModal(): void {
+    this.exportDocument.set(null);
+  }
+
+  openImportModal(): void {
+    this.showImportModal.set(true);
+  }
+
+  closeImportModal(): void {
+    this.showImportModal.set(false);
+  }
+
+  async onImported(): Promise<void> {
+    this.showImportModal.set(false);
+    await this.load();
+  }
+
   async onFormSaved(favorite: FavoriteMessage): Promise<void> {
     const wasCreate = this.formTarget() === "new";
     this.favorites.update((favorites) =>
@@ -138,9 +189,24 @@ export class TemplatesManagement {
     this.editingCollectionId.set(null);
   }
 
+  /** True while the rename draft collides with a different collection's
+   * name - checked client-side so the error shows immediately, without a
+   * round trip to the backend's unique-index rejection. */
+  renameCollectionNameConflict(): boolean {
+    const editingId = this.editingCollectionId();
+    if (editingId === null) {
+      return false;
+    }
+    return collectionNameConflict(
+      this.collectionNameDraft(),
+      this.collections(),
+      editingId,
+    );
+  }
+
   async saveRenameCollection(id: string): Promise<void> {
     const name = this.collectionNameDraft().trim();
-    if (name === "") {
+    if (name === "" || this.renameCollectionNameConflict()) {
       return;
     }
     const description =
