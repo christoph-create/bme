@@ -205,47 +205,43 @@ describe("TemplateForm", () => {
     });
   });
 
-  describe("payload formatting", () => {
-    it("pretty-prints the payload when Format is clicked", async () => {
-      const { fixture } = await setup();
+  describe("payloadInvalid", () => {
+    it("blocks save() for malformed JSON while in JSON format", async () => {
+      const { fixture, favoritesService } = await setup();
       const component = fixture.componentInstance;
-      component.form.controls.payload.setValue('{"a":1}');
-
-      component.formatPayload();
-
-      expect(component.form.controls.payload.value).toBe(
-        JSON.stringify({ a: 1 }, null, 2),
-      );
-    });
-
-    it("shows an error and leaves the payload untouched when it isn't valid JSON", async () => {
-      const { fixture } = await setup();
-      const component = fixture.componentInstance;
+      component.form.controls.topic.setValue("sensors/new");
       component.form.controls.payload.setValue("not json");
 
-      component.formatPayload();
+      await component.save();
 
-      expect(component.form.controls.payload.value).toBe("not json");
-      expect(component.error()).toBe("Payload isn't valid JSON");
+      expect(component.payloadInvalid()).toBe(true);
+      expect(favoritesService.create).not.toHaveBeenCalled();
     });
 
-    it("shows the Format action only when the format is json", async () => {
+    it("disables the Save button in the DOM", async () => {
       const { fixture } = await setup();
       const component = fixture.componentInstance;
-
-      component.format.set("json");
+      component.form.controls.topic.setValue("sensors/new");
+      component.form.controls.payload.setValue("not json");
       fixture.detectChanges();
-      let formatButton = Array.from(
-        (fixture.nativeElement as HTMLElement).querySelectorAll("button"),
-      ).find((button) => button.textContent?.trim() === "Format");
-      expect(formatButton).toBeTruthy();
 
+      const saveButton = Array.from(
+        (fixture.nativeElement as HTMLElement).querySelectorAll("button"),
+      ).find((button) => button.textContent?.trim() === "Save") as HTMLButtonElement;
+
+      expect(saveButton.disabled).toBe(true);
+    });
+
+    it("allows saving the same malformed text once switched to RAW format", async () => {
+      const { fixture, favoritesService } = await setup();
+      const component = fixture.componentInstance;
+      component.form.controls.topic.setValue("sensors/new");
+      component.form.controls.payload.setValue("not json");
       component.format.set("raw");
-      fixture.detectChanges();
-      formatButton = Array.from(
-        (fixture.nativeElement as HTMLElement).querySelectorAll("button"),
-      ).find((button) => button.textContent?.trim() === "Format");
-      expect(formatButton).toBeFalsy();
+
+      await component.save();
+
+      expect(favoritesService.create).toHaveBeenCalled();
     });
   });
 

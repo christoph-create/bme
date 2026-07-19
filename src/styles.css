@@ -51,6 +51,16 @@
   --radius-input: 7px;
   --control-height: 34px;
 
+  /* JSON syntax highlighting - shared by app-formatted-payload's tokenized
+     spans and app-payload-input's CodeMirror highlight style, so the two
+     stay visually consistent. Retune here, not in either component. */
+  --color-json-key: var(--color-info-on-tint);
+  --color-json-string: var(--color-success);
+  --color-json-number: var(--color-accent-on-tint);
+  --color-json-boolean: var(--color-danger);
+  --color-json-null: var(--color-text-tertiary);
+  --color-json-punctuation: var(--color-text-secondary);
+
   --font-sans:
       "Inter",          /* The gold standard for modern UI alignment (if installed) */
       "Segoe UI",       /* Kept for Windows, but we neutralize it next */

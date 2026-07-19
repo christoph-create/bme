@@ -8,7 +8,11 @@
         <span class="retain-badge">Retain</span>
       }
     </div>
-    <pre class="preview-payload mono">{{ prettyPayload(draft().payload, draft().format) }}</pre>
+    <app-formatted-payload
+      class="preview-payload"
+      [payload]="draft().payload"
+      [format]="draft().format"
+    />
   </div>
 
   <form class="form" [formGroup]="form" (ngSubmit)="save()">

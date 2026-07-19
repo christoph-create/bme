@@ -3,10 +3,10 @@ import { RouterLink } from "@angular/router";
 
 import { FavoriteCollection } from "../../core/models/favorite-collection.model";
 import { FavoriteMessage } from "../../core/models/favorite-message.model";
-import { prettyPayload } from "../../core/models/pretty-payload";
 import { qosNumber } from "../../core/models/qos";
 import { FavoriteCollectionsService } from "../../core/services/favorite-collections.service";
 import { FavoritesService } from "../../core/services/favorites.service";
+import { FormattedPayload } from "../../shared/formatted-payload/formatted-payload";
 import { TemplateForm } from "./template-form/template-form";
 
 /** Sentinel `formTarget` value meaning "create form, no existing favorite",
@@ -15,7 +15,7 @@ type FormTarget = FavoriteMessage | "new" | null;
 
 @Component({
   selector: "app-templates-management",
-  imports: [RouterLink, TemplateForm],
+  imports: [RouterLink, TemplateForm, FormattedPayload],
   templateUrl: "./templates-management.html",
   styleUrl: "./templates-management.css",
 })
@@ -24,7 +24,6 @@ export class TemplatesManagement {
   private readonly collectionsService = inject(FavoriteCollectionsService);
 
   readonly qosNumber = qosNumber;
-  readonly prettyPayload = prettyPayload;
   readonly favorites = signal<FavoriteMessage[]>([]);
   readonly collections = signal<FavoriteCollection[]>([]);
   readonly loading = signal(true);

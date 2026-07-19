@@ -1,0 +1,25 @@
+@if (format() === "json") {
+  <div class="toolbar">
+    <span
+      class="format-action"
+      (click)="formatPayload()"
+      (keydown.enter)="formatPayload()"
+      role="button"
+      tabindex="0"
+    >
+      Format
+    </span>
+  </div>
+  <div #editorHost class="editor-host"></div>
+  @if (formatError(); as message) {
+    <p class="error">{{ message }}</p>
+  }
+} @else {
+  <textarea
+    class="payload-textarea mono"
+    [value]="value()"
+    [disabled]="disabled()"
+    (input)="onTextareaInput($event)"
+    (blur)="markTouched()"
+  ></textarea>
+}

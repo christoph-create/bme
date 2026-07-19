@@ -41,27 +41,9 @@
     </label>
   </div>
 
-  @if (format() === "json") {
-    <div class="format-row">
-      <span
-        class="format-action"
-        (click)="formatPayload()"
-        (keydown.enter)="formatPayload()"
-        role="button"
-        tabindex="0"
-      >
-        Format
-      </span>
-    </div>
-  }
+  <app-payload-input class="payload-input" formControlName="payload" [format]="format()" />
 
-  <textarea
-    class="payload-input mono"
-    formControlName="payload"
-    placeholder="payload"
-  ></textarea>
-
-  @if (formatError() ?? publishError(); as message) {
+  @if (publishError(); as message) {
     <p class="error">{{ message }}</p>
   }
 
@@ -75,12 +57,16 @@
     <button
       type="button"
       class="btn-save-template"
-      [disabled]="form.invalid"
+      [disabled]="form.invalid || payloadInvalid()"
       (click)="openSaveModal()"
     >
       Save as Template
     </button>
-    <button type="submit" class="btn-publish" [disabled]="form.invalid">
+    <button
+      type="submit"
+      class="btn-publish"
+      [disabled]="form.invalid || payloadInvalid()"
+    >
       Publish
     </button>
   </div>
