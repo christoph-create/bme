@@ -1,0 +1,152 @@
+<div class="top-bar">
+  <a class="back-link" routerLink="/connections">‹ Connections</a>
+</div>
+
+<div class="content">
+  <header class="page-header">
+    <div>
+      <h1>Templates</h1>
+      <p class="subtitle">Manage your saved message templates and collections</p>
+    </div>
+    <button class="btn-primary" type="button" (click)="openCreateForm()">
+      + New Template
+    </button>
+  </header>
+
+  <div class="filters">
+    <input
+      type="text"
+      class="search-input"
+      placeholder="Search templates…"
+      [value]="search()"
+      (input)="onSearchInput($event)"
+    />
+    <select
+      class="collection-filter"
+      [value]="collectionFilter()"
+      (change)="onCollectionFilterChange($event)"
+    >
+      <option value="">All collections</option>
+      @for (collection of collections(); track collection.id) {
+        <option [value]="collection.id">{{ collection.name }}</option>
+      }
+    </select>
+  </div>
+
+  @if (collections().length > 0) {
+    <div class="collections">
+      @for (collection of collections(); track collection.id) {
+        <div class="collection-row">
+          @if (editingCollectionId() === collection.id) {
+            <input
+              type="text"
+              class="collection-name-input"
+              [value]="collectionNameDraft()"
+              (input)="onCollectionNameDraftInput($event)"
+              (keydown.enter)="saveRenameCollection(collection.id)"
+              (keydown.escape)="cancelRenameCollection()"
+            />
+            <button
+              type="button"
+              class="collection-action"
+              (click)="saveRenameCollection(collection.id)"
+            >
+              Save
+            </button>
+            <button
+              type="button"
+              class="collection-action"
+              (click)="cancelRenameCollection()"
+            >
+              Cancel
+            </button>
+          } @else {
+            <span class="collection-name">{{ collection.name }}</span>
+            <button
+              type="button"
+              class="collection-action"
+              (click)="startRenameCollection(collection)"
+            >
+              Rename
+            </button>
+            <button
+              type="button"
+              class="collection-action collection-action-danger"
+              (click)="deleteCollection(collection.id)"
+            >
+              Delete
+            </button>
+          }
+        </div>
+      }
+    </div>
+  }
+
+  @if (loading()) {
+    <p class="status-text">Loading templates…</p>
+  } @else if (error()) {
+    <p class="status-text error">{{ error() }}</p>
+  } @else if (favorites().length === 0) {
+    <p class="status-text">No templates yet.</p>
+  } @else if (filteredFavorites().length === 0) {
+    <p class="status-text">No matching templates.</p>
+  } @else {
+    <ul class="template-list">
+      @for (favorite of filteredFavorites(); track favorite.id) {
+        <li class="template-row">
+          <div class="template-header">
+            <span class="template-name">{{ favorite.name || favorite.topic }}</span>
+            <span class="qos-badge">Q{{ qosNumber(favorite.qos) }}</span>
+            @if (favorite.retain) {
+              <span class="retain-badge">Retain</span>
+            }
+            <span class="format-badge">{{ favorite.format }}</span>
+            @if (collectionName(favorite.collection_id); as name) {
+              <span class="collection-badge">{{ name }}</span>
+            }
+            <div class="menu-wrapper">
+              <button
+                type="button"
+                class="menu-trigger"
+                (click)="toggleMenu(favorite.id, $event)"
+              >
+                ⋯
+              </button>
+              @if (openMenuId() === favorite.id) {
+                <div class="menu">
+                  <button
+                    type="button"
+                    class="menu-item"
+                    (click)="openEditForm(favorite, $event)"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    class="menu-item menu-item-danger"
+                    (click)="deleteTemplate(favorite.id, $event)"
+                  >
+                    Delete
+                  </button>
+                </div>
+              }
+            </div>
+          </div>
+          <div class="template-topic mono">{{ favorite.topic }}</div>
+          @if (favorite.description) {
+            <div class="template-description">{{ favorite.description }}</div>
+          }
+          <pre class="template-payload mono">{{ prettyPayload(favorite.payload, favorite.format) }}</pre>
+        </li>
+      }
+    </ul>
+  }
+</div>
+
+@if (formTarget()) {
+  <app-template-form
+    [favorite]="formFavorite()"
+    (close_modal)="closeForm()"
+    (saved)="onFormSaved($event)"
+  />
+}

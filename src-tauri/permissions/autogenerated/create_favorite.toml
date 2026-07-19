@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-create-favorite"
+description = "Enables the create_favorite command without any pre-configured scope."
+commands.allow = ["create_favorite"]
+
+[[permission]]
+identifier = "deny-create-favorite"
+description = "Denies the create_favorite command without any pre-configured scope."
+commands.deny = ["create_favorite"]

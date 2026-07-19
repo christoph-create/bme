@@ -1,6 +1,9 @@
 import { TestBed } from "@angular/core/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { FavoriteMessage } from "../../../core/models/favorite-message.model";
+import { FavoriteCollectionsService } from "../../../core/services/favorite-collections.service";
+import { FavoritesService } from "../../../core/services/favorites.service";
 import { MqttService } from "../../../core/services/mqtt.service";
 import { PublishPanel } from "./publish-panel";
 
@@ -12,10 +15,22 @@ function encode(text: string): Uint8Array {
 
 async function setup(publish = vi.fn().mockResolvedValue(undefined)) {
   const mqttService = { publish };
+  const favoritesService = {
+    create: vi.fn().mockResolvedValue({}),
+    list: vi.fn().mockResolvedValue([]),
+  };
+  const favoriteCollectionsService = { list: vi.fn().mockResolvedValue([]) };
 
   TestBed.configureTestingModule({
     imports: [PublishPanel],
-    providers: [{ provide: MqttService, useValue: mqttService }],
+    providers: [
+      { provide: MqttService, useValue: mqttService },
+      { provide: FavoritesService, useValue: favoritesService },
+      {
+        provide: FavoriteCollectionsService,
+        useValue: favoriteCollectionsService,
+      },
+    ],
   });
 
   const fixture = TestBed.createComponent(PublishPanel);
@@ -24,7 +39,7 @@ async function setup(publish = vi.fn().mockResolvedValue(undefined)) {
   await fixture.whenStable();
   fixture.detectChanges();
 
-  return { fixture, mqttService, publish };
+  return { fixture, mqttService, publish, favoritesService };
 }
 
 function clickSegment(
@@ -162,6 +177,59 @@ describe("PublishPanel", () => {
     );
   });
 
+  it("does not retain by default", async () => {
+    const { fixture, publish } = await setup();
+    const component = fixture.componentInstance;
+    component.form.controls.topic.setValue("sensors/zone-a");
+    component.form.controls.payload.setValue("hello");
+    component.selectFormat("raw");
+
+    await component.publish();
+
+    expect(publish).toHaveBeenCalledWith(
+      CONNECTION_ID,
+      "sensors/zone-a",
+      encode("hello"),
+      "AtMostOnce",
+      false,
+    );
+  });
+
+  it("passes retain=true when the retain checkbox is checked", async () => {
+    const { fixture, publish } = await setup();
+    const component = fixture.componentInstance;
+    component.form.controls.topic.setValue("sensors/zone-a");
+    component.form.controls.payload.setValue("hello");
+    component.selectFormat("raw");
+    component.toggleRetain();
+
+    await component.publish();
+
+    expect(publish).toHaveBeenCalledWith(
+      CONNECTION_ID,
+      "sensors/zone-a",
+      encode("hello"),
+      "AtMostOnce",
+      true,
+    );
+  });
+
+  it("toggles the retain checkbox in the DOM", async () => {
+    const { fixture } = await setup();
+    const component = fixture.componentInstance;
+
+    expect(component.retain()).toBe(false);
+
+    const checkbox = (fixture.nativeElement as HTMLElement).querySelector(
+      ".retain-checkbox",
+    ) as HTMLInputElement;
+    checkbox.click();
+    fixture.detectChanges();
+
+    expect(component.retain()).toBe(true);
+    expect(checkbox.checked).toBe(true);
+  });
+
   it("shows a published flash after a successful publish, and it clears after a timeout", async () => {
     vi.useFakeTimers();
     const { fixture } = await setup();
@@ -294,6 +362,147 @@ describe("PublishPanel", () => {
         ".format-action",
       );
       expect(button).toBeNull();
+    });
+  });
+
+  describe("Save Template modal", () => {
+    it("does not open the modal when the topic field is empty", async () => {
+      const { fixture } = await setup();
+      fixture.componentInstance.form.controls.payload.setValue("hello");
+
+      fixture.componentInstance.openSaveModal();
+
+      expect(fixture.componentInstance.saveModalDraft()).toBeNull();
+    });
+
+    it("does not open the modal when the payload field is empty", async () => {
+      const { fixture } = await setup();
+      fixture.componentInstance.form.controls.topic.setValue("sensors/zone-a");
+
+      fixture.componentInstance.openSaveModal();
+
+      expect(fixture.componentInstance.saveModalDraft()).toBeNull();
+    });
+
+    it("opens the modal with a snapshot of the current topic/payload/format/qos/retain", async () => {
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+      component.form.controls.topic.setValue("sensors/zone-a");
+      component.form.controls.payload.setValue('{"a": 1,   "b": 2}');
+      component.toggleRetain();
+
+      component.openSaveModal();
+      fixture.detectChanges();
+
+      expect(component.saveModalDraft()).toEqual({
+        topic: "sensors/zone-a",
+        payload: '{"a":1,"b":2}',
+        format: "json",
+        qos: "AtMostOnce",
+        retain: true,
+      });
+      expect(
+        (fixture.nativeElement as HTMLElement).querySelector(
+          "app-save-template-modal",
+        ),
+      ).not.toBeNull();
+    });
+
+    it("closes the modal when the modal emits close", async () => {
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+      component.form.controls.topic.setValue("sensors/zone-a");
+      component.form.controls.payload.setValue("hello");
+      component.openSaveModal();
+      fixture.detectChanges();
+
+      component.closeSaveModal();
+
+      expect(component.saveModalDraft()).toBeNull();
+    });
+
+    it("shows a confirmation flash and closes the modal when the modal emits saved, clearing after a timeout", async () => {
+      vi.useFakeTimers();
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+      component.form.controls.topic.setValue("sensors/zone-a");
+      component.form.controls.payload.setValue("hello");
+      component.openSaveModal();
+
+      component.onTemplateSaved();
+
+      expect(component.saveModalDraft()).toBeNull();
+      expect(component.templateSaved()).toBe(true);
+
+      vi.advanceTimersByTime(5000);
+
+      expect(component.templateSaved()).toBe(false);
+    });
+  });
+
+  describe("Load Template modal", () => {
+    const TEMPLATE: FavoriteMessage = {
+      id: "55555555-5555-5555-5555-555555555555",
+      collection_id: null,
+      name: "Zone A",
+      description: null,
+      topic: "sensors/zone-a",
+      payload: '{"a":1}',
+      format: "raw",
+      qos: "ExactlyOnce",
+      retain: true,
+      created_at: "2026-07-18T00:00:00Z",
+    };
+
+    it("opens the modal when Load Template is clicked", async () => {
+      const { fixture } = await setup();
+
+      fixture.componentInstance.openLoadModal();
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.showLoadModal()).toBe(true);
+      expect(
+        (fixture.nativeElement as HTMLElement).querySelector(
+          "app-load-template-modal",
+        ),
+      ).not.toBeNull();
+    });
+
+    it("closes the modal when the modal emits close", async () => {
+      const { fixture } = await setup();
+      fixture.componentInstance.openLoadModal();
+
+      fixture.componentInstance.closeLoadModal();
+
+      expect(fixture.componentInstance.showLoadModal()).toBe(false);
+    });
+
+    it("applies the selected template's topic/payload/format/qos/retain and closes the modal", async () => {
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+      component.openLoadModal();
+
+      component.onTemplateSelected(TEMPLATE);
+
+      expect(component.form.controls.topic.value).toBe("sensors/zone-a");
+      expect(component.form.controls.payload.value).toBe('{"a":1}');
+      expect(component.format()).toBe("raw");
+      expect(component.qos()).toBe("ExactlyOnce");
+      expect(component.retain()).toBe(true);
+      expect(component.showLoadModal()).toBe(false);
+    });
+
+    it("plainly overwrites an already-filled-in draft", async () => {
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+      component.form.controls.topic.setValue("unrelated/topic");
+      component.form.controls.payload.setValue("unrelated payload");
+      component.openLoadModal();
+
+      component.onTemplateSelected(TEMPLATE);
+
+      expect(component.form.controls.topic.value).toBe("sensors/zone-a");
+      expect(component.form.controls.payload.value).toBe('{"a":1}');
     });
   });
 });

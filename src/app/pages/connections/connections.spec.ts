@@ -61,6 +61,15 @@ describe("Connections", () => {
     expect(text).toContain("localhost:1883");
   });
 
+  it("links to the templates management page", async () => {
+    const { fixture } = await setup([]);
+
+    const link = (fixture.nativeElement as HTMLElement).querySelector(
+      'a[href="/templates"]',
+    );
+    expect(link).toBeTruthy();
+  });
+
   it("shows an empty state when there are no connections", async () => {
     const { fixture } = await setup([]);
 

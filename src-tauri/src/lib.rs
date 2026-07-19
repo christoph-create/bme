@@ -6,6 +6,7 @@ use bme_core::mqtt::manager::MqttClientManager;
 use bme_core::mqtt::rumqttc_adapter::RumqttcAdapter;
 use bme_core::storage;
 use bme_core::storage::connections_repo::SqliteConnectionsRepository;
+use bme_core::storage::favorite_collections_repo::SqliteFavoriteCollectionsRepository;
 use bme_core::storage::favorites_repo::SqliteFavoritesRepository;
 use tauri::{Emitter, Manager};
 use tokio::sync::mpsc;
@@ -90,7 +91,8 @@ pub fn run() {
             let conn = Arc::new(Mutex::new(storage::open_at(&db_path)?));
 
             app.manage(SqliteConnectionsRepository::new(Arc::clone(&conn)));
-            app.manage(SqliteFavoritesRepository::new(conn));
+            app.manage(SqliteFavoritesRepository::new(Arc::clone(&conn)));
+            app.manage(SqliteFavoriteCollectionsRepository::new(conn));
 
             let (events_tx, mut events_rx) = mpsc::unbounded_channel();
             app.manage(MqttClientManager::new(RumqttcAdapter::new(events_tx)));
@@ -119,7 +121,15 @@ pub fn run() {
             commands::subscribe_topic,
             commands::unsubscribe_topic,
             commands::list_favorites,
-            commands::save_favorite,
+            commands::create_favorite,
+            commands::get_favorite,
+            commands::update_favorite,
+            commands::delete_favorite,
+            commands::list_favorite_collections,
+            commands::create_favorite_collection,
+            commands::get_favorite_collection,
+            commands::update_favorite_collection,
+            commands::delete_favorite_collection,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -149,13 +159,24 @@ mod tests {
                 commands::subscribe_topic,
                 commands::unsubscribe_topic,
                 commands::test_connection,
+                commands::list_favorites,
+                commands::create_favorite,
+                commands::get_favorite,
+                commands::update_favorite,
+                commands::delete_favorite,
+                commands::list_favorite_collections,
+                commands::create_favorite_collection,
+                commands::get_favorite_collection,
+                commands::update_favorite_collection,
+                commands::delete_favorite_collection,
             ])
             .build(tauri::generate_context!())
             .expect("failed to build mock app");
 
         let conn = Arc::new(Mutex::new(storage::open_in_memory()));
         app.manage(SqliteConnectionsRepository::new(Arc::clone(&conn)));
-        app.manage(SqliteFavoritesRepository::new(conn));
+        app.manage(SqliteFavoritesRepository::new(Arc::clone(&conn)));
+        app.manage(SqliteFavoriteCollectionsRepository::new(conn));
 
         let (events_tx, _events_rx) = mpsc::unbounded_channel();
         app.manage(MqttClientManager::new(RumqttcAdapter::new(events_tx)));
@@ -263,6 +284,299 @@ mod tests {
 
         let all = invoke(&webview, "list_connections", serde_json::json!({}));
         assert_eq!(all[0]["name"], "Renamed");
+    }
+
+    #[test]
+    fn create_favorite_then_list_favorites_round_trips_over_ipc() {
+        let app = build_test_app();
+        let webview = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+
+        let created = invoke(
+            &webview,
+            "create_favorite",
+            serde_json::json!({
+                "newFavorite": {
+                    "name": "Temperature reading",
+                    "description": "A sample sensor payload",
+                    "topic": "sensors/temperature",
+                    "payload": "{\"celsius\": 21.5}",
+                    "format": "json",
+                    "qos": "AtLeastOnce",
+                    "retain": false
+                }
+            }),
+        );
+        assert_eq!(created["name"], "Temperature reading");
+
+        let all = invoke(&webview, "list_favorites", serde_json::json!({}));
+        assert_eq!(all.as_array().unwrap().len(), 1);
+        assert_eq!(all[0]["id"], created["id"]);
+    }
+
+    #[test]
+    fn get_favorite_returns_a_previously_created_favorite() {
+        let app = build_test_app();
+        let webview = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+
+        let created = invoke(
+            &webview,
+            "create_favorite",
+            serde_json::json!({
+                "newFavorite": {
+                    "name": null,
+                    "description": null,
+                    "topic": "sensors/temperature",
+                    "payload": "{}",
+                    "format": "json",
+                    "qos": "AtMostOnce",
+                    "retain": false
+                }
+            }),
+        );
+
+        let fetched = invoke(
+            &webview,
+            "get_favorite",
+            serde_json::json!({ "id": created["id"] }),
+        );
+        assert_eq!(fetched, created);
+    }
+
+    #[test]
+    fn update_favorite_persists_and_is_visible_on_the_listed_favorite() {
+        let app = build_test_app();
+        let webview = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+
+        let created = invoke(
+            &webview,
+            "create_favorite",
+            serde_json::json!({
+                "newFavorite": {
+                    "name": "Original",
+                    "description": null,
+                    "topic": "sensors/temperature",
+                    "payload": "{}",
+                    "format": "json",
+                    "qos": "AtMostOnce",
+                    "retain": false
+                }
+            }),
+        );
+
+        let updated = invoke(
+            &webview,
+            "update_favorite",
+            serde_json::json!({
+                "id": created["id"],
+                "update": {
+                    "name": "Renamed",
+                    "description": "Now with a description",
+                    "topic": "sensors/humidity",
+                    "payload": "{\"pct\": 55}",
+                    "format": "json",
+                    "qos": "ExactlyOnce",
+                    "retain": true
+                }
+            }),
+        );
+        assert_eq!(updated["name"], "Renamed");
+        assert_eq!(updated["topic"], "sensors/humidity");
+
+        let all = invoke(&webview, "list_favorites", serde_json::json!({}));
+        assert_eq!(all[0]["name"], "Renamed");
+    }
+
+    #[test]
+    fn delete_favorite_removes_it_from_the_list() {
+        let app = build_test_app();
+        let webview = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+
+        let created = invoke(
+            &webview,
+            "create_favorite",
+            serde_json::json!({
+                "newFavorite": {
+                    "name": null,
+                    "description": null,
+                    "topic": "sensors/temperature",
+                    "payload": "{}",
+                    "format": "json",
+                    "qos": "AtMostOnce",
+                    "retain": false
+                }
+            }),
+        );
+
+        invoke(
+            &webview,
+            "delete_favorite",
+            serde_json::json!({ "id": created["id"] }),
+        );
+
+        let all = invoke(&webview, "list_favorites", serde_json::json!({}));
+        assert_eq!(all.as_array().unwrap().len(), 0);
+    }
+
+    #[test]
+    fn create_favorite_collection_then_list_collections_round_trips_over_ipc() {
+        let app = build_test_app();
+        let webview = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+
+        let created = invoke(
+            &webview,
+            "create_favorite_collection",
+            serde_json::json!({
+                "newCollection": {
+                    "name": "Sensor payloads",
+                    "description": "Common sensor test messages"
+                }
+            }),
+        );
+        assert_eq!(created["name"], "Sensor payloads");
+
+        let all = invoke(&webview, "list_favorite_collections", serde_json::json!({}));
+        assert_eq!(all.as_array().unwrap().len(), 1);
+        assert_eq!(all[0]["id"], created["id"]);
+    }
+
+    #[test]
+    fn get_favorite_collection_returns_a_previously_created_collection() {
+        let app = build_test_app();
+        let webview = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+
+        let created = invoke(
+            &webview,
+            "create_favorite_collection",
+            serde_json::json!({
+                "newCollection": { "name": "Sensor payloads", "description": null }
+            }),
+        );
+
+        let fetched = invoke(
+            &webview,
+            "get_favorite_collection",
+            serde_json::json!({ "id": created["id"] }),
+        );
+        assert_eq!(fetched, created);
+    }
+
+    #[test]
+    fn update_favorite_collection_persists_and_is_visible_on_the_listed_collection() {
+        let app = build_test_app();
+        let webview = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+
+        let created = invoke(
+            &webview,
+            "create_favorite_collection",
+            serde_json::json!({
+                "newCollection": { "name": "Original", "description": null }
+            }),
+        );
+
+        let updated = invoke(
+            &webview,
+            "update_favorite_collection",
+            serde_json::json!({
+                "id": created["id"],
+                "update": { "name": "Renamed", "description": "Now with a description" }
+            }),
+        );
+        assert_eq!(updated["name"], "Renamed");
+
+        let all = invoke(&webview, "list_favorite_collections", serde_json::json!({}));
+        assert_eq!(all[0]["name"], "Renamed");
+    }
+
+    #[test]
+    fn delete_favorite_collection_removes_it_from_the_list() {
+        let app = build_test_app();
+        let webview = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+
+        let created = invoke(
+            &webview,
+            "create_favorite_collection",
+            serde_json::json!({
+                "newCollection": { "name": "Sensor payloads", "description": null }
+            }),
+        );
+
+        invoke(
+            &webview,
+            "delete_favorite_collection",
+            serde_json::json!({ "id": created["id"] }),
+        );
+
+        let all = invoke(&webview, "list_favorite_collections", serde_json::json!({}));
+        assert_eq!(all.as_array().unwrap().len(), 0);
+    }
+
+    #[test]
+    fn favorite_can_be_created_and_updated_with_a_collection_id() {
+        let app = build_test_app();
+        let webview = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+
+        let collection = invoke(
+            &webview,
+            "create_favorite_collection",
+            serde_json::json!({
+                "newCollection": { "name": "Sensor payloads", "description": null }
+            }),
+        );
+
+        let created = invoke(
+            &webview,
+            "create_favorite",
+            serde_json::json!({
+                "newFavorite": {
+                    "collection_id": collection["id"],
+                    "name": null,
+                    "description": null,
+                    "topic": "sensors/temperature",
+                    "payload": "{}",
+                    "format": "json",
+                    "qos": "AtMostOnce",
+                    "retain": false
+                }
+            }),
+        );
+        assert_eq!(created["collection_id"], collection["id"]);
+
+        let updated = invoke(
+            &webview,
+            "update_favorite",
+            serde_json::json!({
+                "id": created["id"],
+                "update": {
+                    "collection_id": null,
+                    "name": null,
+                    "description": null,
+                    "topic": "sensors/temperature",
+                    "payload": "{}",
+                    "format": "json",
+                    "qos": "AtMostOnce",
+                    "retain": false
+                }
+            }),
+        );
+        assert_eq!(updated["collection_id"], serde_json::Value::Null);
     }
 
     #[test]

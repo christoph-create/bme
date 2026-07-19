@@ -86,12 +86,45 @@ pub struct UpdateBrokerConnection {
     pub keep_alive_secs: u16,
 }
 
+/// How a favorite message's payload should be treated when it's loaded back
+/// into the publish form - pretty-printable JSON, or opaque raw text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MessageFormat {
+    Json,
+    Raw,
+}
+
+impl TryFrom<&str> for MessageFormat {
+    type Error = String;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "json" => Ok(MessageFormat::Json),
+            "raw" => Ok(MessageFormat::Raw),
+            other => Err(format!("invalid MessageFormat value: {other}")),
+        }
+    }
+}
+
+impl From<MessageFormat> for String {
+    fn from(format: MessageFormat) -> Self {
+        match format {
+            MessageFormat::Json => "json".to_string(),
+            MessageFormat::Raw => "raw".to_string(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FavoriteMessage {
     pub id: Uuid,
-    pub connection_id: Option<Uuid>,
+    pub collection_id: Option<Uuid>,
+    pub name: Option<String>,
+    pub description: Option<String>,
     pub topic: String,
     pub payload: String,
+    pub format: MessageFormat,
     pub qos: QoS,
     pub retain: bool,
     pub created_at: DateTime<Utc>,
@@ -99,11 +132,46 @@ pub struct FavoriteMessage {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NewFavoriteMessage {
-    pub connection_id: Option<Uuid>,
+    pub collection_id: Option<Uuid>,
+    pub name: Option<String>,
+    pub description: Option<String>,
     pub topic: String,
     pub payload: String,
+    pub format: MessageFormat,
     pub qos: QoS,
     pub retain: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UpdateFavoriteMessage {
+    pub collection_id: Option<Uuid>,
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub topic: String,
+    pub payload: String,
+    pub format: MessageFormat,
+    pub qos: QoS,
+    pub retain: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FavoriteCollection {
+    pub id: Uuid,
+    pub name: String,
+    pub description: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NewFavoriteCollection {
+    pub name: String,
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UpdateFavoriteCollection {
+    pub name: String,
+    pub description: Option<String>,
 }
 
 #[cfg(test)]
@@ -121,5 +189,30 @@ mod tests {
     #[test]
     fn qos_rejects_invalid_values() {
         assert!(QoS::try_from(3).is_err());
+    }
+
+    #[test]
+    fn message_format_roundtrips_through_str() {
+        for format in [MessageFormat::Json, MessageFormat::Raw] {
+            let as_str: String = format.into();
+            assert_eq!(MessageFormat::try_from(as_str.as_str()), Ok(format));
+        }
+    }
+
+    #[test]
+    fn message_format_rejects_invalid_values() {
+        assert!(MessageFormat::try_from("xml").is_err());
+    }
+
+    #[test]
+    fn message_format_serializes_as_lowercase_json() {
+        assert_eq!(
+            serde_json::to_string(&MessageFormat::Json).unwrap(),
+            "\"json\""
+        );
+        assert_eq!(
+            serde_json::to_string(&MessageFormat::Raw).unwrap(),
+            "\"raw\""
+        );
     }
 }

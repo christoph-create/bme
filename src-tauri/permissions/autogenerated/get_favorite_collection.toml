@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-favorite-collection"
+description = "Enables the get_favorite_collection command without any pre-configured scope."
+commands.allow = ["get_favorite_collection"]
+
+[[permission]]
+identifier = "deny-get-favorite-collection"
+description = "Denies the get_favorite_collection command without any pre-configured scope."
+commands.deny = ["get_favorite_collection"]

@@ -8,18 +8,22 @@ import {
 } from "@angular/core";
 import { FormBuilder, ReactiveFormsModule, Validators } from "@angular/forms";
 
+import { FavoriteMessage } from "../../../core/models/favorite-message.model";
+import { MessageDraft } from "../../../core/models/message-draft.model";
+import { MessageFormat } from "../../../core/models/message-format.model";
 import { QoS } from "../../../core/models/qos";
 import { MqttService } from "../../../core/services/mqtt.service";
+import { LoadTemplateModal } from "../load-template-modal/load-template-modal";
 import { QosSelect } from "../qos-select/qos-select";
+import { SaveTemplateModal } from "../save-template-modal/save-template-modal";
 
 const FLASH_DURATION_MS = 1800;
 const FORMAT_ERROR_DURATION_MS = 2500;
-export type PublishFormat = "json" | "raw";
-const FORMAT_OPTIONS: readonly PublishFormat[] = ["json", "raw"];
+const FORMAT_OPTIONS: readonly MessageFormat[] = ["json", "raw"];
 
 @Component({
   selector: "app-publish-panel",
-  imports: [ReactiveFormsModule, QosSelect],
+  imports: [ReactiveFormsModule, QosSelect, SaveTemplateModal, LoadTemplateModal],
   templateUrl: "./publish-panel.html",
   styleUrl: "./publish-panel.css",
 })
@@ -38,14 +42,19 @@ export class PublishPanel {
     payload: ["", Validators.required],
   });
 
-  readonly format = signal<PublishFormat>("json");
+  readonly format = signal<MessageFormat>("json");
   readonly qos = signal<QoS>("AtMostOnce");
+  readonly retain = signal(false);
   readonly publishedFlash = signal(false);
   readonly publishError = signal<string | null>(null);
   readonly formatError = signal<string | null>(null);
+  readonly templateSaved = signal(false);
+  readonly saveModalDraft = signal<MessageDraft | null>(null);
+  readonly showLoadModal = signal(false);
 
   private flashTimeout: ReturnType<typeof setTimeout> | null = null;
   private formatErrorTimeout: ReturnType<typeof setTimeout> | null = null;
+  private templateSavedTimeout: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     effect(() => {
@@ -62,11 +71,18 @@ export class PublishPanel {
       if (this.formatErrorTimeout !== null) {
         clearTimeout(this.formatErrorTimeout);
       }
+      if (this.templateSavedTimeout !== null) {
+        clearTimeout(this.templateSavedTimeout);
+      }
     });
   }
 
-  selectFormat(format: PublishFormat): void {
+  selectFormat(format: MessageFormat): void {
     this.format.set(format);
+  }
+
+  toggleRetain(): void {
+    this.retain.set(!this.retain());
   }
 
   /** Pretty-prints the payload field as JSON, in place. */
@@ -94,7 +110,7 @@ export class PublishPanel {
         topic,
         bytes,
         this.qos(),
-        false,
+        this.retain(),
       );
     } catch (err) {
       this.publishError.set(err instanceof Error ? err.message : String(err));
@@ -110,9 +126,56 @@ export class PublishPanel {
     this.flashPublished();
   }
 
+  /** Opens the Save Template modal with a snapshot of the current
+   * topic/payload/QoS/retain/format - see docs/plans/message-templates.md. */
+  openSaveModal(): void {
+    if (this.form.invalid) {
+      return;
+    }
+
+    const { topic, payload } = this.form.getRawValue();
+    this.saveModalDraft.set({
+      topic,
+      payload: this.payloadText(payload),
+      format: this.format(),
+      qos: this.qos(),
+      retain: this.retain(),
+    });
+  }
+
+  closeSaveModal(): void {
+    this.saveModalDraft.set(null);
+  }
+
+  onTemplateSaved(): void {
+    this.saveModalDraft.set(null);
+    this.flashTemplateSaved();
+  }
+
+  openLoadModal(): void {
+    this.showLoadModal.set(true);
+  }
+
+  closeLoadModal(): void {
+    this.showLoadModal.set(false);
+  }
+
+  /** Plainly overwrites the current draft with the selected template's
+   * fields - matches how clicking a topic in the tree already behaves. */
+  onTemplateSelected(favorite: FavoriteMessage): void {
+    this.form.setValue({ topic: favorite.topic, payload: favorite.payload });
+    this.format.set(favorite.format);
+    this.qos.set(favorite.qos);
+    this.retain.set(favorite.retain);
+    this.showLoadModal.set(false);
+  }
+
+  private payloadText(payload: string): string {
+    return this.format() === "json" ? compactJson(payload) : payload;
+  }
+
   private encodePayload(payload: string): Uint8Array {
-    const text = this.format() === "json" ? compactJson(payload) : payload;
-    return new TextEncoder().encode(text);
+    return new TextEncoder().encode(this.payloadText(payload));
   }
 
   private flashPublished(): void {
@@ -123,6 +186,17 @@ export class PublishPanel {
     this.flashTimeout = setTimeout(() => {
       this.publishedFlash.set(false);
       this.flashTimeout = null;
+    }, FLASH_DURATION_MS);
+  }
+
+  private flashTemplateSaved(): void {
+    if (this.templateSavedTimeout !== null) {
+      clearTimeout(this.templateSavedTimeout);
+    }
+    this.templateSaved.set(true);
+    this.templateSavedTimeout = setTimeout(() => {
+      this.templateSaved.set(false);
+      this.templateSavedTimeout = null;
     }, FLASH_DURATION_MS);
   }
 

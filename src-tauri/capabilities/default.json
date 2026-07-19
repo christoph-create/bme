@@ -21,6 +21,14 @@
     "allow-subscribe-topic",
     "allow-unsubscribe-topic",
     "allow-list-favorites",
-    "allow-save-favorite"
+    "allow-create-favorite",
+    "allow-get-favorite",
+    "allow-update-favorite",
+    "allow-delete-favorite",
+    "allow-list-favorite-collections",
+    "allow-create-favorite-collection",
+    "allow-get-favorite-collection",
+    "allow-update-favorite-collection",
+    "allow-delete-favorite-collection"
   ]
 }

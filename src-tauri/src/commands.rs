@@ -1,11 +1,15 @@
 use bme_core::models::{
-    BrokerConnection, FavoriteMessage, NewBrokerConnection, NewFavoriteMessage, NewSubscription,
-    QoS, Subscription, UpdateBrokerConnection,
+    BrokerConnection, FavoriteCollection, FavoriteMessage, NewBrokerConnection,
+    NewFavoriteCollection, NewFavoriteMessage, NewSubscription, QoS, Subscription,
+    UpdateBrokerConnection, UpdateFavoriteCollection, UpdateFavoriteMessage,
 };
 use bme_core::mqtt::manager::MqttClientManager;
 use bme_core::mqtt::port::MqttError;
 use bme_core::mqtt::rumqttc_adapter::RumqttcAdapter;
 use bme_core::storage::connections_repo::{ConnectionsRepository, SqliteConnectionsRepository};
+use bme_core::storage::favorite_collections_repo::{
+    FavoriteCollectionsRepository, SqliteFavoriteCollectionsRepository,
+};
 use bme_core::storage::favorites_repo::{FavoritesRepository, SqliteFavoritesRepository};
 use tauri::{AppHandle, Manager, State};
 use uuid::Uuid;
@@ -174,9 +178,75 @@ pub fn list_favorites(
 }
 
 #[tauri::command]
-pub fn save_favorite(
+pub fn create_favorite(
     repo: State<SqliteFavoritesRepository>,
     new_favorite: NewFavoriteMessage,
 ) -> Result<FavoriteMessage, String> {
     repo.create(new_favorite).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub fn get_favorite(
+    repo: State<SqliteFavoritesRepository>,
+    id: Uuid,
+) -> Result<Option<FavoriteMessage>, String> {
+    repo.get(id).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub fn update_favorite(
+    repo: State<SqliteFavoritesRepository>,
+    id: Uuid,
+    update: UpdateFavoriteMessage,
+) -> Result<FavoriteMessage, String> {
+    repo.update(id, update)
+        .map_err(|err| err.to_string())?
+        .ok_or_else(|| format!("favorite {id} not found"))
+}
+
+#[tauri::command]
+pub fn delete_favorite(repo: State<SqliteFavoritesRepository>, id: Uuid) -> Result<(), String> {
+    repo.delete(id).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub fn list_favorite_collections(
+    repo: State<SqliteFavoriteCollectionsRepository>,
+) -> Result<Vec<FavoriteCollection>, String> {
+    repo.list().map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub fn create_favorite_collection(
+    repo: State<SqliteFavoriteCollectionsRepository>,
+    new_collection: NewFavoriteCollection,
+) -> Result<FavoriteCollection, String> {
+    repo.create(new_collection).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub fn get_favorite_collection(
+    repo: State<SqliteFavoriteCollectionsRepository>,
+    id: Uuid,
+) -> Result<Option<FavoriteCollection>, String> {
+    repo.get(id).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub fn update_favorite_collection(
+    repo: State<SqliteFavoriteCollectionsRepository>,
+    id: Uuid,
+    update: UpdateFavoriteCollection,
+) -> Result<FavoriteCollection, String> {
+    repo.update(id, update)
+        .map_err(|err| err.to_string())?
+        .ok_or_else(|| format!("favorite collection {id} not found"))
+}
+
+#[tauri::command]
+pub fn delete_favorite_collection(
+    repo: State<SqliteFavoriteCollectionsRepository>,
+    id: Uuid,
+) -> Result<(), String> {
+    repo.delete(id).map_err(|err| err.to_string())
 }

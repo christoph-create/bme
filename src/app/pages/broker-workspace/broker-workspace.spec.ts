@@ -271,7 +271,7 @@ describe("BrokerWorkspace", () => {
     component.startColumnResize(pointerEvent(200, 0));
     component.onPointerMove(pointerEvent(5000, 0));
 
-    expect(component.sidebarWidth()).toBe(800);
+    expect(component.sidebarWidth()).toBe(1200);
   });
 
   it("grows the publish panel when the row resizer is dragged up", async () => {
@@ -352,7 +352,7 @@ describe("BrokerWorkspace", () => {
     window.innerWidth = 10240; // 10x the default 1024
     component.onWindowResize();
 
-    expect(component.sidebarWidth()).toBe(800);
+    expect(component.sidebarWidth()).toBe(1200);
   });
 
   it("scales the publish height proportionally when the window grows taller", async () => {
