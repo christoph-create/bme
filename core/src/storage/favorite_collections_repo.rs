@@ -234,7 +234,9 @@ mod tests {
         duplicate.name = "SENSOR PAYLOADS".to_string();
         let err = repo.create(duplicate).unwrap_err();
 
-        assert!(matches!(err, StorageError::DuplicateCollectionName(name) if name == "SENSOR PAYLOADS"));
+        assert!(
+            matches!(err, StorageError::DuplicateCollectionName(name) if name == "SENSOR PAYLOADS")
+        );
     }
 
     #[test]
@@ -255,7 +257,9 @@ mod tests {
             )
             .unwrap_err();
 
-        assert!(matches!(err, StorageError::DuplicateCollectionName(name) if name == "sensor payloads"));
+        assert!(
+            matches!(err, StorageError::DuplicateCollectionName(name) if name == "sensor payloads")
+        );
     }
 
     #[test]
