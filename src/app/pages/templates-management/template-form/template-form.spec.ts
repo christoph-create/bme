@@ -141,6 +141,22 @@ describe("TemplateForm", () => {
       );
     });
 
+    it("blocks save() when '+ New collection' name collides with an existing collection", async () => {
+      const createCollection = vi.fn();
+      const { fixture, favoritesService } = await setup({ createCollection });
+      const component = fixture.componentInstance;
+      component.form.controls.topic.setValue("sensors/new");
+      component.form.controls.payload.setValue("{}");
+      component.form.controls.collectionId.setValue("__new__");
+      component.form.controls.newCollectionName.setValue("sensors");
+
+      expect(component.newCollectionNameConflict()).toBe(true);
+      await component.save();
+
+      expect(createCollection).not.toHaveBeenCalled();
+      expect(favoritesService.create).not.toHaveBeenCalled();
+    });
+
     it("emits the created favorite on save", async () => {
       const { fixture } = await setup();
       const component = fixture.componentInstance;

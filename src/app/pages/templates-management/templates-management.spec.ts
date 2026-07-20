@@ -309,6 +309,135 @@ describe("TemplatesManagement", () => {
     expect(text).not.toContain("Sensors");
   });
 
+  it("blocks the rename and disables Save when the draft name collides with another collection", async () => {
+    const ACTUATORS_COLLECTION: FavoriteCollection = {
+      id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      name: "Actuators",
+      description: null,
+      created_at: "2026-07-18T00:00:00Z",
+    };
+    const { fixture, collectionsService } = await setup({
+      collections: [SENSORS_COLLECTION, ACTUATORS_COLLECTION],
+    });
+    const component = fixture.componentInstance;
+
+    component.startRenameCollection(SENSORS_COLLECTION);
+    component.collectionNameDraft.set("actuators");
+    fixture.detectChanges();
+
+    expect(component.renameCollectionNameConflict()).toBe(true);
+    await component.saveRenameCollection(SENSORS_COLLECTION.id);
+
+    expect(collectionsService.update).not.toHaveBeenCalled();
+    const saveButton = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll(
+        ".collection-action",
+      ),
+    ).find((button) => button.textContent?.trim() === "Save") as HTMLButtonElement;
+    expect(saveButton.disabled).toBe(true);
+  });
+
+  it("opens the export modal with a template document from the ⋯ menu", async () => {
+    const { fixture } = await setup();
+    const component = fixture.componentInstance;
+
+    component.openExportTemplate(TEMPERATURE, new Event("click"));
+    fixture.detectChanges();
+
+    expect(component.exportDocument()).toEqual({
+      specVersion: "1.0",
+      kind: "template",
+      template: {
+        name: "Temperature",
+        description: "Zone A temperature reading",
+        topic: "sensors/zone-a/temperature",
+        payload: '{"celsius": 21.5}',
+        format: "json",
+        qos: 1,
+        retain: true,
+      },
+    });
+    expect(fixture.nativeElement.querySelector("app-export-modal")).toBeTruthy();
+  });
+
+  it("opens the export modal with a collection document scoped to its templates", async () => {
+    const { fixture } = await setup();
+    const component = fixture.componentInstance;
+
+    component.openExportCollection(SENSORS_COLLECTION);
+    fixture.detectChanges();
+
+    const document = component.exportDocument();
+    expect(document?.kind).toBe("collection");
+    if (document?.kind !== "collection") {
+      throw new Error("expected a collection document");
+    }
+    expect(document.collection.name).toBe("Sensors");
+    expect(document.templates).toHaveLength(1);
+    expect(document.templates[0].topic).toBe("sensors/zone-a/temperature");
+  });
+
+  it("opens the export modal with a bundle of everything from Export All", async () => {
+    const { fixture } = await setup();
+    const component = fixture.componentInstance;
+
+    component.openExportAll();
+    fixture.detectChanges();
+
+    const document = component.exportDocument();
+    expect(document?.kind).toBe("bundle");
+    if (document?.kind !== "bundle") {
+      throw new Error("expected a bundle document");
+    }
+    expect(document.collections).toHaveLength(1);
+    expect(document.collections[0].templates).toHaveLength(1);
+    expect(document.templates).toHaveLength(1);
+    expect(document.templates[0].topic).toBe("sensors/zone-a/humidity");
+  });
+
+  it("closes the export modal when its Close button is clicked", async () => {
+    const { fixture } = await setup();
+    const component = fixture.componentInstance;
+    component.openExportAll();
+    fixture.detectChanges();
+
+    const closeButton = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll("button"),
+    ).find((button) => button.textContent?.trim() === "Close") as HTMLButtonElement;
+    closeButton.click();
+    fixture.detectChanges();
+
+    expect(component.exportDocument()).toBeNull();
+    expect(fixture.nativeElement.querySelector("app-export-modal")).toBeNull();
+  });
+
+  it("opens the import modal from the header Import button", async () => {
+    const { fixture } = await setup();
+    const component = fixture.componentInstance;
+
+    component.openImportModal();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector("app-import-modal")).toBeTruthy();
+  });
+
+  it("reloads favorites/collections and closes the import modal when import completes", async () => {
+    const { fixture, favoritesService, collectionsService } = await setup();
+    const component = fixture.componentInstance;
+    component.openImportModal();
+    fixture.detectChanges();
+
+    await component.onImported();
+    fixture.detectChanges();
+
+    expect(component.showImportModal()).toBe(false);
+    expect(favoritesService.list).toHaveBeenCalledTimes(2);
+    // Once for TemplatesManagement's initial load, once more for
+    // ImportModal's own load (it needs the collections list to check for
+    // name conflicts), and once again for the post-import reload.
+    expect(collectionsService.list).toHaveBeenCalledTimes(3);
+  });
+
   it("deletes a collection and un-scopes its templates without a refetch", async () => {
     const { fixture, collectionsService, favoritesService } = await setup();
     const component = fixture.componentInstance;

@@ -16,6 +16,18 @@ pub enum StorageError {
     Database(#[from] rusqlite::Error),
     #[error("migration error: {0}")]
     Migration(#[from] rusqlite_migration::Error),
+    #[error("a collection named \"{0}\" already exists")]
+    DuplicateCollectionName(String),
+}
+
+/// True when `err` is a SQLite `UNIQUE`/`PRIMARY KEY` constraint violation,
+/// as opposed to any other database error.
+pub fn is_unique_violation(err: &rusqlite::Error) -> bool {
+    matches!(
+        err,
+        rusqlite::Error::SqliteFailure(inner, _)
+            if inner.code == rusqlite::ErrorCode::ConstraintViolation
+    )
 }
 
 // QoS is a domain type (models.rs has no idea rusqlite exists); this is the
@@ -60,6 +72,9 @@ static MIGRATIONS: LazyLock<Migrations<'static>> = LazyLock::new(|| {
         M::up(include_str!("migrations/0005_favorite_message_format.sql")),
         M::up(include_str!(
             "migrations/0006_favorite_message_drop_connection_id.sql"
+        )),
+        M::up(include_str!(
+            "migrations/0007_favorite_collections_unique_name.sql"
         )),
     ])
 });

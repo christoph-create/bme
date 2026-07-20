@@ -84,6 +84,11 @@
           type="text"
           formControlName="newCollectionName"
         />
+        @if (newCollectionNameConflict()) {
+          <p class="error">
+            A collection named "{{ form.controls.newCollectionName.value }}" already exists.
+          </p>
+        }
       </div>
     }
 
@@ -98,7 +103,9 @@
       <button
         type="submit"
         class="btn-primary"
-        [disabled]="form.invalid || saving() || payloadInvalid()"
+        [disabled]="
+          form.invalid || saving() || payloadInvalid() || newCollectionNameConflict()
+        "
       >
         {{ saving() ? "Saving…" : "Save" }}
       </button>

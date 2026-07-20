@@ -1,0 +1,104 @@
+<app-modal title="Import" (close_modal)="close_modal.emit()">
+  @if (parsedDocument(); as document) {
+    <div class="review">
+      @if (document.kind === "template") {
+        <p class="summary">
+          Template <strong>{{ document.template.name || document.template.topic }}</strong>
+          on <span class="mono">{{ document.template.topic }}</span> will be added,
+          uncategorized.
+        </p>
+      }
+
+      @if (document.kind === "collection") {
+        <div class="field">
+          <label for="collectionName">Collection name</label>
+          <input
+            id="collectionName"
+            type="text"
+            [value]="collectionNameDraft()"
+            (input)="onCollectionNameDraftInput($event)"
+          />
+          @if (hasUnresolvedConflicts()) {
+            <p class="error">
+              A collection named "{{ collectionNameDraft() }}" already exists.
+            </p>
+          }
+        </div>
+        <p class="summary">{{ document.templates.length }} template(s) will be added.</p>
+      }
+
+      @if (document.kind === "bundle") {
+        @for (collection of document.collections; track $index) {
+          <div class="field">
+            <label [for]="'bundleCollectionName' + $index">
+              Collection name ({{ collection.templates.length }} template(s))
+            </label>
+            <input
+              [id]="'bundleCollectionName' + $index"
+              type="text"
+              [value]="bundleCollectionNameDrafts()[$index]"
+              (input)="onBundleCollectionNameDraftInput($index, $event)"
+            />
+            @if (bundleCollectionConflict($index)) {
+              <p class="error">
+                A collection named "{{ bundleCollectionNameDrafts()[$index] }}" already exists.
+              </p>
+            }
+          </div>
+        }
+        @if (document.templates.length > 0) {
+          <p class="summary">
+            Plus {{ document.templates.length }} uncategorized template(s).
+          </p>
+        }
+      }
+
+      @if (importError()) {
+        <p class="error">{{ importError() }}</p>
+      }
+
+      <footer class="actions">
+        <button type="button" class="btn-secondary" (click)="backToPaste()">
+          Back
+        </button>
+        <button
+          type="button"
+          class="btn-primary"
+          [disabled]="importing() || hasUnresolvedConflicts()"
+          (click)="confirm()"
+        >
+          {{ importing() ? "Importing…" : "Import" }}
+        </button>
+      </footer>
+    </div>
+  } @else {
+    <div class="paste">
+      <label for="pastedText">Paste exported JSON</label>
+      <textarea
+        id="pastedText"
+        class="mono"
+        rows="12"
+        [value]="pastedText()"
+        (input)="onPastedTextInput($event)"
+      ></textarea>
+
+      @if (parseError()) {
+        <p class="error">{{ parseError() }}</p>
+      }
+
+      <footer class="actions">
+        <button type="button" class="btn-secondary" (click)="close_modal.emit()">
+          Cancel
+        </button>
+        <button
+          type="button"
+          class="btn-primary"
+          [disabled]="pastedText().trim() === ''"
+          (click)="parse()"
+        >
+          Parse
+        </button>
+      </footer>
+    </div>
+  }
+</app-modal>

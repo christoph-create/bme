@@ -5,7 +5,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use uuid::Uuid;
 
 use crate::models::{FavoriteCollection, NewFavoriteCollection, UpdateFavoriteCollection};
-use crate::storage::StorageError;
+use crate::storage::{is_unique_violation, StorageError};
 
 pub trait FavoriteCollectionsRepository {
     fn create(&self, new: NewFavoriteCollection) -> Result<FavoriteCollection, StorageError>;
@@ -41,7 +41,8 @@ impl FavoriteCollectionsRepository for SqliteFavoriteCollectionsRepository {
             "INSERT INTO favorite_collections (id, name, description, created_at)
              VALUES (?1, ?2, ?3, ?4)",
             params![id, new.name, new.description, created_at],
-        )?;
+        )
+        .map_err(|err| duplicate_name_error(err, &new.name))?;
 
         Ok(FavoriteCollection {
             id,
@@ -81,10 +82,12 @@ impl FavoriteCollectionsRepository for SqliteFavoriteCollectionsRepository {
         update: UpdateFavoriteCollection,
     ) -> Result<Option<FavoriteCollection>, StorageError> {
         let conn = self.conn.lock().unwrap();
-        let rows_changed = conn.execute(
-            "UPDATE favorite_collections SET name = ?1, description = ?2 WHERE id = ?3",
-            params![update.name, update.description, id],
-        )?;
+        let rows_changed = conn
+            .execute(
+                "UPDATE favorite_collections SET name = ?1, description = ?2 WHERE id = ?3",
+                params![update.name, update.description, id],
+            )
+            .map_err(|err| duplicate_name_error(err, &update.name))?;
 
         if rows_changed == 0 {
             return Ok(None);
@@ -111,6 +114,17 @@ impl FavoriteCollectionsRepository for SqliteFavoriteCollectionsRepository {
             params![id],
         )?;
         Ok(())
+    }
+}
+
+/// Turns a `UNIQUE` constraint violation on `favorite_collections.name` into
+/// the dedicated `DuplicateCollectionName` error; passes any other error
+/// through unchanged.
+fn duplicate_name_error(err: rusqlite::Error, name: &str) -> StorageError {
+    if is_unique_violation(&err) {
+        StorageError::DuplicateCollectionName(name.to_string())
+    } else {
+        StorageError::from(err)
     }
 }
 
@@ -209,6 +223,43 @@ mod tests {
             .unwrap();
 
         assert_eq!(result, None);
+    }
+
+    #[test]
+    fn create_rejects_a_case_insensitive_duplicate_name() {
+        let repo = repo();
+        repo.create(sample_collection()).unwrap();
+
+        let mut duplicate = sample_collection();
+        duplicate.name = "SENSOR PAYLOADS".to_string();
+        let err = repo.create(duplicate).unwrap_err();
+
+        assert!(
+            matches!(err, StorageError::DuplicateCollectionName(name) if name == "SENSOR PAYLOADS")
+        );
+    }
+
+    #[test]
+    fn update_rejects_a_case_insensitive_duplicate_name() {
+        let repo = repo();
+        repo.create(sample_collection()).unwrap();
+        let mut other = sample_collection();
+        other.name = "Actuators".to_string();
+        let other = repo.create(other).unwrap();
+
+        let err = repo
+            .update(
+                other.id,
+                UpdateFavoriteCollection {
+                    name: "sensor payloads".to_string(),
+                    description: None,
+                },
+            )
+            .unwrap_err();
+
+        assert!(
+            matches!(err, StorageError::DuplicateCollectionName(name) if name == "sensor payloads")
+        );
     }
 
     #[test]

@@ -1,0 +1,52 @@
+.export-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.json-preview {
+  margin: 0;
+  padding: var(--space-4);
+  max-height: 50vh;
+  overflow: auto;
+  font-size: 12.5px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-input-border);
+  border-radius: var(--radius-input);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+.btn-secondary {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  background: none;
+  border: none;
+  padding: 9px 16px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.btn-secondary:hover {
+  color: var(--color-text);
+}
+
+.btn-primary {
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 9px 18px;
+  border-radius: var(--radius-md);
+  border: none;
+  cursor: pointer;
+}
+
+.btn-primary:hover {
+  filter: brightness(1.1);
+}
