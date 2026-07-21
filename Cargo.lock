@@ -317,7 +317,7 @@ dependencies = [
 
 [[package]]
 name = "bme"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "bme-core",
  "chrono",
@@ -336,7 +336,7 @@ dependencies = [
 
 [[package]]
 name = "bme-core"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "chrono",
  "log",
