@@ -331,6 +331,7 @@ dependencies = [
  "tauri-plugin-opener",
  "tokio",
  "uuid",
+ "webkit2gtk",
 ]
 
 [[package]]
