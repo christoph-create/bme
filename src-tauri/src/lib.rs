@@ -178,6 +178,7 @@ mod tests {
                 commands::create_connection,
                 commands::update_connection,
                 commands::list_connections,
+                commands::get_connection,
                 commands::connect_broker,
                 commands::subscribe_topic,
                 commands::unsubscribe_topic,

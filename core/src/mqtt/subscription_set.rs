@@ -86,10 +86,7 @@ mod tests {
 
     #[test]
     fn it_seeds_from_the_connections_saved_subscriptions() {
-        let broker = broker_with(&[
-            ("sensors/#", QoS::AtLeastOnce),
-            ("status", QoS::AtMostOnce),
-        ]);
+        let broker = broker_with(&[("sensors/#", QoS::AtLeastOnce), ("status", QoS::AtMostOnce)]);
 
         let set = SubscriptionSet::from_broker(&broker);
 
