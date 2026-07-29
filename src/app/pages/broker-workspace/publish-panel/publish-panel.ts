@@ -41,6 +41,7 @@ export class PublishPanel {
 
   readonly connectionId = input.required<string>();
   readonly topic = input<string | null>(null);
+  readonly connected = input<boolean>(true);
 
   private readonly mqttService = inject(MqttService);
   private readonly jsonFormat = inject(JsonFormatService);

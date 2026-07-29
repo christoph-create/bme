@@ -24,6 +24,7 @@ export class SubscriptionsPanel implements OnInit {
   readonly subscriptions = signal<Subscription[]>([]);
   readonly loading = signal(true);
   readonly error = signal<string | null>(null);
+  readonly actionError = signal<string | null>(null);
   readonly adding = signal(false);
   readonly qos = signal<QoS>("AtMostOnce");
 
@@ -44,26 +45,36 @@ export class SubscriptionsPanel implements OnInit {
       return;
     }
     const topic = this.form.controls.topic.value;
-    const subscription = await this.mqttService.subscribe(
-      this.connectionId(),
-      topic,
-      this.qos(),
-    );
-    this.subscriptions.update((subs) => [...subs, subscription]);
-    this.form.reset();
-    this.qos.set("AtMostOnce");
-    this.adding.set(false);
+    this.actionError.set(null);
+    try {
+      const subscription = await this.mqttService.subscribe(
+        this.connectionId(),
+        topic,
+        this.qos(),
+      );
+      this.subscriptions.update((subs) => [...subs, subscription]);
+      this.form.reset();
+      this.qos.set("AtMostOnce");
+      this.adding.set(false);
+    } catch (err) {
+      this.actionError.set(err instanceof Error ? err.message : String(err));
+    }
   }
 
   async unsubscribe(subscription: Subscription): Promise<void> {
-    await this.mqttService.unsubscribe(
-      this.connectionId(),
-      subscription.id,
-      subscription.topic,
-    );
-    this.subscriptions.update((subs) =>
-      subs.filter((s) => s.id !== subscription.id),
-    );
+    this.actionError.set(null);
+    try {
+      await this.mqttService.unsubscribe(
+        this.connectionId(),
+        subscription.id,
+        subscription.topic,
+      );
+      this.subscriptions.update((subs) =>
+        subs.filter((s) => s.id !== subscription.id),
+      );
+    } catch (err) {
+      this.actionError.set(err instanceof Error ? err.message : String(err));
+    }
   }
 
   private async refresh(): Promise<void> {

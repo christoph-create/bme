@@ -350,6 +350,48 @@ describe("PublishPanel", () => {
     });
   });
 
+  describe("connected input", () => {
+    it("disables only the Publish button while disconnected, even with a valid form", async () => {
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+      component.form.controls.topic.setValue("sensors/zone-a");
+      component.form.controls.payload.setValue("hello");
+      component.selectFormat("raw");
+      fixture.componentRef.setInput("connected", false);
+      fixture.detectChanges();
+
+      const publishButton = (fixture.nativeElement as HTMLElement).querySelector(
+        ".btn-publish",
+      ) as HTMLButtonElement;
+      const saveButton = Array.from(
+        (fixture.nativeElement as HTMLElement).querySelectorAll(
+          ".btn-save-template",
+        ),
+      ).find((el) => el.textContent?.trim() === "Save as Template") as HTMLButtonElement;
+
+      expect(publishButton.disabled).toBe(true);
+      expect(publishButton.title).toBe("Connect to the broker to publish");
+      expect(saveButton.disabled).toBe(false);
+    });
+
+    it("enables the Publish button once connected with a valid form", async () => {
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+      component.form.controls.topic.setValue("sensors/zone-a");
+      component.form.controls.payload.setValue("hello");
+      component.selectFormat("raw");
+      fixture.componentRef.setInput("connected", true);
+      fixture.detectChanges();
+
+      const publishButton = (fixture.nativeElement as HTMLElement).querySelector(
+        ".btn-publish",
+      ) as HTMLButtonElement;
+
+      expect(publishButton.disabled).toBe(false);
+      expect(publishButton.title).toBe("");
+    });
+  });
+
   describe("Save Template modal", () => {
     it("does not open the modal when the topic field is empty", async () => {
       const { fixture } = await setup();

@@ -5,7 +5,7 @@ use crate::models::{BrokerConnection, QoS};
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum MqttError {
-    #[error("connection {0} is not known to this port")]
+    #[error("Not connected to the broker")]
     UnknownConnection(Uuid),
     #[error("mqtt error: {0}")]
     Other(String),

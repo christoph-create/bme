@@ -65,7 +65,8 @@
     <button
       type="submit"
       class="btn-publish"
-      [disabled]="form.invalid || payloadInvalid()"
+      [disabled]="form.invalid || payloadInvalid() || !connected()"
+      [title]="connected() ? '' : 'Connect to the broker to publish'"
     >
       Publish
     </button>

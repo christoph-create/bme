@@ -46,6 +46,7 @@ export class BrokerWorkspace {
 
   readonly connecting = signal(true);
   readonly connectError = signal<string | null>(null);
+  readonly connected = computed(() => !this.connecting() && !this.connectError());
   readonly selectedTopic = signal<string | null>(null);
   readonly connection = signal<BrokerConnection | null>(null);
 
