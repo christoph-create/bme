@@ -66,18 +66,20 @@ It's built with [Tauri](https://tauri.app) (a Rust backend, SQLite for local sto
 
 ## Download
 
-Linux builds (AppImage, `.deb`, `.rpm`) are published on every tagged release:
+Linux builds (AppImage, `.deb`, `.rpm`) and Windows builds (portable `.exe`,
+NSIS installer, `.msi`) are published on every tagged release:
 
 **→ [github.com/christoph-create/bme/releases](https://github.com/christoph-create/bme/releases)**
 
-No Windows or macOS build yet — see the roadmap below.
+The Windows builds are unsigned, so Windows will show a SmartScreen warning
+("Windows protected your PC") on first run — click "More info" → "Run
+anyway" to proceed. No macOS build yet.
 
 ## Roadmap
 
 Rough order of what's next, no promises on timing:
 
 - [ ] Client certificate support for brokers that require mutual TLS
-- [ ] A Windows release
 
 Have an opinion on priority, or something else you'd want? Open an issue.
 
