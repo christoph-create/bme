@@ -21,6 +21,17 @@ pub enum MqttEvent {
     Disconnected {
         connection_id: Uuid,
     },
+    /// The session dropped but the connection is retrying rather than giving
+    /// up. `attempt` is 1-based and `delay_ms` is how long the wait before
+    /// this attempt will be, so the UI can show real progress instead of an
+    /// indefinite spinner. A `Connected` (recovered) or `Disconnected` (budget
+    /// spent) always follows.
+    Reconnecting {
+        connection_id: Uuid,
+        attempt: u32,
+        max_attempts: u32,
+        delay_ms: u64,
+    },
     MessageReceived {
         connection_id: Uuid,
         topic: String,

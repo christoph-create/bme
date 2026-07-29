@@ -72,15 +72,13 @@ pub fn connect_broker(
         .get(id)
         .map_err(|err| err.to_string())?
         .ok_or_else(|| format!("connection {id} not found"))?;
+    // Subscriptions aren't replayed here: the connection task does it after
+    // every ConnAck, which is the only way they survive a reconnect (the
+    // session is clean, so the broker forgets them on each drop). Doing it
+    // here as well would just send every SUBSCRIBE twice.
     manager
         .connect(id, &connection)
-        .map_err(|err| err.to_string())?;
-    for subscription in &connection.subscriptions {
-        manager
-            .subscribe(id, &subscription.topic, subscription.qos)
-            .map_err(|err| err.to_string())?;
-    }
-    Ok(())
+        .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -110,6 +108,11 @@ pub fn test_connection(
         password: connection.password,
         use_tls: connection.use_tls,
         keep_alive_secs: connection.keep_alive_secs,
+        // A connectivity check should report what happened once. Retrying for
+        // minutes behind a "Test Connection" button would be baffling, and the
+        // form gives up waiting after a few seconds anyway.
+        auto_reconnect: false,
+        max_reconnect_attempts: 0,
         subscriptions: Vec::new(),
     };
     manager

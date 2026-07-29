@@ -31,6 +31,8 @@ function sampleConnection(
     password: null,
     use_tls: false,
     keep_alive_secs: 30,
+    auto_reconnect: true,
+    max_reconnect_attempts: 10,
     subscriptions: [],
     ...overrides,
   };
@@ -229,6 +231,211 @@ describe("BrokerWorkspace", () => {
 
     expect(fixture.componentInstance.connecting()).toBe(true);
     expect(fixture.componentInstance.connectError()).toBeNull();
+  });
+
+  it("shows the reconnect state instead of an error while the backend is retrying", async () => {
+    const { fixture, events$ } = await setup();
+    await fixture.whenStable();
+
+    events$.next({ Connected: { connection_id: CONNECTION_ID } });
+    fixture.detectChanges();
+
+    events$.next({
+      Reconnecting: {
+        connection_id: CONNECTION_ID,
+        attempt: 3,
+        max_attempts: 10,
+        delay_ms: 4000,
+      },
+    });
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.reconnecting()).toEqual({
+      attempt: 3,
+      maxAttempts: 10,
+    });
+    expect(fixture.componentInstance.connectError()).toBeNull();
+    expect(fixture.componentInstance.connecting()).toBe(false);
+  });
+
+  it("renders the reconnect banner with a spinner, the attempt count and a Stop button", async () => {
+    const { fixture, events$ } = await setup();
+    await fixture.whenStable();
+
+    events$.next({
+      Reconnecting: {
+        connection_id: CONNECTION_ID,
+        attempt: 3,
+        max_attempts: 10,
+        delay_ms: 4000,
+      },
+    });
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    const banner = element.querySelector(".reconnect-banner");
+    expect(banner).not.toBeNull();
+    expect(banner?.querySelector(".spinner")).not.toBeNull();
+    expect(banner?.textContent).toContain("Reconnecting… (attempt 3 of 10)");
+    expect(banner?.querySelector("button")?.textContent?.trim()).toBe("Stop");
+    // The red banner is the give-up state and must not be showing as well.
+    expect(element.querySelector(".connect-error-banner")).toBeNull();
+  });
+
+  it("counts reconnecting as not connected, so publishing stays disabled", async () => {
+    const { fixture, events$ } = await setup();
+    await fixture.whenStable();
+
+    events$.next({ Connected: { connection_id: CONNECTION_ID } });
+    fixture.detectChanges();
+    expect(fixture.componentInstance.connected()).toBe(true);
+
+    events$.next({
+      Reconnecting: {
+        connection_id: CONNECTION_ID,
+        attempt: 1,
+        max_attempts: 10,
+        delay_ms: 1000,
+      },
+    });
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.connected()).toBe(false);
+  });
+
+  it("clears the reconnect state when the session comes back", async () => {
+    const { fixture, events$ } = await setup();
+    await fixture.whenStable();
+
+    events$.next({
+      Reconnecting: {
+        connection_id: CONNECTION_ID,
+        attempt: 2,
+        max_attempts: 10,
+        delay_ms: 2000,
+      },
+    });
+    fixture.detectChanges();
+
+    events$.next({ Connected: { connection_id: CONNECTION_ID } });
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.reconnecting()).toBeNull();
+    expect(fixture.componentInstance.connected()).toBe(true);
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector(".reconnect-banner"),
+    ).toBeNull();
+  });
+
+  it("falls back to the error banner when the backend runs out of attempts", async () => {
+    const { fixture, events$ } = await setup();
+    await fixture.whenStable();
+
+    events$.next({
+      Reconnecting: {
+        connection_id: CONNECTION_ID,
+        attempt: 10,
+        max_attempts: 10,
+        delay_ms: 30000,
+      },
+    });
+    fixture.detectChanges();
+
+    // The backend only sends Disconnected once it has stopped retrying.
+    events$.next({ Disconnected: { connection_id: CONNECTION_ID } });
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.reconnecting()).toBeNull();
+    expect(fixture.componentInstance.connectError()).toBe(
+      "Disconnected from broker",
+    );
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.querySelector(".reconnect-banner")).toBeNull();
+    expect(element.querySelector(".connect-error-banner")).not.toBeNull();
+  });
+
+  it("ignores Reconnecting events for other connections", async () => {
+    const { fixture, events$ } = await setup();
+    await fixture.whenStable();
+
+    events$.next({
+      Reconnecting: {
+        connection_id: OTHER_CONNECTION_ID,
+        attempt: 1,
+        max_attempts: 10,
+        delay_ms: 1000,
+      },
+    });
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.reconnecting()).toBeNull();
+    expect(fixture.componentInstance.connecting()).toBe(true);
+  });
+
+  it("stops reconnecting on request without leaving the workspace", async () => {
+    const { fixture, events$, disconnect, navigate } = await setup();
+    await fixture.whenStable();
+
+    events$.next({
+      Reconnecting: {
+        connection_id: CONNECTION_ID,
+        attempt: 2,
+        max_attempts: 10,
+        delay_ms: 2000,
+      },
+    });
+    fixture.detectChanges();
+
+    await fixture.componentInstance.stopReconnecting();
+    fixture.detectChanges();
+
+    expect(disconnect).toHaveBeenCalledWith(CONNECTION_ID);
+    expect(navigate).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.reconnecting()).toBeNull();
+    expect(fixture.componentInstance.connectError()).toBe(
+      "Disconnected from broker",
+    );
+  });
+
+  it("surfaces a failure to stop reconnecting rather than leaving the spinner running", async () => {
+    const disconnect = vi.fn().mockRejectedValue(new Error("stop failed"));
+    const { fixture, events$ } = await setup({ disconnect });
+    await fixture.whenStable();
+
+    events$.next({
+      Reconnecting: {
+        connection_id: CONNECTION_ID,
+        attempt: 2,
+        max_attempts: 10,
+        delay_ms: 2000,
+      },
+    });
+    fixture.detectChanges();
+
+    await fixture.componentInstance.stopReconnecting();
+
+    expect(fixture.componentInstance.reconnecting()).toBeNull();
+    expect(fixture.componentInstance.connectError()).toBe("stop failed");
+  });
+
+  it("clears the reconnect state when connect() is retried", async () => {
+    const { fixture, events$ } = await setup();
+    await fixture.whenStable();
+
+    events$.next({
+      Reconnecting: {
+        connection_id: CONNECTION_ID,
+        attempt: 4,
+        max_attempts: 10,
+        delay_ms: 8000,
+      },
+    });
+    fixture.detectChanges();
+
+    await fixture.componentInstance.connect();
+
+    expect(fixture.componentInstance.reconnecting()).toBeNull();
+    expect(fixture.componentInstance.connecting()).toBe(true);
   });
 
   it("clears a previous error and reconnects when connect() is retried", async () => {

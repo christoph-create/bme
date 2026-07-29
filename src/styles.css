@@ -36,6 +36,11 @@
   --color-danger: rgb(239 68 68);
   --color-danger-tint: rgb(239 68 68 / 12%);
 
+  /* Amber rather than orange: --color-accent is already orange, and a
+     warning banner in the brand colour reads as chrome, not as a state. */
+  --color-warning: rgb(245 158 11);
+  --color-warning-tint: rgb(245 158 11 / 12%);
+
   --color-info-on-tint: rgb(147 197 253);
   --color-info-tint: rgb(59 130 246 / 12%);
 

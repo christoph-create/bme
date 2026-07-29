@@ -76,6 +76,7 @@ static MIGRATIONS: LazyLock<Migrations<'static>> = LazyLock::new(|| {
         M::up(include_str!(
             "migrations/0007_favorite_collections_unique_name.sql"
         )),
+        M::up(include_str!("migrations/0008_reconnect_settings.sql")),
     ])
 });
 

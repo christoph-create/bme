@@ -49,6 +49,28 @@
         </label>
       </div>
 
+      <div class="field-row">
+        <label class="toggle-field">
+          <span>Reconnect automatically</span>
+          <span class="switch">
+            <input type="checkbox" formControlName="autoReconnect" />
+            <span class="switch-track"></span>
+          </span>
+        </label>
+      </div>
+
+      @if (form.controls.autoReconnect.value) {
+        <div class="field">
+          <label for="maxReconnectAttempts">Max reconnect attempts</label>
+          <input
+            id="maxReconnectAttempts"
+            type="text"
+            formControlName="maxReconnectAttempts"
+            class="mono"
+          />
+        </div>
+      }
+
       <label class="checkbox-field">
         <span class="checkbox">
           <input type="checkbox" formControlName="requiresAuth" />
