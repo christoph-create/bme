@@ -23,6 +23,10 @@
   </form>
 }
 
+@if (actionError(); as message) {
+  <p class="status-text error">{{ message }}</p>
+}
+
 @if (error()) {
   <p class="status-text error">{{ error() }}</p>
 } @else if (!loading()) {

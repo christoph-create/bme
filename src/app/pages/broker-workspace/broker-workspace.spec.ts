@@ -189,6 +189,37 @@ describe("BrokerWorkspace", () => {
     );
   });
 
+  it("computes connected as false while still connecting", async () => {
+    const { fixture } = await setup();
+    await fixture.whenStable();
+
+    expect(fixture.componentInstance.connected()).toBe(false);
+  });
+
+  it("computes connected as true once the Connected event arrives", async () => {
+    const { fixture, events$ } = await setup();
+    await fixture.whenStable();
+
+    events$.next({ Connected: { connection_id: CONNECTION_ID } });
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.connected()).toBe(true);
+  });
+
+  it("computes connected as false again if the broker reports Disconnected", async () => {
+    const { fixture, events$ } = await setup();
+    await fixture.whenStable();
+
+    events$.next({ Connected: { connection_id: CONNECTION_ID } });
+    fixture.detectChanges();
+    expect(fixture.componentInstance.connected()).toBe(true);
+
+    events$.next({ Disconnected: { connection_id: CONNECTION_ID } });
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.connected()).toBe(false);
+  });
+
   it("ignores Connected/Disconnected events for other connections", async () => {
     const { fixture, events$ } = await setup();
     await fixture.whenStable();

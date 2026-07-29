@@ -134,6 +134,18 @@ describe("SubscriptionsPanel", () => {
     );
   });
 
+  it("shows an error and keeps the form open when subscribe rejects", async () => {
+    const { fixture, mqttService } = await setup(sampleConnection());
+    mqttService.subscribe.mockRejectedValue(new Error("db is locked"));
+
+    const component = fixture.componentInstance;
+    component.form.controls.topic.setValue("home/#");
+    await component.subscribe();
+
+    expect(component.actionError()).toBe("db is locked");
+    expect(component.subscriptions()).toEqual([]);
+  });
+
   it("unsubscribes and removes the chip from the list", async () => {
     const subscription = {
       id: "s1",
@@ -153,5 +165,23 @@ describe("SubscriptionsPanel", () => {
       subscription.topic,
     );
     expect(fixture.componentInstance.subscriptions()).toEqual([]);
+  });
+
+  it("shows an error and keeps the chip when unsubscribe rejects", async () => {
+    const subscription = {
+      id: "s1",
+      connection_id: CONNECTION_ID,
+      topic: "sensors/#",
+      qos: "AtLeastOnce" as const,
+    };
+    const { fixture, mqttService } = await setup(
+      sampleConnection({ subscriptions: [subscription] }),
+    );
+    mqttService.unsubscribe.mockRejectedValue(new Error("db is locked"));
+
+    await fixture.componentInstance.unsubscribe(subscription);
+
+    expect(fixture.componentInstance.actionError()).toBe("db is locked");
+    expect(fixture.componentInstance.subscriptions()).toEqual([subscription]);
   });
 });
