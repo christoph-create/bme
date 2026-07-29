@@ -6,11 +6,11 @@
 
 Connect, subscribe, watch messages roll in on a live topic tree, and publish test messages.
 
-[![CI](https://codeberg.org/chrissi_710/bme/badges/workflows/ci.yml/badge.svg)](https://codeberg.org/chrissi_710/bme/actions)
-[![Latest release](https://codeberg.org/chrissi_710/bme/badges/release.svg)](https://codeberg.org/chrissi_710/bme/releases)
+[![CI](https://github.com/christoph-create/bme/actions/workflows/ci.yml/badge.svg)](https://github.com/christoph-create/bme/actions)
+[![Latest release](https://img.shields.io/github/v/release/christoph-create/bme)](https://github.com/christoph-create/bme/releases)
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](LICENSE)
 
-[Download](#download) · [Roadmap](#roadmap) · [Development](#development) · [Report an issue](https://codeberg.org/chrissi_710/bme/issues)
+[Download](#download) · [Roadmap](#roadmap) · [Development](#development) · [Report an issue](https://github.com/christoph-create/bme/issues)
 
 </div>
 
@@ -68,7 +68,7 @@ It's built with [Tauri](https://tauri.app) (a Rust backend, SQLite for local sto
 
 Linux builds (AppImage, `.deb`, `.rpm`) are published on every tagged release:
 
-**→ [codeberg.org/chrissi_710/bme/releases](https://codeberg.org/chrissi_710/bme/releases)**
+**→ [github.com/christoph-create/bme/releases](https://github.com/christoph-create/bme/releases)**
 
 No Windows or macOS build yet — see the roadmap below.
 
@@ -101,7 +101,7 @@ npm run lint
 npm run build
 ```
 
-CI runs the same checks on every push via Forgejo Actions (`.forgejo/workflows/ci.yml`); pushing a `v*` tag additionally builds and publishes a release.
+CI runs the same checks on every push via GitHub Actions (`.github/workflows/ci.yml`); pushing a `v*` tag additionally builds and publishes a release.
 
 ## License
 
@@ -113,4 +113,4 @@ GPL-3.0-or-later — see [LICENSE](LICENSE).
 
 This project is heavily inspired by the [MQTT Explorer](https://mqtt-explorer.com/) by Thomas Nordquist. I used it almost daily at work and it's the reason I even think about MQTT traffic the way I do — the topic tree, the whole workflow. bme exists because I wanted something newer under the hood, with a few quality-of-life features I kept wishing for, not because MQTT Explorer did anything wrong.
 
-I build this in my free time as a side project, not as a funded or full-time effort — so releases come in bursts, not on a schedule. If you run into a bug or have feedback, please [open an issue on Codeberg](https://codeberg.org/chrissi_710/bme/issues); I read and appreciate every one.
+I build this in my free time as a side project, not as a funded or full-time effort — so releases come in bursts, not on a schedule. If you run into a bug or have feedback, please [open an issue on GitHub](https://github.com/christoph-create/bme/issues); I read and appreciate every one.
