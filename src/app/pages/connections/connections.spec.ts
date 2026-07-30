@@ -19,6 +19,8 @@ function sampleConnection(
     password: null,
     use_tls: false,
     keep_alive_secs: 30,
+    auto_reconnect: true,
+    max_reconnect_attempts: 10,
     subscriptions: [],
     ...overrides,
   };

@@ -1,0 +1,95 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What this is
+
+**bme** — a desktop MQTT client built with Tauri (Rust backend, SQLite for
+local storage, no server component) and Angular (UI). See
+[README.md](README.md) for the user-facing description.
+
+## Commands
+
+```bash
+npm install
+npm run tauri dev                                        # run the app (Angular dev server + Tauri window)
+
+# Rust workspace (core/ + src-tauri/)
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets -- -D warnings     # warnings fail the build, same as CI
+cargo test --workspace
+cargo test -p bme_core storage::connections_repo          # single module, e.g.
+cargo test <test_fn_name>                                 # single test, matched by name across the workspace
+
+# Frontend (Angular, in src/)
+npm run lint
+npm run test                                              # vitest
+npm run build
+```
+
+CI (`.github/workflows/ci.yml`) runs lint → test → build, in that order, on
+every push/PR; pushing a `v*` tag additionally builds and publishes a
+release (Linux + Windows).
+
+## Architecture
+
+Two-crate Cargo workspace (`core/` + `src-tauri/`) plus an Angular frontend
+(`src/`). Full detail lives under [docs/architecture/](docs/architecture/README.md)
+— read that first when exploring the tree, it has a "want to change X →
+start at Y" table. Summary:
+
+- **`core/`** (`bme_core`) — all domain logic and has zero Tauri dependency,
+  so its tests run as plain `cargo test` with no broker or display. MQTT
+  access sits behind the `MqttPort` trait (`core/src/mqtt/port.rs`), with
+  `rumqttc_adapter.rs` as the real implementation and `manager.rs` owning
+  live connections generically over the trait. Storage sits behind
+  `*Repository` traits (`core/src/storage/*_repo.rs`) over SQLite, with
+  schema changes as new files under `core/src/storage/migrations/` —
+  **never edit a migration that has already shipped**.
+- **`src-tauri/`** (`bme`) — the only crate allowed to know about both
+  `core` and Tauri; keep it thin. `src/lib.rs` wires up logging, the SQLite
+  connection, managed state, and pumps `MqttEvent`s out to the webview as
+  `"mqtt-event"`. `src/commands.rs` holds every `#[tauri::command]` — the
+  entire frontend↔backend IPC surface. **Adding a command touches four
+  places**: the function in `commands.rs`, the `generate_handler!` list in
+  `lib.rs`, an `"allow-<kebab-name>"` entry in
+  `src-tauri/capabilities/default.json`, and `build_test_app()`'s handler
+  list in `lib.rs`'s own test module (which drives real commands over real
+  IPC against an in-memory DB).
+- **`src/app/`** (Angular, standalone components, signals for component
+  state) — five routes (`app.routes.ts`), each a directory under `pages/`.
+  `core/models/` are hand-maintained TypeScript mirrors of the Rust types in
+  `core/src/models.rs`; `core/services/` wrap `invoke()` calls and hold
+  cross-page state (notably `message-store.service.ts`, the in-memory,
+  session-only store of received messages — nothing there is persisted).
+  `shared/` holds components used by more than one page.
+- **`spec/`** — the versioned, tool-independent JSON format for
+  import/exporting message templates, consumed by
+  `template-exchange.service.ts`.
+
+### Cross-boundary contracts that must be kept in sync
+
+Changing one side without the other breaks things silently — see
+[docs/architecture/data-flow.md](docs/architecture/data-flow.md) for the
+full list (models, the externally-tagged `MqttEvent` enum, `QoS`/
+`MessageFormat` serialization, IPC command/arg names, the `spec/` format).
+
+### Naming note
+
+"favorite" in Rust/DB/IPC is "template" in the UI — the user-facing rename
+never reached the backend. Treat them as the same concept; don't unify the
+naming on one side alone.
+
+## Conventions
+
+- Logic worth unit-testing is extracted into a plain function file with its
+  own `.spec.ts`/test module next to the component/module that uses it
+  (e.g. `pages/broker-workspace/topic-tree/build-topic-tree.ts`), rather
+  than tested through the component. Keep doing this.
+- Comments in this codebase explain *why*, not *what* — match that density
+  rather than narrating obvious code.
+- Never hand-edit version numbers; six files must agree, so use
+  `scripts/bump-version.sh <patch|minor|major|X.Y.Z>`.
+  `src-tauri/Cargo.toml` is the version CI's release job checks tags
+  against.
+- `docs/plans/` is gitignored scratch space, not part of the repo.

@@ -8,6 +8,8 @@ use uuid::Uuid;
 
 use crate::models::{BrokerConnection, QoS};
 use crate::mqtt::port::{MqttError, MqttEvent, MqttPort};
+use crate::mqtt::reconnect::ReconnectPolicy;
+use crate::mqtt::subscription_set::SubscriptionSet;
 
 impl From<QoS> for rumqttc::QoS {
     fn from(qos: QoS) -> Self {
@@ -99,6 +101,8 @@ impl MqttPort for RumqttcAdapter {
             command_rx,
             self.events_tx.clone(),
             Arc::clone(&self.connections),
+            ReconnectPolicy::from_broker(broker),
+            SubscriptionSet::from_broker(broker),
         ));
 
         self.connections
@@ -159,6 +163,7 @@ impl MqttPort for RumqttcAdapter {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_connection(
     connection_id: Uuid,
     client: AsyncClient,
@@ -166,15 +171,42 @@ async fn run_connection(
     mut command_rx: mpsc::UnboundedReceiver<Command>,
     events_tx: mpsc::UnboundedSender<MqttEvent>,
     connections: Arc<Mutex<HashMap<Uuid, mpsc::UnboundedSender<Command>>>>,
+    policy: ReconnectPolicy,
+    mut subscriptions: SubscriptionSet,
 ) {
     log::info!("mqtt connection {connection_id}: event loop started");
 
+    // Retrying a broker that has never answered would turn a typo in the host
+    // field into two and a half minutes of "Reconnecting…" before the real
+    // error shows up, so the backoff only arms once a session has actually
+    // been established.
+    let mut has_connected = false;
+    let mut attempt = 0u32;
+
     loop {
+        // Set by the poll arm below, acted on after the select! block: the
+        // wait borrows the command channel that the select's own arm is
+        // reading, so it has to happen once that borrow is definitely gone.
+        let mut pending_backoff = None;
+
         tokio::select! {
             event = eventloop.poll() => {
                 match event {
                     Ok(Event::Incoming(Packet::ConnAck(_))) => {
                         log::info!("mqtt connection {connection_id}: connected (ConnAck)");
+                        has_connected = true;
+                        // A session that came up is real progress, so the next
+                        // drop starts its backoff from one second again rather
+                        // than from wherever the previous one left off.
+                        attempt = 0;
+                        // We connect with a clean session, so the broker has no
+                        // memory of what we were subscribed to - not even on the
+                        // very first ConnAck, which is why `connect_broker`
+                        // doesn't replay them any more.
+                        for (topic, qos) in subscriptions.iter() {
+                            log::debug!("mqtt connection {connection_id}: (re)subscribing to {topic}");
+                            let _ = client.subscribe(topic, qos.into()).await;
+                        }
                         let _ = events_tx.send(MqttEvent::Connected { connection_id });
                     }
                     Ok(Event::Incoming(Packet::Publish(publish))) => {
@@ -196,10 +228,32 @@ async fn run_connection(
                     Ok(_) => {}
                     Err(err) => {
                         log::error!("mqtt connection {connection_id}: eventloop.poll() failed: {err} ({err:?})");
-                        log::warn!("mqtt connection {connection_id}: disconnected due to eventloop error");
-                        connections.lock().unwrap().remove(&connection_id);
-                        let _ = events_tx.send(MqttEvent::Disconnected { connection_id });
-                        return;
+                        attempt += 1;
+
+                        // rumqttc's event loop is built to be polled *through* a
+                        // disconnect: it drops the socket, resets its state and
+                        // re-establishes the session on the next poll. So all a
+                        // retry takes is waiting, then looping.
+                        let Some(delay) = policy.delay_for(attempt).filter(|_| has_connected) else {
+                            log::warn!("mqtt connection {connection_id}: disconnected due to eventloop error");
+                            connections.lock().unwrap().remove(&connection_id);
+                            let _ = events_tx.send(MqttEvent::Disconnected { connection_id });
+                            return;
+                        };
+
+                        log::info!(
+                            "mqtt connection {connection_id}: reconnect attempt {attempt}/{} in {:?}",
+                            policy.max_attempts,
+                            delay,
+                        );
+                        let _ = events_tx.send(MqttEvent::Reconnecting {
+                            connection_id,
+                            attempt,
+                            max_attempts: policy.max_attempts,
+                            delay_ms: delay.as_millis() as u64,
+                        });
+
+                        pending_backoff = Some(delay);
                     }
                 }
             }
@@ -209,9 +263,13 @@ async fn run_connection(
                         let _ = client.publish(topic, qos, retain, payload).await;
                     }
                     Some(Command::Subscribe { topic, qos }) => {
+                        // Recorded as well as sent, so a topic subscribed to
+                        // mid-session is still there to replay after a drop.
+                        subscriptions.insert(topic.clone(), qos.into());
                         let _ = client.subscribe(topic, qos).await;
                     }
                     Some(Command::Unsubscribe { topic }) => {
+                        subscriptions.remove(&topic);
                         let _ = client.unsubscribe(topic).await;
                     }
                     Some(Command::Disconnect) | None => {
@@ -221,6 +279,61 @@ async fn run_connection(
                         let _ = events_tx.send(MqttEvent::Disconnected { connection_id });
                         return;
                     }
+                }
+            }
+        }
+
+        if let Some(delay) = pending_backoff {
+            if !backoff(connection_id, delay, &mut command_rx, &mut subscriptions).await {
+                log::info!(
+                    "mqtt connection {connection_id}: disconnected (client requested while reconnecting)"
+                );
+                connections.lock().unwrap().remove(&connection_id);
+                let _ = events_tx.send(MqttEvent::Disconnected { connection_id });
+                return;
+            }
+        }
+    }
+}
+
+/// Waits out one backoff interval before the next reconnect attempt.
+///
+/// This is a select rather than a plain sleep because the command channel has
+/// to keep being served: a Disconnect that lands during a 30-second wait must
+/// take effect now, not half a minute later, and subscription edits made while
+/// offline need to be recorded so the next ConnAck replays them.
+///
+/// Returns false when the caller should stop retrying and shut the connection
+/// down.
+async fn backoff(
+    connection_id: Uuid,
+    delay: Duration,
+    command_rx: &mut mpsc::UnboundedReceiver<Command>,
+    subscriptions: &mut SubscriptionSet,
+) -> bool {
+    let deadline = tokio::time::Instant::now() + delay;
+
+    loop {
+        tokio::select! {
+            _ = tokio::time::sleep_until(deadline) => return true,
+            command = command_rx.recv() => {
+                match command {
+                    Some(Command::Subscribe { topic, qos }) => {
+                        subscriptions.insert(topic, qos.into());
+                    }
+                    Some(Command::Unsubscribe { topic }) => {
+                        subscriptions.remove(&topic);
+                    }
+                    Some(Command::Publish { topic, .. }) => {
+                        // There's no session to publish over, and queueing it
+                        // would deliver a stale message at some unpredictable
+                        // point after reconnecting. The publish panel is
+                        // disabled while not connected, so this is a rare race.
+                        log::warn!(
+                            "mqtt connection {connection_id}: dropped publish to {topic} while reconnecting"
+                        );
+                    }
+                    Some(Command::Disconnect) | None => return false,
                 }
             }
         }
@@ -243,6 +356,8 @@ mod tests {
             password: None,
             use_tls: false,
             keep_alive_secs: 5,
+            auto_reconnect: false,
+            max_reconnect_attempts: 0,
             subscriptions: vec![],
         }
     }
@@ -261,6 +376,88 @@ mod tests {
         })
         .await
         .expect("timed out waiting for expected MQTT event")
+    }
+
+    /// Long enough that a test failing to return early would blow the
+    /// surrounding timeout rather than passing by accident.
+    const NEVER: Duration = Duration::from_secs(30);
+
+    #[tokio::test]
+    async fn backoff_waits_out_the_delay_when_nothing_interrupts_it() {
+        let (_command_tx, mut command_rx) = mpsc::unbounded_channel();
+        let mut subscriptions = SubscriptionSet::default();
+
+        let waited = backoff(
+            Uuid::new_v4(),
+            Duration::from_millis(20),
+            &mut command_rx,
+            &mut subscriptions,
+        )
+        .await;
+
+        assert!(waited);
+    }
+
+    #[tokio::test]
+    async fn a_disconnect_during_the_backoff_stops_the_wait_immediately() {
+        let (command_tx, mut command_rx) = mpsc::unbounded_channel();
+        let mut subscriptions = SubscriptionSet::default();
+        command_tx.send(Command::Disconnect).unwrap();
+
+        let waited = timeout(
+            Duration::from_secs(5),
+            backoff(Uuid::new_v4(), NEVER, &mut command_rx, &mut subscriptions),
+        )
+        .await
+        .expect("backoff should return without waiting out the delay");
+
+        assert!(!waited);
+    }
+
+    #[tokio::test]
+    async fn a_closed_command_channel_during_the_backoff_stops_the_wait() {
+        let (command_tx, mut command_rx) = mpsc::unbounded_channel();
+        let mut subscriptions = SubscriptionSet::default();
+        drop(command_tx);
+
+        let waited = timeout(
+            Duration::from_secs(5),
+            backoff(Uuid::new_v4(), NEVER, &mut command_rx, &mut subscriptions),
+        )
+        .await
+        .expect("backoff should return without waiting out the delay");
+
+        assert!(!waited);
+    }
+
+    #[tokio::test]
+    async fn subscription_changes_made_while_reconnecting_are_kept_for_the_replay() {
+        let (command_tx, mut command_rx) = mpsc::unbounded_channel();
+        let mut subscriptions = SubscriptionSet::default();
+        subscriptions.insert("stale/#".to_string(), QoS::AtMostOnce);
+
+        command_tx
+            .send(Command::Subscribe {
+                topic: "fresh/#".to_string(),
+                qos: rumqttc::QoS::ExactlyOnce,
+            })
+            .unwrap();
+        command_tx
+            .send(Command::Unsubscribe {
+                topic: "stale/#".to_string(),
+            })
+            .unwrap();
+
+        backoff(
+            Uuid::new_v4(),
+            Duration::from_millis(20),
+            &mut command_rx,
+            &mut subscriptions,
+        )
+        .await;
+
+        let replayed: Vec<(&str, QoS)> = subscriptions.iter().collect();
+        assert_eq!(replayed, vec![("fresh/#", QoS::ExactlyOnce)]);
     }
 
     #[test]

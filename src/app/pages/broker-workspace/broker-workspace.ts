@@ -11,6 +11,7 @@ import { ActivatedRoute, Router } from "@angular/router";
 import { BrokerConnection } from "../../core/models/broker-connection.model";
 import { ConnectionsService } from "../../core/services/connections.service";
 import { MqttEventsService } from "../../core/services/mqtt-events.service";
+import { reconnectLabel } from "./format/reconnect-label";
 import { MessageStream } from "./message-stream/message-stream";
 import { PublishPanel } from "./publish-panel/publish-panel";
 import { SubscriptionsPanel } from "./subscriptions-panel/subscriptions-panel";
@@ -29,6 +30,12 @@ function clamp(value: number, min: number, max: number): number {
 
 type ResizeMode = "column" | "row" | null;
 
+/** What the backend is currently attempting, per its `Reconnecting` events. */
+interface ReconnectState {
+  attempt: number;
+  maxAttempts: number;
+}
+
 @Component({
   selector: "app-broker-workspace",
   imports: [SubscriptionsPanel, TopicTree, MessageStream, PublishPanel],
@@ -46,7 +53,16 @@ export class BrokerWorkspace {
 
   readonly connecting = signal(true);
   readonly connectError = signal<string | null>(null);
-  readonly connected = computed(() => !this.connecting() && !this.connectError());
+  readonly reconnecting = signal<ReconnectState | null>(null);
+  // Reconnecting counts as "not connected": there's no session to publish
+  // over, and the backend drops anything sent during the backoff.
+  readonly connected = computed(
+    () =>
+      !this.connecting() &&
+      !this.connectError() &&
+      this.reconnecting() === null,
+  );
+  readonly reconnectLabel = reconnectLabel;
   readonly selectedTopic = signal<string | null>(null);
   readonly connection = signal<BrokerConnection | null>(null);
 
@@ -93,10 +109,24 @@ export class BrokerWorkspace {
         if (event.Connected.connection_id === this.connectionId) {
           this.connecting.set(false);
           this.connectError.set(null);
+          this.reconnecting.set(null);
+        }
+      } else if ("Reconnecting" in event) {
+        if (event.Reconnecting.connection_id === this.connectionId) {
+          this.connecting.set(false);
+          this.connectError.set(null);
+          this.reconnecting.set({
+            attempt: event.Reconnecting.attempt,
+            maxAttempts: event.Reconnecting.max_attempts,
+          });
         }
       } else if ("Disconnected" in event) {
+        // Also the "gave up retrying" path - the backend only sends this once
+        // the attempt budget is spent, so falling back to the plain error
+        // banner with its Retry button is exactly right.
         if (event.Disconnected.connection_id === this.connectionId) {
           this.connecting.set(false);
+          this.reconnecting.set(null);
           this.connectError.set("Disconnected from broker");
         }
       }
@@ -117,9 +147,29 @@ export class BrokerWorkspace {
     }
   }
 
+  /**
+   * Gives up on the retry loop without leaving the workspace, unlike
+   * `disconnect()` below - the topic tree and message history you were
+   * looking at stay on screen, and the Retry button on the error banner is
+   * still there if you change your mind.
+   */
+  async stopReconnecting(): Promise<void> {
+    try {
+      await this.connectionsService.disconnect(this.connectionId);
+    } catch (err) {
+      this.connectError.set(err instanceof Error ? err.message : String(err));
+    }
+    // The backend's Disconnected event sets the same state; doing it here too
+    // means a dropped event can't leave the spinner running forever.
+    this.reconnecting.set(null);
+    this.connecting.set(false);
+    this.connectError.update((error) => error ?? "Disconnected from broker");
+  }
+
   async connect(): Promise<void> {
     this.connecting.set(true);
     this.connectError.set(null);
+    this.reconnecting.set(null);
     try {
       await this.connectionsService.connect(this.connectionId);
       // Leave `connecting` true - it clears when the Connected event above

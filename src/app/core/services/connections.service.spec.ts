@@ -20,6 +20,8 @@ function sampleNewConnection(): NewBrokerConnection {
     password: null,
     use_tls: false,
     keep_alive_secs: 30,
+    auto_reconnect: true,
+    max_reconnect_attempts: 10,
     subscriptions: [],
   };
 }
@@ -97,6 +99,8 @@ describe("ConnectionsService", () => {
       password: null,
       use_tls: true,
       keep_alive_secs: 45,
+      auto_reconnect: false,
+      max_reconnect_attempts: 3,
     };
     const updated: BrokerConnection = { ...sampleConnection(), ...update };
     mockIPC((cmd, args) => {

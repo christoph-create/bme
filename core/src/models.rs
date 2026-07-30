@@ -52,6 +52,10 @@ pub struct BrokerConnection {
     pub password: Option<String>,
     pub use_tls: bool,
     pub keep_alive_secs: u16,
+    /// Whether a dropped session should be re-established on its own, and how
+    /// many times to try before giving up. See `crate::mqtt::reconnect`.
+    pub auto_reconnect: bool,
+    pub max_reconnect_attempts: u32,
     pub subscriptions: Vec<Subscription>,
 }
 
@@ -71,6 +75,8 @@ pub struct NewBrokerConnection {
     pub password: Option<String>,
     pub use_tls: bool,
     pub keep_alive_secs: u16,
+    pub auto_reconnect: bool,
+    pub max_reconnect_attempts: u32,
     pub subscriptions: Vec<NewSubscription>,
 }
 
@@ -84,6 +90,8 @@ pub struct UpdateBrokerConnection {
     pub password: Option<String>,
     pub use_tls: bool,
     pub keep_alive_secs: u16,
+    pub auto_reconnect: bool,
+    pub max_reconnect_attempts: u32,
 }
 
 /// How a favorite message's payload should be treated when it's loaded back

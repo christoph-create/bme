@@ -178,6 +178,7 @@ mod tests {
                 commands::create_connection,
                 commands::update_connection,
                 commands::list_connections,
+                commands::get_connection,
                 commands::connect_broker,
                 commands::subscribe_topic,
                 commands::unsubscribe_topic,
@@ -248,6 +249,8 @@ mod tests {
                     "password": null,
                     "use_tls": false,
                     "keep_alive_secs": 30,
+                    "auto_reconnect": true,
+                    "max_reconnect_attempts": 10,
                     "subscriptions": []
                 }
             }),
@@ -279,6 +282,8 @@ mod tests {
                     "password": null,
                     "use_tls": false,
                     "keep_alive_secs": 30,
+                    "auto_reconnect": true,
+                    "max_reconnect_attempts": 10,
                     "subscriptions": []
                 }
             }),
@@ -299,6 +304,8 @@ mod tests {
                     "password": null,
                     "use_tls": true,
                     "keep_alive_secs": 45,
+                    "auto_reconnect": false,
+                    "max_reconnect_attempts": 3,
                 }
             }),
         );
@@ -307,6 +314,47 @@ mod tests {
 
         let all = invoke(&webview, "list_connections", serde_json::json!({}));
         assert_eq!(all[0]["name"], "Renamed");
+    }
+
+    /// The reconnect settings are only useful if they survive the IPC round
+    /// trip - they're read back on every connect to build the backoff policy.
+    #[test]
+    fn reconnect_settings_round_trip_over_ipc() {
+        let app = build_test_app();
+        let webview = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+
+        let created = invoke(
+            &webview,
+            "create_connection",
+            serde_json::json!({
+                "newConnection": {
+                    "name": "Local",
+                    "host": "localhost",
+                    "port": 1883,
+                    "client_id": "bme-reconnect-test",
+                    "username": null,
+                    "password": null,
+                    "use_tls": false,
+                    "keep_alive_secs": 30,
+                    "auto_reconnect": false,
+                    "max_reconnect_attempts": 25,
+                    "subscriptions": []
+                }
+            }),
+        );
+
+        assert_eq!(created["auto_reconnect"], false);
+        assert_eq!(created["max_reconnect_attempts"], 25);
+
+        let fetched = invoke(
+            &webview,
+            "get_connection",
+            serde_json::json!({ "id": created["id"].clone() }),
+        );
+        assert_eq!(fetched["auto_reconnect"], false);
+        assert_eq!(fetched["max_reconnect_attempts"], 25);
     }
 
     #[test]
@@ -622,6 +670,8 @@ mod tests {
                     "password": null,
                     "use_tls": false,
                     "keep_alive_secs": 30,
+                    "auto_reconnect": true,
+                    "max_reconnect_attempts": 10,
                     "subscriptions": []
                 }
             }),
@@ -667,6 +717,8 @@ mod tests {
                     "password": null,
                     "use_tls": false,
                     "keep_alive_secs": 30,
+                    "auto_reconnect": true,
+                    "max_reconnect_attempts": 10,
                     "subscriptions": []
                 }
             }),
@@ -697,6 +749,8 @@ mod tests {
                     "password": null,
                     "use_tls": false,
                     "keep_alive_secs": 30,
+                    "auto_reconnect": true,
+                    "max_reconnect_attempts": 10,
                     "subscriptions": []
                 }
             }),

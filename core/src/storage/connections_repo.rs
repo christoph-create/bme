@@ -45,8 +45,9 @@ impl ConnectionsRepository for SqliteConnectionsRepository {
         let id = Uuid::new_v4();
         conn.execute(
             "INSERT INTO broker_connections
-                (id, name, host, port, client_id, username, password, use_tls, keep_alive_secs)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                (id, name, host, port, client_id, username, password, use_tls, keep_alive_secs,
+                 auto_reconnect, max_reconnect_attempts)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
             params![
                 id,
                 new.name,
@@ -57,6 +58,8 @@ impl ConnectionsRepository for SqliteConnectionsRepository {
                 new.password,
                 new.use_tls,
                 new.keep_alive_secs,
+                new.auto_reconnect,
+                new.max_reconnect_attempts,
             ],
         )?;
 
@@ -76,6 +79,8 @@ impl ConnectionsRepository for SqliteConnectionsRepository {
             password: new.password,
             use_tls: new.use_tls,
             keep_alive_secs: new.keep_alive_secs,
+            auto_reconnect: new.auto_reconnect,
+            max_reconnect_attempts: new.max_reconnect_attempts,
             subscriptions,
         })
     }
@@ -84,7 +89,8 @@ impl ConnectionsRepository for SqliteConnectionsRepository {
         let conn = self.conn.lock().unwrap();
         let row = conn
             .query_row(
-                "SELECT name, host, port, client_id, username, password, use_tls, keep_alive_secs
+                "SELECT name, host, port, client_id, username, password, use_tls, keep_alive_secs,
+                        auto_reconnect, max_reconnect_attempts
                  FROM broker_connections WHERE id = ?1",
                 params![id],
                 |row| {
@@ -97,12 +103,25 @@ impl ConnectionsRepository for SqliteConnectionsRepository {
                         row.get::<_, Option<String>>(5)?,
                         row.get::<_, bool>(6)?,
                         row.get::<_, u16>(7)?,
+                        row.get::<_, bool>(8)?,
+                        row.get::<_, u32>(9)?,
                     ))
                 },
             )
             .optional()?;
 
-        let Some((name, host, port, client_id, username, password, use_tls, keep_alive_secs)) = row
+        let Some((
+            name,
+            host,
+            port,
+            client_id,
+            username,
+            password,
+            use_tls,
+            keep_alive_secs,
+            auto_reconnect,
+            max_reconnect_attempts,
+        )) = row
         else {
             return Ok(None);
         };
@@ -119,6 +138,8 @@ impl ConnectionsRepository for SqliteConnectionsRepository {
             password,
             use_tls,
             keep_alive_secs,
+            auto_reconnect,
+            max_reconnect_attempts,
             subscriptions,
         }))
     }
@@ -126,7 +147,8 @@ impl ConnectionsRepository for SqliteConnectionsRepository {
     fn list(&self) -> Result<Vec<BrokerConnection>, StorageError> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT id, name, host, port, client_id, username, password, use_tls, keep_alive_secs
+            "SELECT id, name, host, port, client_id, username, password, use_tls, keep_alive_secs,
+                    auto_reconnect, max_reconnect_attempts
              FROM broker_connections ORDER BY name",
         )?;
         let rows = stmt
@@ -141,12 +163,26 @@ impl ConnectionsRepository for SqliteConnectionsRepository {
                     row.get::<_, Option<String>>(6)?,
                     row.get::<_, bool>(7)?,
                     row.get::<_, u16>(8)?,
+                    row.get::<_, bool>(9)?,
+                    row.get::<_, u32>(10)?,
                 ))
             })?
             .collect::<Result<Vec<_>, _>>()?;
 
         let mut connections = Vec::with_capacity(rows.len());
-        for (id, name, host, port, client_id, username, password, use_tls, keep_alive_secs) in rows
+        for (
+            id,
+            name,
+            host,
+            port,
+            client_id,
+            username,
+            password,
+            use_tls,
+            keep_alive_secs,
+            auto_reconnect,
+            max_reconnect_attempts,
+        ) in rows
         {
             let subscriptions = load_subscriptions(&conn, id)?;
             connections.push(BrokerConnection {
@@ -159,6 +195,8 @@ impl ConnectionsRepository for SqliteConnectionsRepository {
                 password,
                 use_tls,
                 keep_alive_secs,
+                auto_reconnect,
+                max_reconnect_attempts,
                 subscriptions,
             });
         }
@@ -174,8 +212,9 @@ impl ConnectionsRepository for SqliteConnectionsRepository {
         let rows_changed = conn.execute(
             "UPDATE broker_connections
              SET name = ?1, host = ?2, port = ?3, client_id = ?4, username = ?5,
-                 password = ?6, use_tls = ?7, keep_alive_secs = ?8
-             WHERE id = ?9",
+                 password = ?6, use_tls = ?7, keep_alive_secs = ?8,
+                 auto_reconnect = ?9, max_reconnect_attempts = ?10
+             WHERE id = ?11",
             params![
                 update.name,
                 update.host,
@@ -185,6 +224,8 @@ impl ConnectionsRepository for SqliteConnectionsRepository {
                 update.password,
                 update.use_tls,
                 update.keep_alive_secs,
+                update.auto_reconnect,
+                update.max_reconnect_attempts,
                 id,
             ],
         )?;
@@ -205,6 +246,8 @@ impl ConnectionsRepository for SqliteConnectionsRepository {
             password: update.password,
             use_tls: update.use_tls,
             keep_alive_secs: update.keep_alive_secs,
+            auto_reconnect: update.auto_reconnect,
+            max_reconnect_attempts: update.max_reconnect_attempts,
             subscriptions,
         }))
     }
@@ -292,6 +335,8 @@ mod tests {
             password: None,
             use_tls: false,
             keep_alive_secs: 30,
+            auto_reconnect: true,
+            max_reconnect_attempts: 10,
             subscriptions: vec![NewSubscription {
                 topic: "sensors/#".to_string(),
                 qos: QoS::AtLeastOnce,
@@ -310,6 +355,44 @@ mod tests {
         assert_eq!(fetched.subscriptions.len(), 1);
         assert_eq!(fetched.subscriptions[0].topic, "sensors/#");
         assert_eq!(fetched.subscriptions[0].qos, QoS::AtLeastOnce);
+    }
+
+    #[test]
+    fn create_then_get_round_trips_the_reconnect_settings() {
+        let repo = repo();
+        let mut new = sample_connection();
+        new.auto_reconnect = false;
+        new.max_reconnect_attempts = 25;
+
+        let created = repo.create(new).unwrap();
+        let fetched = repo.get(created.id).unwrap().expect("connection to exist");
+
+        assert!(!fetched.auto_reconnect);
+        assert_eq!(fetched.max_reconnect_attempts, 25);
+    }
+
+    /// Connections that predate migration 0008 have no reconnect columns of
+    /// their own, so the whole feature hinges on the column defaults being
+    /// what an existing user would want: reconnect on, ten attempts.
+    #[test]
+    fn rows_written_before_the_reconnect_columns_existed_get_the_defaults() {
+        let repo = repo();
+        let id = Uuid::new_v4();
+        repo.conn
+            .lock()
+            .unwrap()
+            .execute(
+                "INSERT INTO broker_connections
+                    (id, name, host, port, client_id, username, password, use_tls, keep_alive_secs)
+                 VALUES (?1, 'Legacy', 'legacy.local', 1883, 'bme-legacy', NULL, NULL, 0, 60)",
+                params![id],
+            )
+            .unwrap();
+
+        let fetched = repo.get(id).unwrap().expect("connection to exist");
+
+        assert!(fetched.auto_reconnect);
+        assert_eq!(fetched.max_reconnect_attempts, 10);
     }
 
     #[test]
@@ -350,6 +433,8 @@ mod tests {
                     password: Some("hunter2".to_string()),
                     use_tls: true,
                     keep_alive_secs: 45,
+                    auto_reconnect: false,
+                    max_reconnect_attempts: 3,
                 },
             )
             .unwrap()
@@ -364,6 +449,8 @@ mod tests {
         assert_eq!(updated.password.as_deref(), Some("hunter2"));
         assert!(updated.use_tls);
         assert_eq!(updated.keep_alive_secs, 45);
+        assert!(!updated.auto_reconnect);
+        assert_eq!(updated.max_reconnect_attempts, 3);
         assert_eq!(updated.subscriptions.len(), 1);
 
         let fetched = repo.get(created.id).unwrap().expect("connection to exist");
@@ -386,6 +473,8 @@ mod tests {
                     password: None,
                     use_tls: false,
                     keep_alive_secs: 30,
+                    auto_reconnect: true,
+                    max_reconnect_attempts: 10,
                 },
             )
             .unwrap();

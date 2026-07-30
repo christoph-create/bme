@@ -19,6 +19,8 @@ export interface BrokerConnection {
   password: string | null;
   use_tls: boolean;
   keep_alive_secs: number;
+  auto_reconnect: boolean;
+  max_reconnect_attempts: number;
   subscriptions: Subscription[];
 }
 
@@ -38,6 +40,8 @@ export interface NewBrokerConnection {
   password: string | null;
   use_tls: boolean;
   keep_alive_secs: number;
+  auto_reconnect: boolean;
+  max_reconnect_attempts: number;
   subscriptions: NewSubscription[];
 }
 
@@ -51,4 +55,6 @@ export interface UpdateBrokerConnection {
   password: string | null;
   use_tls: boolean;
   keep_alive_secs: number;
+  auto_reconnect: boolean;
+  max_reconnect_attempts: number;
 }

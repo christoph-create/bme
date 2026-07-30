@@ -27,6 +27,8 @@ const CREATED: BrokerConnection = {
   password: null,
   use_tls: false,
   keep_alive_secs: 60,
+  auto_reconnect: true,
+  max_reconnect_attempts: 10,
   subscriptions: [],
 };
 
@@ -86,6 +88,8 @@ const VALID_VALUE = {
   clientId: "bme-abcdef",
   keepAliveSecs: "60",
   useTls: false,
+  autoReconnect: true,
+  maxReconnectAttempts: "10",
   requiresAuth: false,
   username: "",
   password: "",
@@ -112,6 +116,8 @@ describe("ConnectionForm", () => {
       password: null,
       use_tls: false,
       keep_alive_secs: 60,
+      auto_reconnect: true,
+      max_reconnect_attempts: 10,
       subscriptions: [],
     } satisfies NewBrokerConnection);
     // BrokerWorkspace connects on mount - connecting here too would race
@@ -174,10 +180,27 @@ describe("ConnectionForm", () => {
         clientId: CREATED.client_id,
         keepAliveSecs: String(CREATED.keep_alive_secs),
         useTls: CREATED.use_tls,
+        autoReconnect: CREATED.auto_reconnect,
+        maxReconnectAttempts: String(CREATED.max_reconnect_attempts),
         requiresAuth: false,
         username: "",
         password: "",
       });
+    });
+
+    it("prefills the reconnect settings of a connection that has them switched off", async () => {
+      const withoutReconnect: BrokerConnection = {
+        ...CREATED,
+        auto_reconnect: false,
+        max_reconnect_attempts: 3,
+      };
+      const { fixture } = await setup(CREATED.id, {
+        get: vi.fn().mockResolvedValue(withoutReconnect),
+      });
+
+      const value = fixture.componentInstance.form.getRawValue();
+      expect(value.autoReconnect).toBe(false);
+      expect(value.maxReconnectAttempts).toBe("3");
     });
 
     it("prefills credentials and checks 'requires authentication' when a username is stored", async () => {
@@ -221,6 +244,8 @@ describe("ConnectionForm", () => {
         password: null,
         use_tls: CREATED.use_tls,
         keep_alive_secs: CREATED.keep_alive_secs,
+        auto_reconnect: CREATED.auto_reconnect,
+        max_reconnect_attempts: CREATED.max_reconnect_attempts,
       });
       expect(fake.create).not.toHaveBeenCalled();
       expect(navigate).toHaveBeenCalledWith(["/connections"]);

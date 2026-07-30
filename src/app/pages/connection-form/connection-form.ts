@@ -50,6 +50,11 @@ export class ConnectionForm {
       [Validators.required, Validators.pattern(NUMERIC_PATTERN)],
     ],
     useTls: [false],
+    autoReconnect: [true],
+    maxReconnectAttempts: [
+      "10",
+      [Validators.required, Validators.pattern(NUMERIC_PATTERN)],
+    ],
     requiresAuth: [false],
     username: [""],
     password: [""],
@@ -119,6 +124,8 @@ export class ConnectionForm {
         clientId: connection.client_id,
         keepAliveSecs: String(connection.keep_alive_secs),
         useTls: connection.use_tls,
+        autoReconnect: connection.auto_reconnect,
+        maxReconnectAttempts: String(connection.max_reconnect_attempts),
         requiresAuth: connection.username !== null,
         username: connection.username ?? "",
         password: connection.password ?? "",
@@ -227,6 +234,8 @@ export class ConnectionForm {
       password: value.requiresAuth ? value.password : null,
       use_tls: value.useTls,
       keep_alive_secs: Number(value.keepAliveSecs),
+      auto_reconnect: value.autoReconnect,
+      max_reconnect_attempts: Number(value.maxReconnectAttempts),
     };
   }
 

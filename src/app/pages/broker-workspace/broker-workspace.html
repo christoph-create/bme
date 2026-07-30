@@ -4,6 +4,8 @@
       <h1>{{ connection()?.name ?? "Broker Workspace" }}</h1>
       @if (connecting()) {
         <span class="status-pill connecting">Connecting…</span>
+      } @else if (reconnecting()) {
+        <span class="status-pill reconnecting">Reconnecting…</span>
       } @else if (connectError()) {
         <span class="status-pill error">Connection failed</span>
       } @else {
@@ -19,7 +21,15 @@
   </button>
 </header>
 
-@if (connectError()) {
+@if (reconnecting(); as state) {
+  <div class="reconnect-banner" role="status">
+    <span class="reconnect-status">
+      <span class="spinner" aria-hidden="true"></span>
+      <span>{{ reconnectLabel(state.attempt, state.maxAttempts) }}</span>
+    </span>
+    <button type="button" (click)="stopReconnecting()">Stop</button>
+  </div>
+} @else if (connectError()) {
   <div class="connect-error-banner">
     <span>{{ connectError() }}</span>
     <button type="button" (click)="connect()">Retry</button>
