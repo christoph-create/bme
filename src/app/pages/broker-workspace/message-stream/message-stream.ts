@@ -71,6 +71,22 @@ export class MessageStream {
 
   readonly prettyJson = signal(true);
 
+  // Pausing freezes what's on screen without unsubscribing - the store keeps
+  // accumulating underneath, and resuming shows everything that arrived. The
+  // point is to be able to read a message during a flood, so anything that
+  // dropped messages instead of buffering them would miss it.
+  readonly paused = signal(false);
+  readonly pendingCount = signal(0);
+  private pendingMessages: readonly StoredMessage[] | null = null;
+
+  readonly pausedLabel = computed(() => {
+    const pending = this.pendingCount();
+    if (pending === 0) {
+      return "Paused";
+    }
+    return `Paused · ${pending} new`;
+  });
+
   /** Newest first, matching how the panel displays received messages. */
   readonly messageViews = computed<readonly MessageView[]>(() => {
     const now = this.now();
@@ -174,6 +190,36 @@ export class MessageStream {
     this.prettyJson.update((pretty) => !pretty);
   }
 
+  togglePause(): void {
+    if (this.paused()) {
+      this.paused.set(false);
+      if (this.pendingMessages !== null) {
+        this.messages.set(this.pendingMessages);
+      }
+      this.clearPending();
+      return;
+    }
+    this.paused.set(true);
+  }
+
+  /** Drops this topic's history from the store, which also takes its row out
+   * of the topic tree - the tree is built from the same history. */
+  clearMessages(): void {
+    const topic = this.topic();
+    if (topic === null) {
+      return;
+    }
+    this.messageStore.clearTopic(this.connectionId(), topic);
+    // Emptying the panel explicitly rather than relying on the store's
+    // emission: while paused that emission is buffered like any other, so the
+    // cleared list would only show up on resume.
+    this.messages.set([]);
+    this.clearPending();
+    this.rowHeights.clear();
+    this.heightVersion.update((v) => v + 1);
+    this.resetScroll();
+  }
+
   onScroll(event: Event): void {
     this.scrollTop.set((event.target as HTMLElement).scrollTop);
   }
@@ -191,13 +237,31 @@ export class MessageStream {
     this.rowHeights.clear();
     this.heightVersion.update((v) => v + 1);
     this.resetScroll();
+    // A pause belongs to the topic it was applied to - carrying it over would
+    // silently freeze a topic the user just opened.
+    this.paused.set(false);
+    this.clearPending();
     if (topic === null) {
       this.messages.set([]);
       return;
     }
     this.topicSubscription = this.messageStore
       .messagesFor(connectionId, topic)
-      .subscribe((messages) => this.messages.set(messages));
+      .subscribe((messages) => {
+        if (this.paused()) {
+          // Counting emissions rather than diffing lengths keeps the count
+          // honest once the store's per-topic cap starts dropping the oldest.
+          this.pendingMessages = messages;
+          this.pendingCount.update((n) => n + 1);
+          return;
+        }
+        this.messages.set(messages);
+      });
+  }
+
+  private clearPending(): void {
+    this.pendingMessages = null;
+    this.pendingCount.set(0);
   }
 
   /** New topic, new message history - the previous scroll position has no

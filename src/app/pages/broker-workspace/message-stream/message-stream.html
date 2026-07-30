@@ -2,17 +2,43 @@
   <div class="header">
     <div class="header-top">
       <div class="topic-path">{{ topicPath }}</div>
-      <span
-        class="toggle-link"
-        (click)="togglePrettyJson()"
-        (keydown.enter)="togglePrettyJson()"
-        role="button"
-        tabindex="0"
-      >
-        {{ prettyJson() ? "Raw" : "Pretty JSON" }}
-      </span>
+      <div class="header-actions">
+        <span
+          class="toggle-link"
+          [class.active]="paused()"
+          (click)="togglePause()"
+          (keydown.enter)="togglePause()"
+          role="button"
+          tabindex="0"
+        >
+          {{ paused() ? "Resume" : "Pause" }}
+        </span>
+        <span
+          class="toggle-link"
+          (click)="clearMessages()"
+          (keydown.enter)="clearMessages()"
+          role="button"
+          tabindex="0"
+        >
+          Clear
+        </span>
+        <span
+          class="toggle-link"
+          (click)="togglePrettyJson()"
+          (keydown.enter)="togglePrettyJson()"
+          role="button"
+          tabindex="0"
+        >
+          {{ prettyJson() ? "Raw" : "Pretty JSON" }}
+        </span>
+      </div>
     </div>
-    <div class="count-label">{{ messageCountLabel() }}</div>
+    <div class="count-label">
+      <span>{{ messageCountLabel() }}</span>
+      @if (paused()) {
+        <span class="paused-badge">{{ pausedLabel() }}</span>
+      }
+    </div>
   </div>
   <div class="message-list" #list (scroll)="onScroll($event)">
     <div class="virtual-content" [style.height.px]="totalHeight()">

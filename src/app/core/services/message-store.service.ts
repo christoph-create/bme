@@ -74,6 +74,23 @@ export class MessageStoreService {
     this.state$.next(next);
   }
 
+  /** Drops one topic's history, leaving the rest of the connection alone.
+   * The topic disappears from `topicsFor` too, so the tree row goes with it -
+   * it only exists because messages arrived on it. */
+  clearTopic(connectionId: string, topic: string): void {
+    const connectionHistory = this.state$.value.get(connectionId);
+    if (connectionHistory === undefined || !connectionHistory.has(topic)) {
+      return;
+    }
+
+    const updatedConnectionHistory = new Map(connectionHistory);
+    updatedConnectionHistory.delete(topic);
+
+    const updatedState = new Map(this.state$.value);
+    updatedState.set(connectionId, updatedConnectionHistory);
+    this.state$.next(updatedState);
+  }
+
   private append(message: {
     connection_id: string;
     topic: string;

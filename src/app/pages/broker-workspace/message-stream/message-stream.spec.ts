@@ -1,5 +1,5 @@
 import { TestBed } from "@angular/core/testing";
-import { of } from "rxjs";
+import { BehaviorSubject, of } from "rxjs";
 import { describe, expect, it, vi } from "vitest";
 
 import { StoredMessage } from "../../../core/models/stored-message.model";
@@ -43,6 +43,41 @@ async function setup(
   fixture.detectChanges();
 
   return { fixture, messagesFor };
+}
+
+/** Like `setup`, but the store's history is a live subject, so a test can
+ * push new messages the way an actual broker would. */
+async function setupStreaming(initial: readonly StoredMessage[] = []) {
+  const messages$ = new BehaviorSubject<readonly StoredMessage[]>(initial);
+  const messagesFor = vi.fn().mockReturnValue(messages$);
+  const clearTopic = vi.fn().mockImplementation(() => messages$.next([]));
+
+  TestBed.configureTestingModule({
+    imports: [MessageStream],
+    providers: [
+      { provide: MessageStoreService, useValue: { messagesFor, clearTopic } },
+    ],
+  });
+
+  const fixture = TestBed.createComponent(MessageStream);
+  fixture.componentRef.setInput("connectionId", CONNECTION_ID);
+  fixture.detectChanges();
+  await fixture.whenStable();
+  fixture.detectChanges();
+
+  return { fixture, messages$, clearTopic };
+}
+
+/** Picks a header control by its label - the header holds several, and which
+ * one is first is a layout detail no test should depend on. */
+function toggleLink(element: HTMLElement, label: string): HTMLElement {
+  const match = [...element.querySelectorAll(".toggle-link")].find(
+    (link) => link.textContent?.trim() === label,
+  );
+  if (match === undefined) {
+    throw new Error(`no header control labelled "${label}"`);
+  }
+  return match as HTMLElement;
 }
 
 async function selectTopic(
@@ -145,7 +180,7 @@ describe("MessageStream", () => {
     await selectTopic(fixture, "device");
 
     const element = fixture.nativeElement as HTMLElement;
-    const toggle = element.querySelector(".toggle-link") as HTMLElement;
+    const toggle = toggleLink(element, "Raw");
     expect(toggle.textContent?.trim()).toBe("Raw");
 
     toggle.click();
@@ -220,6 +255,126 @@ describe("MessageStream", () => {
       fixture.detectChanges();
 
       expect(element.textContent).not.toContain("msg-499");
+    });
+  });
+
+  describe("pause", () => {
+    it("freezes the visible list while messages keep arriving", async () => {
+      const { fixture, messages$ } = await setupStreaming([
+        message({ payload: encode("first") }),
+      ]);
+      await selectTopic(fixture, "device");
+      const element = fixture.nativeElement as HTMLElement;
+
+      fixture.componentInstance.togglePause();
+      messages$.next([
+        message({ payload: encode("first") }),
+        message({ payload: encode("second") }),
+      ]);
+      fixture.detectChanges();
+
+      expect(element.textContent).toContain("first");
+      expect(element.textContent).not.toContain("second");
+    });
+
+    it("counts what arrived while paused", async () => {
+      const { fixture, messages$ } = await setupStreaming([message()]);
+      await selectTopic(fixture, "device");
+      const component = fixture.componentInstance;
+
+      component.togglePause();
+      messages$.next([message(), message()]);
+      messages$.next([message(), message(), message()]);
+      fixture.detectChanges();
+
+      expect(component.pendingCount()).toBe(2);
+      expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+        "Paused · 2 new",
+      );
+    });
+
+    it("catches up on resume", async () => {
+      const { fixture, messages$ } = await setupStreaming([
+        message({ payload: encode("first") }),
+      ]);
+      await selectTopic(fixture, "device");
+      const component = fixture.componentInstance;
+      const element = fixture.nativeElement as HTMLElement;
+
+      component.togglePause();
+      messages$.next([
+        message({ payload: encode("first") }),
+        message({ payload: encode("second") }),
+      ]);
+      fixture.detectChanges();
+
+      component.togglePause();
+      fixture.detectChanges();
+
+      expect(element.textContent).toContain("second");
+      expect(component.pendingCount()).toBe(0);
+      expect(component.paused()).toBe(false);
+    });
+
+    it("does not carry a pause over to a newly selected topic", async () => {
+      const { fixture } = await setupStreaming([message()]);
+      await selectTopic(fixture, "device");
+      const component = fixture.componentInstance;
+
+      component.togglePause();
+      expect(component.paused()).toBe(true);
+
+      await selectTopic(fixture, "other");
+
+      expect(component.paused()).toBe(false);
+      expect(component.pendingCount()).toBe(0);
+    });
+  });
+
+  describe("clear", () => {
+    it("clears the selected topic from the store and empties the panel", async () => {
+      const { fixture, clearTopic } = await setupStreaming([
+        message({ payload: encode("first") }),
+      ]);
+      await selectTopic(fixture, "device");
+      const element = fixture.nativeElement as HTMLElement;
+      expect(element.textContent).toContain("first");
+
+      fixture.componentInstance.clearMessages();
+      fixture.detectChanges();
+
+      expect(clearTopic).toHaveBeenCalledWith(CONNECTION_ID, "device");
+      expect(element.textContent).not.toContain("first");
+      expect(element.textContent).toContain("No messages yet on this topic");
+    });
+
+    it("does nothing when no topic is selected", async () => {
+      const { fixture, clearTopic } = await setupStreaming();
+
+      fixture.componentInstance.clearMessages();
+
+      expect(clearTopic).not.toHaveBeenCalled();
+    });
+
+    it("drops any paused backlog, so resuming does not resurrect cleared messages", async () => {
+      const { fixture, messages$ } = await setupStreaming([
+        message({ payload: encode("first") }),
+      ]);
+      await selectTopic(fixture, "device");
+      const component = fixture.componentInstance;
+
+      component.togglePause();
+      messages$.next([
+        message({ payload: encode("first") }),
+        message({ payload: encode("second") }),
+      ]);
+      component.clearMessages();
+      component.togglePause();
+      fixture.detectChanges();
+
+      const text = (fixture.nativeElement as HTMLElement).textContent ?? "";
+      expect(text).not.toContain("second");
+      expect(text).toContain("No messages yet on this topic");
     });
   });
 });

@@ -222,4 +222,72 @@ describe("MessageStoreService", () => {
       ).length,
     ).toBe(1);
   });
+
+  it("clearTopic() drops one topic and leaves the connection's other topics alone", async () => {
+    const { events$, store } = setup();
+
+    events$.next({
+      MessageReceived: messageReceived({ topic: "sensors/temp" }),
+    });
+    events$.next({
+      MessageReceived: messageReceived({ topic: "sensors/humidity" }),
+    });
+    store.clearTopic(CONNECTION_A, "sensors/temp");
+
+    expect(
+      await firstValueFrom(store.messagesFor(CONNECTION_A, "sensors/temp")),
+    ).toEqual([]);
+    expect(
+      (
+        await firstValueFrom(
+          store.messagesFor(CONNECTION_A, "sensors/humidity"),
+        )
+      ).length,
+    ).toBe(1);
+  });
+
+  it("clearTopic() removes the topic from topicsFor, so it leaves the tree", async () => {
+    const { events$, store } = setup();
+
+    events$.next({
+      MessageReceived: messageReceived({ topic: "sensors/temp" }),
+    });
+    events$.next({
+      MessageReceived: messageReceived({ topic: "sensors/humidity" }),
+    });
+    store.clearTopic(CONNECTION_A, "sensors/temp");
+
+    const topics = await firstValueFrom(store.topicsFor(CONNECTION_A));
+    expect([...topics.keys()]).toEqual(["sensors/humidity"]);
+  });
+
+  it("clearTopic() leaves the same topic on other connections untouched", async () => {
+    const { events$, store } = setup();
+
+    events$.next({ MessageReceived: messageReceived() });
+    events$.next({
+      MessageReceived: messageReceived({ connection_id: CONNECTION_B }),
+    });
+    store.clearTopic(CONNECTION_A, "sensors/temp");
+
+    expect(
+      (
+        await firstValueFrom(store.messagesFor(CONNECTION_B, "sensors/temp"))
+      ).length,
+    ).toBe(1);
+  });
+
+  it("clearTopic() is a no-op for an unknown connection or topic", async () => {
+    const { events$, store } = setup();
+
+    events$.next({ MessageReceived: messageReceived() });
+    store.clearTopic(CONNECTION_B, "sensors/temp");
+    store.clearTopic(CONNECTION_A, "never/seen");
+
+    expect(
+      (
+        await firstValueFrom(store.messagesFor(CONNECTION_A, "sensors/temp"))
+      ).length,
+    ).toBe(1);
+  });
 });
