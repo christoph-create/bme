@@ -57,6 +57,7 @@
     <app-message-stream
       [connectionId]="connectionId"
       [topic]="selectedTopic()"
+      [connected]="connected()"
       (resendRequested)="loadDraft($event)"
     />
   </section>

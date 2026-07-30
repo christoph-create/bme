@@ -20,12 +20,19 @@ function message(overrides: Partial<StoredMessage> = {}): StoredMessage {
 
 async function setup(
   topics: ReadonlyMap<string, readonly StoredMessage[]>,
+  retainedTopics: ReadonlySet<string> = new Set(),
 ) {
   const topicsFor = vi.fn().mockReturnValue(of(topics));
+  const retainedTopicsFor = vi.fn().mockReturnValue(of(retainedTopics));
 
   TestBed.configureTestingModule({
     imports: [TopicTree],
-    providers: [{ provide: MessageStoreService, useValue: { topicsFor } }],
+    providers: [
+      {
+        provide: MessageStoreService,
+        useValue: { topicsFor, retainedTopicsFor },
+      },
+    ],
   });
 
   const fixture = TestBed.createComponent(TopicTree);
@@ -40,10 +47,16 @@ async function setup(
 function setupStreaming() {
   const topics$ = new Subject<ReadonlyMap<string, readonly StoredMessage[]>>();
   const topicsFor = vi.fn().mockReturnValue(topics$);
+  const retainedTopicsFor = vi.fn().mockReturnValue(of(new Set<string>()));
 
   TestBed.configureTestingModule({
     imports: [TopicTree],
-    providers: [{ provide: MessageStoreService, useValue: { topicsFor } }],
+    providers: [
+      {
+        provide: MessageStoreService,
+        useValue: { topicsFor, retainedTopicsFor },
+      },
+    ],
   });
 
   const fixture = TestBed.createComponent(TopicTree);
@@ -398,6 +411,25 @@ describe("TopicTree", () => {
     component.clearFilter();
     fixture.detectChanges();
     expect(component.isExpanded("sensors")).toBe(false);
+  });
+
+  it("marks topics known to hold a retained message, and only those", async () => {
+    const { fixture } = await setup(
+      new Map([
+        ["sensors/humidity", [message()]],
+        ["sensors/temperature", [message()]],
+      ]),
+      new Set(["sensors/humidity"]),
+    );
+    fixture.componentInstance.toggleExpandAll();
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+
+    expect(component.isRetained("sensors/humidity")).toBe(true);
+    expect(component.isRetained("sensors/temperature")).toBe(false);
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelectorAll(".retained-mark"),
+    ).toHaveLength(1);
   });
 
   it("tells the user when nothing matches", async () => {

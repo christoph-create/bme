@@ -168,6 +168,18 @@
   flex-shrink: 0;
 }
 
+.retained-mark {
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-info-on-tint);
+  background: var(--color-info-tint);
+  padding: 2px 4px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  cursor: help;
+}
+
 .msg-count {
   font-size: 10.5px;
   line-height: 1;

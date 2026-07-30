@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { MessageDraft } from "../../../core/models/message-draft.model";
 import { StoredMessage } from "../../../core/models/stored-message.model";
 import { MessageStoreService } from "../../../core/services/message-store.service";
+import { MqttService } from "../../../core/services/mqtt.service";
 import { MessageStream } from "./message-stream";
 
 const CONNECTION_ID = "11111111-1111-1111-1111-111111111111";
@@ -25,16 +26,31 @@ function message(overrides: Partial<StoredMessage> = {}): StoredMessage {
 
 async function setup(
   messagesByTopic: Record<string, readonly StoredMessage[]>,
+  options: {
+    publish?: ReturnType<typeof vi.fn>;
+    retainedTopics?: ReadonlySet<string>;
+  } = {},
 ) {
   const messagesFor = vi
     .fn()
     .mockImplementation((_connectionId: string, topic: string) =>
       of(messagesByTopic[topic] ?? []),
     );
+  const publish = options.publish ?? vi.fn().mockResolvedValue(undefined);
+  const retainedTopicsFor = vi
+    .fn()
+    .mockReturnValue(of(options.retainedTopics ?? new Set<string>()));
+  const forgetRetained = vi.fn();
 
   TestBed.configureTestingModule({
     imports: [MessageStream],
-    providers: [{ provide: MessageStoreService, useValue: { messagesFor } }],
+    providers: [
+      {
+        provide: MessageStoreService,
+        useValue: { messagesFor, retainedTopicsFor, forgetRetained },
+      },
+      { provide: MqttService, useValue: { publish } },
+    ],
   });
 
   const fixture = TestBed.createComponent(MessageStream);
@@ -43,7 +59,7 @@ async function setup(
   await fixture.whenStable();
   fixture.detectChanges();
 
-  return { fixture, messagesFor };
+  return { fixture, messagesFor, publish, forgetRetained };
 }
 
 /** Like `setup`, but the store's history is a live subject, so a test can
@@ -52,11 +68,20 @@ async function setupStreaming(initial: readonly StoredMessage[] = []) {
   const messages$ = new BehaviorSubject<readonly StoredMessage[]>(initial);
   const messagesFor = vi.fn().mockReturnValue(messages$);
   const clearTopic = vi.fn().mockImplementation(() => messages$.next([]));
+  const retainedTopicsFor = vi.fn().mockReturnValue(of(new Set<string>()));
 
   TestBed.configureTestingModule({
     imports: [MessageStream],
     providers: [
-      { provide: MessageStoreService, useValue: { messagesFor, clearTopic } },
+      {
+        provide: MessageStoreService,
+        useValue: {
+          messagesFor,
+          clearTopic,
+          retainedTopicsFor,
+          forgetRetained: vi.fn(),
+        },
+      },
     ],
   });
 
@@ -445,6 +470,146 @@ describe("MessageStream", () => {
         "Copy failed",
       );
       vi.unstubAllGlobals();
+    });
+  });
+
+  describe("clear retained", () => {
+    async function withTopic(publish?: ReturnType<typeof vi.fn>) {
+      const result = await setup(
+        { device: [message({ retain: true })] },
+        publish === undefined ? {} : { publish },
+      );
+      result.fixture.componentRef.setInput("connected", true);
+      await selectTopic(result.fixture, "device");
+      return result;
+    }
+
+    it("asks for confirmation before touching the broker", async () => {
+      const { fixture, publish } = await withTopic();
+
+      toggleLink(fixture.nativeElement as HTMLElement, "Clear retained").click();
+      fixture.detectChanges();
+
+      expect(publish).not.toHaveBeenCalled();
+      expect(
+        (fixture.nativeElement as HTMLElement).querySelector(
+          "app-confirm-dialog",
+        ),
+      ).not.toBeNull();
+    });
+
+    it("publishes an empty retained message on confirm", async () => {
+      const { fixture, publish } = await withTopic();
+      const component = fixture.componentInstance;
+
+      component.askClearRetained();
+      await component.clearRetained();
+
+      expect(publish).toHaveBeenCalledWith(
+        CONNECTION_ID,
+        "device",
+        new Uint8Array(0),
+        "AtMostOnce",
+        true,
+      );
+      expect(component.confirmingClearRetained()).toBe(false);
+    });
+
+    it("publishes nothing when the confirmation is cancelled", async () => {
+      const { fixture, publish } = await withTopic();
+      const component = fixture.componentInstance;
+
+      component.askClearRetained();
+      component.cancelClearRetained();
+      fixture.detectChanges();
+
+      expect(publish).not.toHaveBeenCalled();
+      expect(component.confirmingClearRetained()).toBe(false);
+      expect(
+        (fixture.nativeElement as HTMLElement).querySelector(
+          "app-confirm-dialog",
+        ),
+      ).toBeNull();
+    });
+
+    it("surfaces a publish failure instead of silently doing nothing", async () => {
+      const publish = vi.fn().mockRejectedValue(new Error("Not connected"));
+      const { fixture } = await withTopic(publish);
+      const component = fixture.componentInstance;
+
+      component.askClearRetained();
+      await component.clearRetained();
+      fixture.detectChanges();
+
+      expect(component.clearRetainedError()).toBe("Not connected");
+      expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+        "Not connected",
+      );
+    });
+
+    it("badges the header when the topic is known to hold a retained message", async () => {
+      const { fixture } = await setup(
+        { device: [message()] },
+        { retainedTopics: new Set(["device"]) },
+      );
+      await selectTopic(fixture, "device");
+
+      expect(fixture.componentInstance.topicHasRetained()).toBe(true);
+      expect(
+        (fixture.nativeElement as HTMLElement).querySelector(".retain-badge"),
+      ).not.toBeNull();
+    });
+
+    it("does not badge a topic that is only known to have had live traffic", async () => {
+      const { fixture } = await setup(
+        { device: [message()], other: [message()] },
+        { retainedTopics: new Set(["other"]) },
+      );
+      await selectTopic(fixture, "device");
+
+      expect(fixture.componentInstance.topicHasRetained()).toBe(false);
+    });
+
+    it("forgets the retained mark after clearing it on the broker", async () => {
+      const { fixture, forgetRetained } = await setup(
+        { device: [message({ retain: true })] },
+        { retainedTopics: new Set(["device"]) },
+      );
+      fixture.componentRef.setInput("connected", true);
+      await selectTopic(fixture, "device");
+
+      await fixture.componentInstance.clearRetained();
+
+      expect(forgetRetained).toHaveBeenCalledWith(CONNECTION_ID, "device");
+    });
+
+    it("keeps the retained mark when the publish failed", async () => {
+      const publish = vi.fn().mockRejectedValue(new Error("Not connected"));
+      const { fixture, forgetRetained } = await setup(
+        { device: [message({ retain: true })] },
+        { publish, retainedTopics: new Set(["device"]) },
+      );
+      fixture.componentRef.setInput("connected", true);
+      await selectTopic(fixture, "device");
+
+      await fixture.componentInstance.clearRetained();
+
+      expect(forgetRetained).not.toHaveBeenCalled();
+    });
+
+    it("does not offer the action while disconnected, since the backend drops the publish", async () => {
+      const { fixture, publish } = await setup({
+        device: [message({ retain: true })],
+      });
+      fixture.componentRef.setInput("connected", false);
+      await selectTopic(fixture, "device");
+      const component = fixture.componentInstance;
+
+      toggleLink(fixture.nativeElement as HTMLElement, "Clear retained").click();
+      fixture.detectChanges();
+
+      expect(component.confirmingClearRetained()).toBe(false);
+      expect(publish).not.toHaveBeenCalled();
     });
   });
 

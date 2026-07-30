@@ -19,6 +19,8 @@ import { qosNumber } from "../../../core/models/qos";
 import { StoredMessage } from "../../../core/models/stored-message.model";
 import { JsonFormatService } from "../../../core/services/json-format.service";
 import { MessageStoreService } from "../../../core/services/message-store.service";
+import { MqttService } from "../../../core/services/mqtt.service";
+import { ConfirmDialog } from "../../../shared/confirm-dialog/confirm-dialog";
 import { FormattedPayload } from "../../../shared/formatted-payload/formatted-payload";
 import { formatMessageBody } from "../format/payload-text";
 import { formatTimeAgo } from "../format/time-ago";
@@ -62,7 +64,7 @@ interface PositionedMessageView {
 
 @Component({
   selector: "app-message-stream",
-  imports: [MeasureHeight, FormattedPayload],
+  imports: [MeasureHeight, FormattedPayload, ConfirmDialog],
   templateUrl: "./message-stream.html",
   styleUrl: "./message-stream.css",
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -70,10 +72,12 @@ interface PositionedMessageView {
 export class MessageStream {
   readonly connectionId = input.required<string>();
   readonly topic = input<string | null>(null);
+  readonly connected = input<boolean>(true);
   readonly resendRequested = output<MessageDraft>();
 
   private readonly messageStore = inject(MessageStoreService);
   private readonly jsonFormat = inject(JsonFormatService);
+  private readonly mqttService = inject(MqttService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly messages = signal<readonly StoredMessage[]>([]);
@@ -93,6 +97,18 @@ export class MessageStream {
    * other visible effect. */
   readonly copiedNote = signal<string | null>(null);
   private copiedTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  readonly confirmingClearRetained = signal(false);
+  readonly clearRetainedError = signal<string | null>(null);
+  private readonly retainedTopics = signal<ReadonlySet<string>>(new Set());
+
+  /** Whether this topic is *known* to hold a retained message. False also
+   * covers "not known either way" - see MessageStoreService.retained$ - so it
+   * annotates the Clear retained control rather than gating it. */
+  readonly topicHasRetained = computed(() => {
+    const topic = this.topic();
+    return topic !== null && this.retainedTopics().has(topic);
+  });
 
   readonly pausedLabel = computed(() => {
     const pending = this.pendingCount();
@@ -174,6 +190,7 @@ export class MessageStream {
   });
 
   private topicSubscription: Subscription | null = null;
+  private retainedSubscription: Subscription | null = null;
   private containerObserver: ResizeObserver | null = null;
 
   constructor() {
@@ -181,6 +198,18 @@ export class MessageStream {
       const connectionId = this.connectionId();
       const topic = this.topic();
       untracked(() => this.subscribeTo(connectionId, topic));
+    });
+
+    // Keyed on the connection alone: which topics hold a retained message is
+    // a property of the broker, not of whichever topic is selected.
+    effect(() => {
+      const connectionId = this.connectionId();
+      untracked(() => {
+        this.retainedSubscription?.unsubscribe();
+        this.retainedSubscription = this.messageStore
+          .retainedTopicsFor(connectionId)
+          .subscribe((topics) => this.retainedTopics.set(topics));
+      });
     });
 
     effect(() => {
@@ -206,6 +235,7 @@ export class MessageStream {
     this.destroyRef.onDestroy(() => {
       clearInterval(tickHandle);
       this.topicSubscription?.unsubscribe();
+      this.retainedSubscription?.unsubscribe();
       this.containerObserver?.disconnect();
       if (this.copiedTimeout !== null) {
         clearTimeout(this.copiedTimeout);
@@ -215,6 +245,48 @@ export class MessageStream {
 
   togglePrettyJson(): void {
     this.prettyJson.update((pretty) => !pretty);
+  }
+
+  askClearRetained(): void {
+    if (this.topic() === null || !this.connected()) {
+      return;
+    }
+    this.clearRetainedError.set(null);
+    this.confirmingClearRetained.set(true);
+  }
+
+  cancelClearRetained(): void {
+    this.confirmingClearRetained.set(false);
+  }
+
+  /** Clears a retained message the MQTT way: a zero-length publish to the
+   * same topic with the retain flag set. Broker-visible and permanent for
+   * every client, hence the confirmation. */
+  async clearRetained(): Promise<void> {
+    const topic = this.topic();
+    this.confirmingClearRetained.set(false);
+    if (topic === null) {
+      return;
+    }
+
+    try {
+      await this.mqttService.publish(
+        this.connectionId(),
+        topic,
+        new Uint8Array(0),
+        "AtMostOnce",
+        true,
+      );
+    } catch (err) {
+      this.clearRetainedError.set(
+        err instanceof Error ? err.message : String(err),
+      );
+      return;
+    }
+    this.clearRetainedError.set(null);
+    // The zero-length publish comes back as ordinary traffic with the retain
+    // flag clear, so nothing would otherwise retract the mark.
+    this.messageStore.forgetRetained(this.connectionId(), topic);
   }
 
   resend(draft: MessageDraft | null): void {

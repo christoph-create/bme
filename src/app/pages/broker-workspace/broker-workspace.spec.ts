@@ -69,7 +69,10 @@ async function setup(
       { provide: ConnectionsService, useValue: { connect, disconnect, get } },
       {
         provide: MessageStoreService,
-        useValue: { topicsFor: vi.fn().mockReturnValue(of(new Map())) },
+        useValue: {
+          topicsFor: vi.fn().mockReturnValue(of(new Map())),
+          retainedTopicsFor: vi.fn().mockReturnValue(of(new Set())),
+        },
       },
       { provide: MqttEventsService, useValue: { events$ } },
       {

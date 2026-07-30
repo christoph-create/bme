@@ -108,6 +108,14 @@
       <div class="row-main">
         <span class="dot" [class.selected]="selectedTopic() === node.path"></span>
         <span class="name leaf-name">{{ node.name }}</span>
+        @if (isRetained(node.path)) {
+          <span
+            class="retained-mark"
+            title="This topic holds a retained message on the broker"
+            aria-label="Has a retained message"
+            >R</span
+          >
+        }
         <span class="msg-count">{{ node.messageCount }}</span>
       </div>
       <div class="row-detail">

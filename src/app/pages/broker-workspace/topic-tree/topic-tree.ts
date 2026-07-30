@@ -49,6 +49,7 @@ export class TopicTree implements OnInit {
   readonly flashingPaths = signal<ReadonlySet<string>>(new Set());
   readonly filter = signal("");
   readonly filterOpen = signal(false);
+  readonly retainedTopics = signal<ReadonlySet<string>>(new Set());
 
   private readonly filterInput =
     viewChild<ElementRef<HTMLInputElement>>("filterInput");
@@ -106,8 +107,13 @@ export class TopicTree implements OnInit {
         this.previousNodes = nextNodes;
         this.nodes.set(nextNodes);
       });
+    const retainedSubscription = this.messageStore
+      .retainedTopicsFor(this.connectionId())
+      .subscribe((topics) => this.retainedTopics.set(topics));
+
     this.destroyRef.onDestroy(() => {
       subscription.unsubscribe();
+      retainedSubscription.unsubscribe();
       for (const handle of this.flashTimeouts.values()) {
         clearTimeout(handle);
       }
@@ -164,6 +170,10 @@ export class TopicTree implements OnInit {
 
   isFlashing(path: string): boolean {
     return this.flashingPaths().has(path);
+  }
+
+  isRetained(path: string): boolean {
+    return this.retainedTopics().has(path);
   }
 
   toggleFolder(path: string): void {
