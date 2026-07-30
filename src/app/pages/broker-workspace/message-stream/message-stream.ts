@@ -7,22 +7,27 @@ import {
   effect,
   inject,
   input,
+  output,
   signal,
   untracked,
   viewChild,
 } from "@angular/core";
 import { Subscription } from "rxjs";
 
+import { MessageDraft } from "../../../core/models/message-draft.model";
 import { qosNumber } from "../../../core/models/qos";
 import { StoredMessage } from "../../../core/models/stored-message.model";
+import { JsonFormatService } from "../../../core/services/json-format.service";
 import { MessageStoreService } from "../../../core/services/message-store.service";
 import { FormattedPayload } from "../../../shared/formatted-payload/formatted-payload";
 import { formatMessageBody } from "../format/payload-text";
 import { formatTimeAgo } from "../format/time-ago";
 import { MeasureHeight } from "./measure-height.directive";
+import { messageToDraft } from "./message-to-draft";
 import { computeOffsets, computeVisibleRange } from "./virtual-range";
 
 const TICK_INTERVAL_MS = 1000;
+const COPIED_FLASH_MS = 1500;
 
 /** Estimated height (px) for a card that hasn't been measured yet - just
  * needs to be in the right ballpark so the initial layout and buffered
@@ -45,6 +50,9 @@ interface MessageView {
   readonly timeAgo: string;
   readonly qos: 0 | 1 | 2;
   readonly body: string;
+  /** Null when the payload isn't editable as text (binary or empty), which
+   * is also what disables the card's Resend control. */
+  readonly draft: MessageDraft | null;
 }
 
 interface PositionedMessageView {
@@ -62,8 +70,10 @@ interface PositionedMessageView {
 export class MessageStream {
   readonly connectionId = input.required<string>();
   readonly topic = input<string | null>(null);
+  readonly resendRequested = output<MessageDraft>();
 
   private readonly messageStore = inject(MessageStoreService);
+  private readonly jsonFormat = inject(JsonFormatService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly messages = signal<readonly StoredMessage[]>([]);
@@ -79,6 +89,11 @@ export class MessageStream {
   readonly pendingCount = signal(0);
   private pendingMessages: readonly StoredMessage[] | null = null;
 
+  /** Transient "Copied" / "Copy failed" note, since a clipboard write has no
+   * other visible effect. */
+  readonly copiedNote = signal<string | null>(null);
+  private copiedTimeout: ReturnType<typeof setTimeout> | null = null;
+
   readonly pausedLabel = computed(() => {
     const pending = this.pendingCount();
     if (pending === 0) {
@@ -90,11 +105,20 @@ export class MessageStream {
   /** Newest first, matching how the panel displays received messages. */
   readonly messageViews = computed<readonly MessageView[]>(() => {
     const now = this.now();
+    const topic = this.topic();
     return [...this.messages()].reverse().map((message) => ({
       message,
       timeAgo: formatTimeAgo(now - message.receivedAt),
       qos: qosNumber(message.qos),
       body: formatMessageBody(message.payload),
+      draft:
+        topic === null
+          ? null
+          : messageToDraft(
+              topic,
+              message,
+              (text) => this.jsonFormat.format(text).ok,
+            ),
     }));
   });
 
@@ -183,11 +207,34 @@ export class MessageStream {
       clearInterval(tickHandle);
       this.topicSubscription?.unsubscribe();
       this.containerObserver?.disconnect();
+      if (this.copiedTimeout !== null) {
+        clearTimeout(this.copiedTimeout);
+      }
     });
   }
 
   togglePrettyJson(): void {
     this.prettyJson.update((pretty) => !pretty);
+  }
+
+  resend(draft: MessageDraft | null): void {
+    if (draft === null) {
+      return;
+    }
+    this.resendRequested.emit(draft);
+  }
+
+  async copyPayload(view: MessageView): Promise<void> {
+    // The draft's payload is the real decoded text; `body` is the display
+    // string, which for binary/empty payloads is a label, not the payload.
+    const text = view.draft?.payload ?? view.body;
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      this.flashCopied("Copy failed");
+      return;
+    }
+    this.flashCopied("Copied");
   }
 
   togglePause(): void {
@@ -262,6 +309,17 @@ export class MessageStream {
   private clearPending(): void {
     this.pendingMessages = null;
     this.pendingCount.set(0);
+  }
+
+  private flashCopied(note: string): void {
+    if (this.copiedTimeout !== null) {
+      clearTimeout(this.copiedTimeout);
+    }
+    this.copiedNote.set(note);
+    this.copiedTimeout = setTimeout(() => {
+      this.copiedNote.set(null);
+      this.copiedTimeout = null;
+    }, COPIED_FLASH_MS);
   }
 
   /** New topic, new message history - the previous scroll position has no

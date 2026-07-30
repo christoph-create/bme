@@ -2,6 +2,7 @@ import { TestBed } from "@angular/core/testing";
 import { BehaviorSubject, of } from "rxjs";
 import { describe, expect, it, vi } from "vitest";
 
+import { MessageDraft } from "../../../core/models/message-draft.model";
 import { StoredMessage } from "../../../core/models/stored-message.model";
 import { MessageStoreService } from "../../../core/services/message-store.service";
 import { MessageStream } from "./message-stream";
@@ -66,6 +67,17 @@ async function setupStreaming(initial: readonly StoredMessage[] = []) {
   fixture.detectChanges();
 
   return { fixture, messages$, clearTopic };
+}
+
+/** Picks a per-message control off the first (newest) card. */
+function cardAction(element: HTMLElement, label: string): HTMLElement {
+  const match = [...element.querySelectorAll(".card-action")].find(
+    (action) => action.textContent?.trim() === label,
+  );
+  if (match === undefined) {
+    throw new Error(`no card action labelled "${label}"`);
+  }
+  return match as HTMLElement;
 }
 
 /** Picks a header control by its label - the header holds several, and which
@@ -328,6 +340,111 @@ describe("MessageStream", () => {
 
       expect(component.paused()).toBe(false);
       expect(component.pendingCount()).toBe(0);
+    });
+  });
+
+  describe("resend", () => {
+    it("emits a draft carrying the message's topic, payload, QoS and retain", async () => {
+      const { fixture } = await setup({
+        device: [
+          message({
+            payload: encode('{"on":true}'),
+            qos: "ExactlyOnce",
+            retain: true,
+          }),
+        ],
+      });
+      await selectTopic(fixture, "device");
+
+      const emitted: MessageDraft[] = [];
+      fixture.componentInstance.resendRequested.subscribe((draft) =>
+        emitted.push(draft),
+      );
+      cardAction(fixture.nativeElement as HTMLElement, "Resend").click();
+
+      expect(emitted).toEqual([
+        {
+          topic: "device",
+          payload: '{"on":true}',
+          format: "json",
+          qos: "ExactlyOnce",
+          retain: true,
+        },
+      ]);
+    });
+
+    it("emits again when the same message is resent twice", async () => {
+      const { fixture } = await setup({
+        device: [message({ payload: encode("ON") })],
+      });
+      await selectTopic(fixture, "device");
+
+      const emitted: MessageDraft[] = [];
+      fixture.componentInstance.resendRequested.subscribe((draft) =>
+        emitted.push(draft),
+      );
+      const action = cardAction(fixture.nativeElement as HTMLElement, "Resend");
+      action.click();
+      action.click();
+
+      expect(emitted).toHaveLength(2);
+    });
+
+    it("disables resend for a binary payload instead of emitting its label", async () => {
+      const binary = Array.from({ length: 40 }, (_, i) => 0x80 + (i % 0x40));
+      const { fixture } = await setup({ device: [message({ payload: binary })] });
+      await selectTopic(fixture, "device");
+
+      const emitted: MessageDraft[] = [];
+      fixture.componentInstance.resendRequested.subscribe((draft) =>
+        emitted.push(draft),
+      );
+      const action = cardAction(fixture.nativeElement as HTMLElement, "Resend");
+      expect(action.classList).toContain("disabled");
+
+      action.click();
+      expect(emitted).toEqual([]);
+    });
+  });
+
+  describe("copy", () => {
+    it("copies the decoded payload and confirms it", async () => {
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      vi.stubGlobal("navigator", { clipboard: { writeText } });
+
+      const { fixture } = await setup({
+        device: [message({ payload: encode('{"on":true}') })],
+      });
+      await selectTopic(fixture, "device");
+
+      cardAction(fixture.nativeElement as HTMLElement, "Copy").click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(writeText).toHaveBeenCalledWith('{"on":true}');
+      expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+        "Copied",
+      );
+      vi.unstubAllGlobals();
+    });
+
+    it("reports a clipboard rejection instead of throwing", async () => {
+      const writeText = vi.fn().mockRejectedValue(new Error("denied"));
+      vi.stubGlobal("navigator", { clipboard: { writeText } });
+
+      const { fixture } = await setup({
+        device: [message({ payload: encode("ON") })],
+      });
+      await selectTopic(fixture, "device");
+
+      cardAction(fixture.nativeElement as HTMLElement, "Copy").click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+        "Copy failed",
+      );
+      vi.unstubAllGlobals();
     });
   });
 

@@ -5,10 +5,12 @@ import {
   computed,
   inject,
   signal,
+  viewChild,
 } from "@angular/core";
 import { ActivatedRoute, Router } from "@angular/router";
 
 import { BrokerConnection } from "../../core/models/broker-connection.model";
+import { MessageDraft } from "../../core/models/message-draft.model";
 import { ConnectionsService } from "../../core/services/connections.service";
 import { MqttEventsService } from "../../core/services/mqtt-events.service";
 import { reconnectLabel } from "./format/reconnect-label";
@@ -65,6 +67,16 @@ export class BrokerWorkspace {
   readonly reconnectLabel = reconnectLabel;
   readonly selectedTopic = signal<string | null>(null);
   readonly connection = signal<BrokerConnection | null>(null);
+
+  private readonly publishPanel = viewChild(PublishPanel);
+
+  /** Hands a message the user asked to resend straight to the publish panel.
+   * A direct method call rather than an input, because resending the *same*
+   * message twice has to reload the draft both times - an input signal
+   * wouldn't fire again for an unchanged reference. */
+  loadDraft(draft: MessageDraft): void {
+    this.publishPanel()?.loadDraft(draft);
+  }
 
   // The size of each window-relative panel is stored as a fraction of the
   // window's current dimensions (not a pixel value that gets nudged around

@@ -2,6 +2,7 @@ import { TestBed } from "@angular/core/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { FavoriteMessage } from "../../../core/models/favorite-message.model";
+import { MessageDraft } from "../../../core/models/message-draft.model";
 import { FavoriteCollectionsService } from "../../../core/services/favorite-collections.service";
 import { FavoritesService } from "../../../core/services/favorites.service";
 import { MqttService } from "../../../core/services/mqtt.service";
@@ -530,6 +531,39 @@ describe("PublishPanel", () => {
 
       expect(component.form.controls.topic.value).toBe("sensors/zone-a");
       expect(component.form.controls.payload.value).toBe('{"a":1}');
+    });
+  });
+
+  describe("loadDraft", () => {
+    const DRAFT: MessageDraft = {
+      topic: "sensors/zone-b",
+      payload: '{"b":2}',
+      format: "json",
+      qos: "AtLeastOnce",
+      retain: true,
+    };
+
+    it("fills the whole draft from a resent message", async () => {
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+
+      component.loadDraft(DRAFT);
+
+      expect(component.form.controls.topic.value).toBe("sensors/zone-b");
+      expect(component.form.controls.payload.value).toBe('{"b":2}');
+      expect(component.format()).toBe("json");
+      expect(component.qos()).toBe("AtLeastOnce");
+      expect(component.retain()).toBe(true);
+    });
+
+    it("clears a stale publish error, since the draft it referred to is gone", async () => {
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+      component.publishError.set("Not connected to the broker");
+
+      component.loadDraft(DRAFT);
+
+      expect(component.publishError()).toBeNull();
     });
   });
 });

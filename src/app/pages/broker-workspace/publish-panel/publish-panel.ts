@@ -170,14 +170,20 @@ export class PublishPanel {
     this.showLoadModal.set(false);
   }
 
-  /** Plainly overwrites the current draft with the selected template's
-   * fields - matches how clicking a topic in the tree already behaves. */
   onTemplateSelected(favorite: FavoriteMessage): void {
-    this.form.setValue({ topic: favorite.topic, payload: favorite.payload });
-    this.format.set(favorite.format);
-    this.qos.set(favorite.qos);
-    this.retain.set(favorite.retain);
+    this.loadDraft(favorite);
     this.showLoadModal.set(false);
+  }
+
+  /** Plainly overwrites the current draft - matches how clicking a topic in
+   * the tree already behaves. Shared by "load template" and by resending a
+   * received message from the stream. */
+  loadDraft(draft: MessageDraft): void {
+    this.form.setValue({ topic: draft.topic, payload: draft.payload });
+    this.format.set(draft.format);
+    this.qos.set(draft.qos);
+    this.retain.set(draft.retain);
+    this.publishError.set(null);
   }
 
   private payloadText(payload: string): string {

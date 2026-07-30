@@ -38,6 +38,9 @@
       @if (paused()) {
         <span class="paused-badge">{{ pausedLabel() }}</span>
       }
+      @if (copiedNote(); as note) {
+        <span class="copied-note" role="status">{{ note }}</span>
+      }
     </div>
   </div>
   <div class="message-list" #list (scroll)="onScroll($event)">
@@ -55,6 +58,32 @@
             @if (pv.view.message.retain) {
               <span class="retain-badge">Retained</span>
             }
+            <div class="card-actions">
+              <span
+                class="card-action"
+                [class.disabled]="pv.view.draft === null"
+                (click)="resend(pv.view.draft)"
+                (keydown.enter)="resend(pv.view.draft)"
+                role="button"
+                [attr.tabindex]="pv.view.draft === null ? -1 : 0"
+                [title]="
+                  pv.view.draft === null
+                    ? 'This payload cannot be edited as text'
+                    : 'Load into the publish panel'
+                "
+              >
+                Resend
+              </span>
+              <span
+                class="card-action"
+                (click)="copyPayload(pv.view)"
+                (keydown.enter)="copyPayload(pv.view)"
+                role="button"
+                tabindex="0"
+              >
+                Copy
+              </span>
+            </div>
           </div>
           <app-formatted-payload
             class="payload"

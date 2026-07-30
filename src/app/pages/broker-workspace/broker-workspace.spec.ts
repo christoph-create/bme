@@ -1,4 +1,5 @@
 import { TestBed } from "@angular/core/testing";
+import { By } from "@angular/platform-browser";
 import {
   ActivatedRoute,
   Router,
@@ -14,6 +15,8 @@ import { ConnectionsService } from "../../core/services/connections.service";
 import { MessageStoreService } from "../../core/services/message-store.service";
 import { MqttEventsService } from "../../core/services/mqtt-events.service";
 import { BrokerWorkspace } from "./broker-workspace";
+import { MessageStream } from "./message-stream/message-stream";
+import { PublishPanel } from "./publish-panel/publish-panel";
 
 const CONNECTION_ID = "11111111-1111-1111-1111-111111111111";
 const OTHER_CONNECTION_ID = "22222222-2222-2222-2222-222222222222";
@@ -671,5 +674,28 @@ describe("BrokerWorkspace", () => {
 
     expect(component.sidebarWidth()).toBe(startWidth);
     expect(component.publishHeight()).toBe(startHeight);
+  });
+
+  it("loads a message resent from the stream into the publish panel", async () => {
+    const { fixture } = await setup();
+    await fixture.whenStable();
+
+    const stream = fixture.debugElement.query(By.directive(MessageStream))
+      .componentInstance as MessageStream;
+    stream.resendRequested.emit({
+      topic: "sensors/zone-b",
+      payload: '{"b":2}',
+      format: "json",
+      qos: "AtLeastOnce",
+      retain: true,
+    });
+    fixture.detectChanges();
+
+    const panel = fixture.debugElement.query(By.directive(PublishPanel))
+      .componentInstance as PublishPanel;
+    expect(panel.form.controls.topic.value).toBe("sensors/zone-b");
+    expect(panel.form.controls.payload.value).toBe('{"b":2}');
+    expect(panel.qos()).toBe("AtLeastOnce");
+    expect(panel.retain()).toBe(true);
   });
 });
