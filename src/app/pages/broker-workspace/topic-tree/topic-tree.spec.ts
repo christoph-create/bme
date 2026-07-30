@@ -324,4 +324,92 @@ describe("TopicTree", () => {
     expect(component.isFlashing("device")).toBe(true);
     expect(component.isFlashing("other")).toBe(false);
   });
+
+  it("keeps the filter input out of the way until it is asked for", async () => {
+    const { fixture } = await setup(
+      new Map([["sensors/humidity", [message()]]]),
+    );
+    const host = fixture.nativeElement as HTMLElement;
+
+    expect(host.querySelector(".filter-input")).toBeNull();
+
+    fixture.componentInstance.toggleFilter();
+    fixture.detectChanges();
+    expect(host.querySelector(".filter-input")).not.toBeNull();
+  });
+
+  it("clears the filter when the input is closed, so the tree is never narrowed invisibly", async () => {
+    const { fixture } = await setup(
+      new Map([
+        ["sensors/humidity", [message()]],
+        ["device/battery", [message()]],
+      ]),
+    );
+    const component = fixture.componentInstance;
+
+    component.openFilter();
+    component.filter.set("humid");
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain(
+      "device",
+    );
+
+    component.closeFilter();
+    fixture.detectChanges();
+
+    expect(component.filter()).toBe("");
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      "device",
+    );
+  });
+
+  it("narrows the rendered tree to matching topics and reports matched-of-total", async () => {
+    const { fixture } = await setup(
+      new Map([
+        ["sensors/temperature", [message()]],
+        ["sensors/humidity", [message()]],
+        ["device/battery", [message()]],
+      ]),
+    );
+    fixture.componentInstance.openFilter();
+    fixture.componentInstance.filter.set("humid");
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? "";
+    expect(text).toContain("Topics · 1 of 3");
+    expect(text).toContain("humidity");
+    expect(text).not.toContain("temperature");
+    expect(text).not.toContain("battery");
+  });
+
+  it("auto-expands while filtering without disturbing the manual expand state", async () => {
+    const { fixture } = await setup(
+      new Map([["sensors/humidity", [message()]]]),
+    );
+    const component = fixture.componentInstance;
+
+    expect(component.isExpanded("sensors")).toBe(false);
+
+    component.openFilter();
+    component.filter.set("humid");
+    fixture.detectChanges();
+    expect(component.isExpanded("sensors")).toBe(true);
+
+    component.clearFilter();
+    fixture.detectChanges();
+    expect(component.isExpanded("sensors")).toBe(false);
+  });
+
+  it("tells the user when nothing matches", async () => {
+    const { fixture } = await setup(
+      new Map([["sensors/humidity", [message()]]]),
+    );
+    fixture.componentInstance.openFilter();
+    fixture.componentInstance.filter.set("nope");
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? "";
+    expect(text).toContain("No topics match");
+    expect(text).not.toContain("humidity");
+  });
 });
