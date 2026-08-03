@@ -222,4 +222,162 @@ describe("MessageStoreService", () => {
       ).length,
     ).toBe(1);
   });
+
+  it("clearTopic() drops one topic and leaves the connection's other topics alone", async () => {
+    const { events$, store } = setup();
+
+    events$.next({
+      MessageReceived: messageReceived({ topic: "sensors/temp" }),
+    });
+    events$.next({
+      MessageReceived: messageReceived({ topic: "sensors/humidity" }),
+    });
+    store.clearTopic(CONNECTION_A, "sensors/temp");
+
+    expect(
+      await firstValueFrom(store.messagesFor(CONNECTION_A, "sensors/temp")),
+    ).toEqual([]);
+    expect(
+      (
+        await firstValueFrom(
+          store.messagesFor(CONNECTION_A, "sensors/humidity"),
+        )
+      ).length,
+    ).toBe(1);
+  });
+
+  it("clearTopic() removes the topic from topicsFor, so it leaves the tree", async () => {
+    const { events$, store } = setup();
+
+    events$.next({
+      MessageReceived: messageReceived({ topic: "sensors/temp" }),
+    });
+    events$.next({
+      MessageReceived: messageReceived({ topic: "sensors/humidity" }),
+    });
+    store.clearTopic(CONNECTION_A, "sensors/temp");
+
+    const topics = await firstValueFrom(store.topicsFor(CONNECTION_A));
+    expect([...topics.keys()]).toEqual(["sensors/humidity"]);
+  });
+
+  it("clearTopic() leaves the same topic on other connections untouched", async () => {
+    const { events$, store } = setup();
+
+    events$.next({ MessageReceived: messageReceived() });
+    events$.next({
+      MessageReceived: messageReceived({ connection_id: CONNECTION_B }),
+    });
+    store.clearTopic(CONNECTION_A, "sensors/temp");
+
+    expect(
+      (
+        await firstValueFrom(store.messagesFor(CONNECTION_B, "sensors/temp"))
+      ).length,
+    ).toBe(1);
+  });
+
+  describe("retained topics", () => {
+    it("starts with nothing known to be retained", async () => {
+      const { store } = setup();
+
+      const retained = await firstValueFrom(
+        store.retainedTopicsFor(CONNECTION_A),
+      );
+      expect([...retained]).toEqual([]);
+    });
+
+    it("marks a topic when a message arrives with the retain flag set", async () => {
+      const { events$, store } = setup();
+
+      events$.next({ MessageReceived: messageReceived({ retain: true }) });
+
+      const retained = await firstValueFrom(
+        store.retainedTopicsFor(CONNECTION_A),
+      );
+      expect([...retained]).toEqual(["sensors/temp"]);
+    });
+
+    it("does not mark a topic for ordinary live traffic", async () => {
+      const { events$, store } = setup();
+
+      events$.next({ MessageReceived: messageReceived({ retain: false }) });
+
+      const retained = await firstValueFrom(
+        store.retainedTopicsFor(CONNECTION_A),
+      );
+      expect([...retained]).toEqual([]);
+    });
+
+    it("unmarks a topic when a zero-length retained message arrives, which is how MQTT clears one", async () => {
+      const { events$, store } = setup();
+
+      events$.next({ MessageReceived: messageReceived({ retain: true }) });
+      events$.next({
+        MessageReceived: messageReceived({ retain: true, payload: [] }),
+      });
+
+      const retained = await firstValueFrom(
+        store.retainedTopicsFor(CONNECTION_A),
+      );
+      expect([...retained]).toEqual([]);
+    });
+
+    it("keeps marks per connection", async () => {
+      const { events$, store } = setup();
+
+      events$.next({ MessageReceived: messageReceived({ retain: true }) });
+
+      expect([
+        ...(await firstValueFrom(store.retainedTopicsFor(CONNECTION_B))),
+      ]).toEqual([]);
+    });
+
+    it("forgetRetained() drops the mark, for after clearing it on the broker", async () => {
+      const { events$, store } = setup();
+
+      events$.next({ MessageReceived: messageReceived({ retain: true }) });
+      store.forgetRetained(CONNECTION_A, "sensors/temp");
+
+      expect([
+        ...(await firstValueFrom(store.retainedTopicsFor(CONNECTION_A))),
+      ]).toEqual([]);
+    });
+
+    it("keeps the mark when the topic's local history is cleared, since the broker still holds it", async () => {
+      const { events$, store } = setup();
+
+      events$.next({ MessageReceived: messageReceived({ retain: true }) });
+      store.clearTopic(CONNECTION_A, "sensors/temp");
+
+      expect([
+        ...(await firstValueFrom(store.retainedTopicsFor(CONNECTION_A))),
+      ]).toEqual(["sensors/temp"]);
+    });
+
+    it("drops marks along with the history when a connection is cleared", async () => {
+      const { events$, store } = setup();
+
+      events$.next({ MessageReceived: messageReceived({ retain: true }) });
+      store.clear(CONNECTION_A);
+
+      expect([
+        ...(await firstValueFrom(store.retainedTopicsFor(CONNECTION_A))),
+      ]).toEqual([]);
+    });
+  });
+
+  it("clearTopic() is a no-op for an unknown connection or topic", async () => {
+    const { events$, store } = setup();
+
+    events$.next({ MessageReceived: messageReceived() });
+    store.clearTopic(CONNECTION_B, "sensors/temp");
+    store.clearTopic(CONNECTION_A, "never/seen");
+
+    expect(
+      (
+        await firstValueFrom(store.messagesFor(CONNECTION_A, "sensors/temp"))
+      ).length,
+    ).toBe(1);
+  });
 });

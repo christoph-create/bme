@@ -2,12 +2,16 @@ import { NgTemplateOutlet } from "@angular/common";
 import {
   Component,
   DestroyRef,
+  ElementRef,
+  HostListener,
   OnInit,
   computed,
+  effect,
   inject,
   input,
   output,
   signal,
+  viewChild,
 } from "@angular/core";
 
 import { MessageStoreService } from "../../../core/services/message-store.service";
@@ -19,6 +23,7 @@ import {
 } from "./build-topic-tree";
 import { formatPayloadPreview } from "../format/payload-text";
 import { formatTimeAgo } from "../format/time-ago";
+import { filterTopicTree } from "./filter-topic-tree";
 import { findUpdatedLeafPaths } from "./find-updated-leaf-paths";
 
 const TICK_INTERVAL_MS = 1000;
@@ -42,6 +47,12 @@ export class TopicTree implements OnInit {
   readonly selectedTopic = signal<string | null>(null);
   readonly now = signal(Date.now());
   readonly flashingPaths = signal<ReadonlySet<string>>(new Set());
+  readonly filter = signal("");
+  readonly filterOpen = signal(false);
+  readonly retainedTopics = signal<ReadonlySet<string>>(new Set());
+
+  private readonly filterInput =
+    viewChild<ElementRef<HTMLInputElement>>("filterInput");
 
   private previousNodes: TopicNode[] | null = null;
   private readonly flashTimeouts = new Map<
@@ -56,10 +67,31 @@ export class TopicTree implements OnInit {
    * the click being a one-time snapshot of whatever existed at click time. */
   readonly allExpanded = signal(false);
 
+  readonly filtering = computed(() => this.filter().trim() !== "");
+
+  /** The tree as rendered. `nodes` stays the unfiltered truth so flashing,
+   * "expand all" and the total count all keep describing the whole broker
+   * rather than whatever the filter happens to leave standing. */
+  readonly visibleNodes = computed(() =>
+    filterTopicTree(this.nodes(), this.filter()),
+  );
+
   readonly totalTopics = computed(() => countLeaves(this.nodes()));
+  readonly matchedTopics = computed(() => countLeaves(this.visibleNodes()));
   private readonly folderPaths = computed(() =>
     collectFolderPaths(this.nodes()),
   );
+
+  constructor() {
+    // The input only exists in the DOM while the filter is open, so focusing
+    // can't happen at the moment it's opened - this waits for the view child
+    // to actually show up.
+    effect(() => {
+      if (this.filterOpen()) {
+        this.filterInput()?.nativeElement.focus();
+      }
+    });
+  }
 
   ngOnInit(): void {
     const subscription = this.messageStore
@@ -75,8 +107,13 @@ export class TopicTree implements OnInit {
         this.previousNodes = nextNodes;
         this.nodes.set(nextNodes);
       });
+    const retainedSubscription = this.messageStore
+      .retainedTopicsFor(this.connectionId())
+      .subscribe((topics) => this.retainedTopics.set(topics));
+
     this.destroyRef.onDestroy(() => {
       subscription.unsubscribe();
+      retainedSubscription.unsubscribe();
       for (const handle of this.flashTimeouts.values()) {
         clearTimeout(handle);
       }
@@ -90,11 +127,53 @@ export class TopicTree implements OnInit {
   }
 
   isExpanded(path: string): boolean {
-    return this.expandedPaths().has(path);
+    // A filtered tree is fully open: everything still standing is there
+    // because it matched, so collapsing it would hide the answer. Left as an
+    // override rather than a write to `expandedPaths`, so clearing the filter
+    // restores the user's own expand/collapse state verbatim.
+    return this.filtering() || this.expandedPaths().has(path);
+  }
+
+  onFilterInput(event: Event): void {
+    this.filter.set((event.target as HTMLInputElement).value);
+  }
+
+  clearFilter(): void {
+    this.filter.set("");
+    this.filterInput()?.nativeElement.focus();
+  }
+
+  openFilter(): void {
+    this.filterOpen.set(true);
+  }
+
+  /** Closing always clears, so the tree is never narrowed by a filter the
+   * user can no longer see. */
+  closeFilter(): void {
+    this.filterOpen.set(false);
+    this.filter.set("");
+  }
+
+  toggleFilter(): void {
+    if (this.filterOpen()) {
+      this.closeFilter();
+    } else {
+      this.openFilter();
+    }
+  }
+
+  @HostListener("document:keydown.control.f", ["$event"])
+  onFindShortcut(event: Event): void {
+    event.preventDefault();
+    this.openFilter();
   }
 
   isFlashing(path: string): boolean {
     return this.flashingPaths().has(path);
+  }
+
+  isRetained(path: string): boolean {
+    return this.retainedTopics().has(path);
   }
 
   toggleFolder(path: string): void {

@@ -17,6 +17,12 @@
   text-transform: uppercase;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .toggle-link {
   font-size: 11px;
   font-weight: 600;
@@ -28,8 +34,50 @@
   color: var(--color-text);
 }
 
+.toggle-link.active {
+  color: var(--color-accent);
+}
+
+.filter-row {
+  position: relative;
+  display: flex;
+  padding-bottom: 2px;
+}
+
+.filter-input {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 24px 0 8px;
+  font-size: 12px;
+}
+
+.filter-clear {
+  position: absolute;
+  right: 8px;
+  top: 0;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--color-text-quaternary);
+  cursor: pointer;
+}
+
+.filter-clear:hover {
+  color: var(--color-text);
+}
+
 .tree {
   padding-top: 4px;
+}
+
+.empty-state {
+  padding: 16px 8px;
+  font-size: 11.5px;
+  color: var(--color-text-quaternary);
+  text-align: center;
 }
 
 .tree-row {
@@ -118,6 +166,18 @@
   font-size: 11px;
   color: var(--color-text-faint);
   flex-shrink: 0;
+}
+
+.retained-mark {
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-info-on-tint);
+  background: var(--color-info-tint);
+  padding: 2px 4px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  cursor: help;
 }
 
 .msg-count {

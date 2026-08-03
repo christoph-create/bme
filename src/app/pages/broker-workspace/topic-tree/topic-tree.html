@@ -1,19 +1,67 @@
 <div class="section-header">
-  <span class="section-label">Topics · {{ totalTopics() }}</span>
-  <span
-    class="toggle-link"
-    (click)="toggleExpandAll()"
-    (keydown.enter)="toggleExpandAll()"
-    role="button"
-    tabindex="0"
-  >
-    {{ allExpanded() ? "Collapse all" : "Expand all" }}
+  <span class="section-label">
+    @if (filtering()) {
+      Topics · {{ matchedTopics() }} of {{ totalTopics() }}
+    } @else {
+      Topics · {{ totalTopics() }}
+    }
   </span>
+  <div class="header-actions">
+    <span
+      class="toggle-link"
+      [class.active]="filterOpen()"
+      (click)="toggleFilter()"
+      (keydown.enter)="toggleFilter()"
+      role="button"
+      tabindex="0"
+      title="Filter topics (Ctrl+F)"
+    >
+      Filter
+    </span>
+    <span
+      class="toggle-link"
+      (click)="toggleExpandAll()"
+      (keydown.enter)="toggleExpandAll()"
+      role="button"
+      tabindex="0"
+    >
+      {{ allExpanded() ? "Collapse all" : "Expand all" }}
+    </span>
+  </div>
 </div>
 
+@if (filterOpen()) {
+  <div class="filter-row">
+    <input
+      #filterInput
+      type="text"
+      class="filter-input"
+      placeholder="Filter topics…"
+      aria-label="Filter topics"
+      [value]="filter()"
+      (input)="onFilterInput($event)"
+      (keydown.escape)="closeFilter()"
+    />
+    @if (filtering()) {
+      <span
+        class="filter-clear"
+        (click)="clearFilter()"
+        (keydown.enter)="clearFilter()"
+        role="button"
+        tabindex="0"
+        aria-label="Clear filter"
+        >×</span
+      >
+    }
+  </div>
+}
+
 <div class="tree">
+  @if (filtering() && matchedTopics() === 0) {
+    <div class="empty-state">No topics match “{{ filter().trim() }}”</div>
+  }
   <ng-container
-    *ngTemplateOutlet="nodeList; context: { nodes: nodes(), depth: 0 }"
+    *ngTemplateOutlet="nodeList; context: { nodes: visibleNodes(), depth: 0 }"
   ></ng-container>
 </div>
 
@@ -60,6 +108,14 @@
       <div class="row-main">
         <span class="dot" [class.selected]="selectedTopic() === node.path"></span>
         <span class="name leaf-name">{{ node.name }}</span>
+        @if (isRetained(node.path)) {
+          <span
+            class="retained-mark"
+            title="This topic holds a retained message on the broker"
+            aria-label="Has a retained message"
+            >R</span
+          >
+        }
         <span class="msg-count">{{ node.messageCount }}</span>
       </div>
       <div class="row-detail">

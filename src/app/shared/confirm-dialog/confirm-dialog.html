@@ -1,0 +1,14 @@
+<app-modal [title]="title()" (close_modal)="cancelled.emit()">
+  <p class="message">{{ message() }}</p>
+  @if (detail(); as detailText) {
+    <p class="detail">{{ detailText }}</p>
+  }
+  <footer class="actions">
+    <button type="button" class="btn-secondary" (click)="cancelled.emit()">
+      Cancel
+    </button>
+    <button type="button" class="btn-danger" (click)="confirmed.emit()">
+      {{ confirmLabel() }}
+    </button>
+  </footer>
+</app-modal>

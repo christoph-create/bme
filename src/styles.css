@@ -34,6 +34,7 @@
   --color-success-tint: rgb(52 211 153 / 12%);
 
   --color-danger: rgb(239 68 68);
+  --color-danger-ink: rgb(255 255 255);
   --color-danger-tint: rgb(239 68 68 / 12%);
 
   /* Amber rather than orange: --color-accent is already orange, and a

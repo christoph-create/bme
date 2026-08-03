@@ -55,13 +55,20 @@ function binaryLabel(byteLength: number): string {
   return `<binary, ${byteLength} ${unit}>`;
 }
 
+export function decodePayload(payload: readonly number[]): string {
+  return decode(payload);
+}
+
 function decode(bytes: readonly number[]): string {
   return new TextDecoder("utf-8", { fatal: false }).decode(
     Uint8Array.from(bytes),
   );
 }
 
-function looksBinary(text: string): boolean {
+/** Whether decoded text is mostly replacement characters, i.e. the bytes
+ * weren't text at all. Exported so callers that need the *real* decoded text
+ * (rather than the `<binary, N bytes>` label) can make the same call. */
+export function looksBinary(text: string): boolean {
   if (text.length === 0) {
     return false;
   }

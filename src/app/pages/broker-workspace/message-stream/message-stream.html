@@ -2,17 +2,72 @@
   <div class="header">
     <div class="header-top">
       <div class="topic-path">{{ topicPath }}</div>
-      <span
-        class="toggle-link"
-        (click)="togglePrettyJson()"
-        (keydown.enter)="togglePrettyJson()"
-        role="button"
-        tabindex="0"
-      >
-        {{ prettyJson() ? "Raw" : "Pretty JSON" }}
-      </span>
+      <div class="header-actions">
+        <span
+          class="toggle-link"
+          [class.active]="paused()"
+          (click)="togglePause()"
+          (keydown.enter)="togglePause()"
+          role="button"
+          tabindex="0"
+        >
+          {{ paused() ? "Resume" : "Pause" }}
+        </span>
+        <span
+          class="toggle-link"
+          (click)="clearMessages()"
+          (keydown.enter)="clearMessages()"
+          role="button"
+          tabindex="0"
+          title="Clear this topic's messages from the app"
+        >
+          Clear
+        </span>
+        <span
+          class="toggle-link danger"
+          [class.disabled]="!connected()"
+          (click)="askClearRetained()"
+          (keydown.enter)="askClearRetained()"
+          role="button"
+          [attr.tabindex]="connected() ? 0 : -1"
+          [title]="
+            connected()
+              ? 'Clear the retained message on the broker'
+              : 'Not connected to the broker'
+          "
+        >
+          Clear retained
+        </span>
+        <span
+          class="toggle-link"
+          (click)="togglePrettyJson()"
+          (keydown.enter)="togglePrettyJson()"
+          role="button"
+          tabindex="0"
+        >
+          {{ prettyJson() ? "Raw" : "Pretty JSON" }}
+        </span>
+      </div>
     </div>
-    <div class="count-label">{{ messageCountLabel() }}</div>
+    <div class="count-label">
+      <span>{{ messageCountLabel() }}</span>
+      @if (paused()) {
+        <span class="paused-badge">{{ pausedLabel() }}</span>
+      }
+      @if (topicHasRetained()) {
+        <span
+          class="retain-badge"
+          title="The broker holds a retained message for this topic"
+          >Retained</span
+        >
+      }
+      @if (copiedNote(); as note) {
+        <span class="copied-note" role="status">{{ note }}</span>
+      }
+    </div>
+    @if (clearRetainedError(); as error) {
+      <p class="error">{{ error }}</p>
+    }
   </div>
   <div class="message-list" #list (scroll)="onScroll($event)">
     <div class="virtual-content" [style.height.px]="totalHeight()">
@@ -29,6 +84,32 @@
             @if (pv.view.message.retain) {
               <span class="retain-badge">Retained</span>
             }
+            <div class="card-actions">
+              <span
+                class="card-action"
+                [class.disabled]="pv.view.draft === null"
+                (click)="resend(pv.view.draft)"
+                (keydown.enter)="resend(pv.view.draft)"
+                role="button"
+                [attr.tabindex]="pv.view.draft === null ? -1 : 0"
+                [title]="
+                  pv.view.draft === null
+                    ? 'This payload cannot be edited as text'
+                    : 'Load into the publish panel'
+                "
+              >
+                Resend
+              </span>
+              <span
+                class="card-action"
+                (click)="copyPayload(pv.view)"
+                (keydown.enter)="copyPayload(pv.view)"
+                role="button"
+                tabindex="0"
+              >
+                Copy
+              </span>
+            </div>
           </div>
           <app-formatted-payload
             class="payload"
@@ -43,6 +124,19 @@
       <div class="empty-state">No messages yet on this topic</div>
     }
   </div>
+
+  @if (confirmingClearRetained()) {
+    <app-confirm-dialog
+      title="Clear retained message"
+      [message]="
+        'Publish an empty retained message to ' + topicPath + '?'
+      "
+      detail="This clears the retained message on the broker for every client, not just this one. It cannot be undone."
+      confirmLabel="Clear retained"
+      (confirmed)="clearRetained()"
+      (cancelled)="cancelClearRetained()"
+    />
+  }
 } @else {
   <div class="empty-state">Select a topic to see its messages</div>
 }
