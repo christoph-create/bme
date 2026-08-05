@@ -17,6 +17,7 @@ import { MqttEventsService } from "../../core/services/mqtt-events.service";
 import { BrokerWorkspace } from "./broker-workspace";
 import { MessageStream } from "./message-stream/message-stream";
 import { PublishPanel } from "./publish-panel/publish-panel";
+import { TopicTree } from "./topic-tree/topic-tree";
 
 const CONNECTION_ID = "11111111-1111-1111-1111-111111111111";
 const OTHER_CONNECTION_ID = "22222222-2222-2222-2222-222222222222";
@@ -72,6 +73,7 @@ async function setup(
         useValue: {
           topicsFor: vi.fn().mockReturnValue(of(new Map())),
           retainedTopicsFor: vi.fn().mockReturnValue(of(new Set())),
+          messagesFor: vi.fn().mockReturnValue(of([])),
         },
       },
       { provide: MqttEventsService, useValue: { events$ } },
@@ -700,5 +702,38 @@ describe("BrokerWorkspace", () => {
     expect(panel.form.controls.payload.value).toBe('{"b":2}');
     expect(panel.qos()).toBe("AtLeastOnce");
     expect(panel.retain()).toBe(true);
+  });
+
+  it("selecting a topic opens its stream without touching the publish topic", async () => {
+    const { fixture } = await setup();
+    await fixture.whenStable();
+
+    const panel = fixture.debugElement.query(By.directive(PublishPanel))
+      .componentInstance as PublishPanel;
+    panel.form.controls.topic.setValue("typed/by/hand");
+
+    const tree = fixture.debugElement.query(By.directive(TopicTree))
+      .componentInstance as TopicTree;
+    tree.topicSelected.emit("sensors/zone-a");
+    fixture.detectChanges();
+
+    const stream = fixture.debugElement.query(By.directive(MessageStream))
+      .componentInstance as MessageStream;
+    expect(stream.topic()).toBe("sensors/zone-a");
+    expect(panel.form.controls.topic.value).toBe("typed/by/hand");
+  });
+
+  it("double-clicking a topic points the publish panel at it", async () => {
+    const { fixture } = await setup();
+    await fixture.whenStable();
+
+    const tree = fixture.debugElement.query(By.directive(TopicTree))
+      .componentInstance as TopicTree;
+    tree.publishTopicRequested.emit("sensors/zone-a");
+    fixture.detectChanges();
+
+    const panel = fixture.debugElement.query(By.directive(PublishPanel))
+      .componentInstance as PublishPanel;
+    expect(panel.form.controls.topic.value).toBe("sensors/zone-a");
   });
 });

@@ -78,6 +78,14 @@ export class BrokerWorkspace {
     this.publishPanel()?.loadDraft(draft);
   }
 
+  /** Double-clicking a topic in the tree is the only thing that points the
+   * publish panel at it - a plain click just opens the stream, so browsing
+   * topics never clobbers a publish topic the user typed. Imperative for the
+   * same reason as `loadDraft`. */
+  setPublishTopic(topic: string): void {
+    this.publishPanel()?.setTopic(topic);
+  }
+
   // The size of each window-relative panel is stored as a fraction of the
   // window's current dimensions (not a pixel value that gets nudged around
   // on every resize event) so that recomputing it after a window resize is

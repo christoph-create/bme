@@ -148,6 +148,47 @@ describe("TopicTree", () => {
     expect(component.selectedTopic()).toBe("device");
   });
 
+  it("double-clicking a leaf emits publishTopicRequested on top of the plain click", async () => {
+    const { fixture } = await setup(new Map([["device", [message()]]]));
+    const component = fixture.componentInstance;
+    const selected: string[] = [];
+    const publishRequested: string[] = [];
+    component.topicSelected.subscribe((topic) => selected.push(topic));
+    component.publishTopicRequested.subscribe((topic) =>
+      publishRequested.push(topic),
+    );
+
+    const row = (fixture.nativeElement as HTMLElement).querySelector(
+      ".tree-row.leaf",
+    );
+    // A real double-click is two clicks plus a dblclick, in that order.
+    row?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    row?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    row?.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+    fixture.detectChanges();
+
+    expect(publishRequested).toEqual(["device"]);
+    expect(selected).toEqual(["device", "device"]);
+  });
+
+  it("a plain click never asks for the publish topic", async () => {
+    const { fixture } = await setup(new Map([["device", [message()]]]));
+    const component = fixture.componentInstance;
+    const publishRequested: string[] = [];
+    component.publishTopicRequested.subscribe((topic) =>
+      publishRequested.push(topic),
+    );
+
+    (
+      (fixture.nativeElement as HTMLElement).querySelector(
+        ".tree-row.leaf",
+      ) as HTMLElement
+    ).click();
+    fixture.detectChanges();
+
+    expect(publishRequested).toEqual([]);
+  });
+
   it("shows the message count, last payload preview, and time-ago for a leaf", async () => {
     const msg = message({
       payload: [123, 34, 111, 107, 34, 58, 116, 114, 117, 101, 125], // {"ok":true}

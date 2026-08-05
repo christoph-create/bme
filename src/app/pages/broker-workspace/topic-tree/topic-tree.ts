@@ -38,6 +38,7 @@ const FLASH_DURATION_MS = 400;
 export class TopicTree implements OnInit {
   readonly connectionId = input.required<string>();
   readonly topicSelected = output<string>();
+  readonly publishTopicRequested = output<string>();
 
   private readonly messageStore = inject(MessageStoreService);
   private readonly destroyRef = inject(DestroyRef);
@@ -195,6 +196,12 @@ export class TopicTree implements OnInit {
   selectTopic(path: string): void {
     this.selectedTopic.set(path);
     this.topicSelected.emit(path);
+  }
+
+  /** Double-click is a superset of click: the browser fires the single clicks
+   * first, so the stream has already opened by the time this runs. */
+  publishTopic(path: string): void {
+    this.publishTopicRequested.emit(path);
   }
 
   timeAgo(receivedAt: number): string {

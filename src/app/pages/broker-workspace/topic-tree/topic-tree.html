@@ -101,7 +101,9 @@
       [class.selected]="selectedTopic() === node.path"
       [style.padding-left.px]="10 + depth * 16"
       (click)="selectTopic(node.path)"
+      (dblclick)="publishTopic(node.path)"
       (keydown.enter)="selectTopic(node.path)"
+      title="Click to open the stream · Double-click to use as publish topic"
       role="button"
       tabindex="0"
     >

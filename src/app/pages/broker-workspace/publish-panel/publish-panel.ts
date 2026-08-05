@@ -2,7 +2,6 @@ import {
   Component,
   DestroyRef,
   computed,
-  effect,
   inject,
   input,
   signal,
@@ -40,7 +39,6 @@ export class PublishPanel {
   readonly formatOptions = FORMAT_OPTIONS;
 
   readonly connectionId = input.required<string>();
-  readonly topic = input<string | null>(null);
   readonly connected = input<boolean>(true);
 
   private readonly mqttService = inject(MqttService);
@@ -86,13 +84,6 @@ export class PublishPanel {
   });
 
   constructor() {
-    effect(() => {
-      const topic = this.topic();
-      if (topic !== null) {
-        this.form.controls.topic.setValue(topic);
-      }
-    });
-
     this.destroyRef.onDestroy(() => {
       if (this.flashTimeout !== null) {
         clearTimeout(this.flashTimeout);
@@ -175,9 +166,16 @@ export class PublishPanel {
     this.showLoadModal.set(false);
   }
 
-  /** Plainly overwrites the current draft - matches how clicking a topic in
-   * the tree already behaves. Shared by "load template" and by resending a
-   * received message from the stream. */
+  /** Set from the topic tree on double-click. A method rather than an input,
+   * for the same reason as `loadDraft`: double-clicking the *same* topic after
+   * editing the field by hand has to restore it, and an unchanged input signal
+   * wouldn't fire again. */
+  setTopic(topic: string): void {
+    this.form.controls.topic.setValue(topic);
+  }
+
+  /** Plainly overwrites the current draft. Shared by "load template" and by
+   * resending a received message from the stream. */
   loadDraft(draft: MessageDraft): void {
     this.form.setValue({ topic: draft.topic, payload: draft.payload });
     this.format.set(draft.format);
