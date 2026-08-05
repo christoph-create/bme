@@ -65,10 +65,10 @@ describe("PublishPanel", () => {
     vi.useRealTimers();
   });
 
-  it("pre-fills the topic field from the topic input", async () => {
+  it("fills the topic field from setTopic", async () => {
     const { fixture } = await setup();
 
-    fixture.componentRef.setInput("topic", "sensors/zone-a");
+    fixture.componentInstance.setTopic("sensors/zone-a");
     fixture.detectChanges();
 
     expect(fixture.componentInstance.form.controls.topic.value).toBe(
@@ -76,17 +76,16 @@ describe("PublishPanel", () => {
     );
   });
 
-  it("updates the topic field again when the topic input changes to a different topic", async () => {
+  it("restores the same topic after the field was edited by hand", async () => {
     const { fixture } = await setup();
+    const component = fixture.componentInstance;
 
-    fixture.componentRef.setInput("topic", "sensors/zone-a");
-    fixture.detectChanges();
-    fixture.componentRef.setInput("topic", "sensors/zone-b");
+    component.setTopic("sensors/zone-a");
+    component.form.controls.topic.setValue("typed/by/hand");
+    component.setTopic("sensors/zone-a");
     fixture.detectChanges();
 
-    expect(fixture.componentInstance.form.controls.topic.value).toBe(
-      "sensors/zone-b",
-    );
+    expect(component.form.controls.topic.value).toBe("sensors/zone-a");
   });
 
   it("does not publish when the topic field is empty", async () => {

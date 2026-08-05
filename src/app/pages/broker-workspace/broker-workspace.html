@@ -48,6 +48,7 @@
     <app-topic-tree
       [connectionId]="connectionId"
       (topicSelected)="selectedTopic.set($event)"
+      (publishTopicRequested)="setPublishTopic($event)"
     />
   </aside>
 
@@ -67,7 +68,6 @@
   <section class="publish">
     <app-publish-panel
       [connectionId]="connectionId"
-      [topic]="selectedTopic()"
       [connected]="connected()"
     />
   </section>
