@@ -1,0 +1,28 @@
+<app-modal title="Update available" (close_modal)="dismissed.emit()">
+  <p class="headline">
+    bme <strong>{{ release().version }}</strong> is available.
+    @if (currentVersion()) {
+      <span class="current">You're on {{ currentVersion() }}.</span>
+    }
+  </p>
+
+  <!--
+    Release notes are markdown fetched from GitHub. Interpolating them into a
+    <pre> renders them as text with the line structure intact, and Angular
+    escapes the content - a security decision, not a styling one. Rendering
+    them as HTML would mean trusting whatever is in a release description.
+  -->
+  <pre class="notes">{{ notesText() }}</pre>
+
+  <footer class="actions">
+    <button type="button" class="btn-quiet" (click)="skipped.emit()">
+      Skip this version
+    </button>
+    <button type="button" class="btn-secondary" (click)="dismissed.emit()">
+      Remind me later
+    </button>
+    <button type="button" class="btn-primary" (click)="opened.emit()">
+      Open on GitHub
+    </button>
+  </footer>
+</app-modal>

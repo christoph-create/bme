@@ -23,7 +23,9 @@ belong to that page alone.
 
 Providers: `provideRouter`, `provideBrowserGlobalErrorListeners`,
 `GlobalErrorHandler` as the `ErrorHandler`, and an app initializer that
-merely instantiates `HeartbeatService`.
+merely instantiates `HeartbeatService` and `UpdateNotifierService`. It must
+stay **`void`-returning**: `provideAppInitializer` waits on any promise handed
+back to it, which would put a network call in front of the first paint.
 
 Both of those last two exist for the same reason: **diagnosing UI freezes
 after the fact.** `GlobalErrorHandler` funnels every uncaught error into the
@@ -53,6 +55,8 @@ Rust type and you must change its mirror here. `stored-message` and
 | `template-exchange.service` | Serializes/parses the `spec/` exchange format, including version checking |
 | `json-format.service` | Pretty-print, compact, and tokenize JSON for the payload editor's highlighting |
 | `logger.service` | Forwards to the Rust log file via `@tauri-apps/plugin-log` |
+| `update.service` | `invoke()` wrapper over `get_app_version` / `check_for_updates` / `skip_update_version` |
+| `update-notifier.service` | App-wide update state, and the one throttled check per launch. Its policy — silent vs. up-to-date vs. offer — lives in the plain `update-announcement.ts` next to it |
 
 Services are `providedIn: "root"` and injected with `inject()`, not
 constructor params.
@@ -88,9 +92,16 @@ small.
 
 ## `src/app/shared/`
 
-Only what's used by more than one page: `modal/` (the dialog shell),
-`payload-input/` (the CodeMirror-based JSON/raw editor), and
-`formatted-payload/` (read-only highlighted display).
+What isn't owned by a single page: `modal/` (the dialog shell),
+`confirm-dialog/`, `payload-input/` (the CodeMirror-based JSON/raw editor),
+`formatted-payload/` (read-only highlighted display), and `update-dialog/`.
+
+`update-dialog/` is the odd one — no page uses it. It's rendered from
+`AppComponent` (which is therefore no longer just `<router-outlet />`) so it
+can appear over whatever route the user happens to be on. Like
+`confirm-dialog`, it's purely presentational: every action is an output, and
+Escape/backdrop/close all resolve to *dismiss* rather than *skip*, so the
+harmless outcome is the one you get by accident.
 
 ## `src/app/pages/templates-management/`
 

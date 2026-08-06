@@ -3,6 +3,9 @@ fn main() {
         tauri_build::AppManifest::new().commands(&[
             "greet",
             "open_log_dir",
+            "get_app_version",
+            "check_for_updates",
+            "skip_update_version",
             "list_connections",
             "create_connection",
             "update_connection",

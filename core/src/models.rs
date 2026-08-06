@@ -182,6 +182,37 @@ pub struct UpdateFavoriteCollection {
     pub description: Option<String>,
 }
 
+/// The result of one update check. `Serialize` only - nothing sends this in.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct UpdateCheck {
+    /// What this build reports, so the caller never has to ask twice.
+    pub current_version: String,
+    /// `None` when the daily throttle skipped the network call, or when there
+    /// is simply nothing published.
+    pub latest: Option<AvailableRelease>,
+    /// True when the throttle short-circuited the check, which is how the
+    /// caller tells "nothing new" apart from "didn't look".
+    pub throttled: bool,
+}
+
+/// The newest published release, with the facts needed to decide what to do
+/// about it. Deliberately *facts* and not a verdict: whether to show a popup
+/// also depends on whether the user asked, which is a UI concern.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct AvailableRelease {
+    /// Normalised, without the `v` prefix: "0.8.0".
+    pub version: String,
+    /// The release title GitHub shows, when it isn't just the tag again.
+    pub name: Option<String>,
+    /// Markdown, truncated. Rendered as plain text - see the update dialog.
+    pub notes: Option<String>,
+    /// Built from the tag, never taken from the API response.
+    pub url: String,
+    pub published_at: Option<String>,
+    pub is_newer: bool,
+    pub is_skipped: bool,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

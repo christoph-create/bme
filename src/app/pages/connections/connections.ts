@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 
 import { BrokerConnection } from "../../core/models/broker-connection.model";
 import { ConnectionsService } from "../../core/services/connections.service";
+import { UpdateNotifierService } from "../../core/services/update-notifier.service";
 
 @Component({
   selector: "app-connections",
@@ -14,11 +15,14 @@ import { ConnectionsService } from "../../core/services/connections.service";
 export class Connections {
   private readonly connectionsService = inject(ConnectionsService);
   private readonly router = inject(Router);
+  readonly notifier = inject(UpdateNotifierService);
 
   readonly connections = signal<BrokerConnection[]>([]);
   readonly loading = signal(true);
   readonly error = signal<string | null>(null);
   readonly openMenuId = signal<string | null>(null);
+  readonly checkingUpdate = signal(false);
+  readonly updateStatus = signal<string | null>(null);
 
   constructor() {
     void this.refresh();
@@ -30,6 +34,28 @@ export class Connections {
 
   openLogDir(): void {
     void invoke("open_log_dir");
+  }
+
+  /** Unlike the automatic check, this one always says something - the user is
+   *  standing here waiting for an answer. */
+  async checkForUpdates(): Promise<void> {
+    if (this.checkingUpdate()) return;
+    this.checkingUpdate.set(true);
+    this.updateStatus.set(null);
+    try {
+      const announcement = await this.notifier.checkManually();
+      // An available update needs no message here: the notifier has already
+      // set `available()`, and the dialog that opens *is* the message.
+      this.updateStatus.set(
+        announcement.kind === "up-to-date"
+          ? "You're on the latest version"
+          : null,
+      );
+    } catch (err) {
+      this.updateStatus.set(err instanceof Error ? err.message : String(err));
+    } finally {
+      this.checkingUpdate.set(false);
+    }
   }
 
   toggleMenu(id: string, event: Event): void {

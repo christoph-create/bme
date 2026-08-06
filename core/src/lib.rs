@@ -1,6 +1,7 @@
 pub mod models;
 pub mod mqtt;
 pub mod storage;
+pub mod update;
 
 #[cfg(test)]
 mod tests {

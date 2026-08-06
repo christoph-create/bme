@@ -78,6 +78,33 @@ Received messages are **never written to SQLite** — close the app and the
 history is gone. Only connections, subscriptions, templates and collections
 persist.
 
+## 5. Checking for updates
+
+The one flow that leaves the machine for something other than MQTT.
+
+`app.config.ts`'s `provideAppInitializer` instantiates
+`UpdateNotifierService`, whose constructor schedules the check 3s later,
+outside the Angular zone (same shape as `HeartbeatService`) — the initializer
+itself must stay `void`-returning or bootstrap would wait on a network call.
+That calls `check_for_updates` with `force: false` → `UpdateChecker` reads
+`update.last_checked_at` from `app_settings` and short-circuits if it's under
+24h old → otherwise `GithubReleaseSource` fetches, the tag is parsed and
+compared against `CARGO_PKG_VERSION`, and `update.skipped_version` decides
+`is_skipped`.
+
+The backend returns **facts** (`is_newer`, `is_skipped`, `throttled`), never a
+verdict. `announcementFor()` in `core/services/update-announcement.ts` turns
+those into `update` / `up-to-date` / `silent`, and it is the single place the
+"don't be annoying" rule lives: the automatic check is silent about
+everything except a newer, unskipped release, and it swallows failures into a
+log line. The dialog is mounted on `AppComponent` rather than a page so it can
+appear over any route.
+
+The manual path is the same call with `force: true`, from the connections
+footer. It bypasses the throttle, re-offers a skipped version (pressing the
+button is asking again), and always says *something* — the dialog, "You're on
+the latest version", or the error.
+
 ## Contract points that must stay in sync
 
 Change one side of any of these and the other breaks silently:
@@ -85,8 +112,14 @@ Change one side of any of these and the other breaks silently:
 | Rust | TypeScript |
 | --- | --- |
 | `core/src/models.rs` | `src/app/core/models/*.model.ts` |
+| `UpdateCheck` / `AvailableRelease` in `core/src/models.rs` | `update-check.model.ts` |
 | `MqttEvent` in `core/src/mqtt/port.rs` (externally tagged) | `mqtt-event.model.ts` |
 | `QoS` (serialized by name: `"AtLeastOnce"`) | `qos.ts` |
 | `MessageFormat` (`"json"` / `"raw"`) | `message-format.model.ts` |
 | command names + arg names in `commands.rs` | the `invoke()` calls in `core/services/` |
 | the exchange format in `spec/` | `template-exchange.service.ts` |
+
+The `app_settings` key strings (`update.skipped_version`,
+`update.last_checked_at`, defined in `core/src/update/mod.rs`) are a contract
+too, just an internal one: renaming a key silently orphans whatever users had
+already saved under the old name.

@@ -1,1 +1,11 @@
 <router-outlet />
+
+@if (notifier.available(); as release) {
+  <app-update-dialog
+    [release]="release"
+    [currentVersion]="notifier.currentVersion()"
+    (opened)="openRelease(release.url)"
+    (dismissed)="notifier.dismiss()"
+    (skipped)="notifier.skip()"
+  />
+}

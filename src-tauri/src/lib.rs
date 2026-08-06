@@ -5,9 +5,12 @@ use std::sync::{Arc, Mutex};
 use bme_core::mqtt::manager::MqttClientManager;
 use bme_core::mqtt::rumqttc_adapter::RumqttcAdapter;
 use bme_core::storage;
+use bme_core::storage::app_settings_repo::SqliteAppSettingsRepository;
 use bme_core::storage::connections_repo::SqliteConnectionsRepository;
 use bme_core::storage::favorite_collections_repo::SqliteFavoriteCollectionsRepository;
 use bme_core::storage::favorites_repo::SqliteFavoritesRepository;
+use bme_core::update::checker::UpdateChecker;
+use bme_core::update::github::GithubReleaseSource;
 use tauri::{Emitter, Manager};
 use tokio::sync::mpsc;
 
@@ -92,7 +95,26 @@ pub fn run() {
 
             app.manage(SqliteConnectionsRepository::new(Arc::clone(&conn)));
             app.manage(SqliteFavoritesRepository::new(Arc::clone(&conn)));
-            app.manage(SqliteFavoriteCollectionsRepository::new(conn));
+            app.manage(SqliteFavoriteCollectionsRepository::new(Arc::clone(&conn)));
+            app.manage(SqliteAppSettingsRepository::new(Arc::clone(&conn)));
+
+            // Two handles onto the same settings table: the checker keeps one
+            // so its throttle and skip state travel with it, and the other
+            // stays managed for whatever reads settings next. Both are Arc
+            // bumps over the one connection.
+            if commands::effective_version() != env!("CARGO_PKG_VERSION") {
+                log::warn!(
+                    "BME_UPDATE_VERSION is set: reporting {} instead of the real {}. \
+                     Update checks will be wrong - unset it unless you're testing the dialog.",
+                    commands::effective_version(),
+                    env!("CARGO_PKG_VERSION")
+                );
+            }
+            app.manage(UpdateChecker::new(
+                GithubReleaseSource::new(concat!("bme/", env!("CARGO_PKG_VERSION"))),
+                SqliteAppSettingsRepository::new(conn),
+                commands::effective_version(),
+            ));
 
             let (events_tx, mut events_rx) = mpsc::unbounded_channel();
             app.manage(MqttClientManager::new(RumqttcAdapter::new(events_tx)));
@@ -132,6 +154,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             greet,
             commands::open_log_dir,
+            commands::get_app_version,
+            commands::check_for_updates,
+            commands::skip_update_version,
             commands::list_connections,
             commands::create_connection,
             commands::update_connection,
@@ -161,6 +186,7 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bme_core::storage::app_settings_repo::AppSettingsRepository;
     use tauri::ipc::CallbackFn;
     use tauri::test::{get_ipc_response, mock_builder, MockRuntime};
     use tauri::webview::InvokeRequest;
@@ -193,6 +219,9 @@ mod tests {
                 commands::get_favorite_collection,
                 commands::update_favorite_collection,
                 commands::delete_favorite_collection,
+                commands::get_app_version,
+                commands::check_for_updates,
+                commands::skip_update_version,
             ])
             .build(tauri::generate_context!())
             .expect("failed to build mock app");
@@ -200,13 +229,27 @@ mod tests {
         let conn = Arc::new(Mutex::new(storage::open_in_memory()));
         app.manage(SqliteConnectionsRepository::new(Arc::clone(&conn)));
         app.manage(SqliteFavoritesRepository::new(Arc::clone(&conn)));
-        app.manage(SqliteFavoriteCollectionsRepository::new(conn));
+        app.manage(SqliteFavoriteCollectionsRepository::new(Arc::clone(&conn)));
+        app.manage(SqliteAppSettingsRepository::new(Arc::clone(&conn)));
+
+        // A real adapter aimed at a closed local port: these tests are about
+        // the command wiring and the ACL, not about GitHub. The policy itself
+        // is covered in core, against a fake source.
+        app.manage(UpdateChecker::new(
+            GithubReleaseSource::with_url("bme/test", DEAD_RELEASE_URL),
+            SqliteAppSettingsRepository::new(conn),
+            env!("CARGO_PKG_VERSION"),
+        ));
 
         let (events_tx, _events_rx) = mpsc::unbounded_channel();
         app.manage(MqttClientManager::new(RumqttcAdapter::new(events_tx)));
 
         app
     }
+
+    /// Port 9 is "discard" and is never listening, so a check against it fails
+    /// fast and locally.
+    const DEAD_RELEASE_URL: &str = "http://127.0.0.1:9/latest";
 
     fn invoke(
         webview: &tauri::WebviewWindow<MockRuntime>,
@@ -227,6 +270,86 @@ mod tests {
         )
         .unwrap_or_else(|err| panic!("ipc call to {cmd} failed: {err}"));
         response.deserialize::<serde_json::Value>().unwrap()
+    }
+
+    /// Same call as `invoke`, but for the cases where failing *is* the point -
+    /// `invoke` panics on `Err`, which is right for every other test here.
+    fn invoke_err(
+        webview: &tauri::WebviewWindow<MockRuntime>,
+        cmd: &str,
+        body: serde_json::Value,
+    ) -> String {
+        get_ipc_response(
+            webview,
+            InvokeRequest {
+                cmd: cmd.into(),
+                callback: CallbackFn(0),
+                error: CallbackFn(1),
+                url: "http://localhost:1420".parse().unwrap(),
+                body: body.into(),
+                headers: Default::default(),
+                invoke_key: tauri::test::INVOKE_KEY.to_string(),
+            },
+        )
+        .expect_err("expected the command to fail")
+        .as_str()
+        .expect("expected the error to arrive as a string")
+        .to_string()
+    }
+
+    #[test]
+    fn get_app_version_returns_the_crate_version_over_ipc() {
+        // Also the cheapest proof that a new command's capability entry and
+        // handler registration both landed - the ACL rejects it otherwise.
+        let app = build_test_app();
+        let webview = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+
+        let version = invoke(&webview, "get_app_version", serde_json::json!({}));
+
+        assert_eq!(version, env!("CARGO_PKG_VERSION"));
+    }
+
+    #[test]
+    fn skip_update_version_persists_the_normalised_version_over_ipc() {
+        let app = build_test_app();
+        let webview = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+
+        invoke(
+            &webview,
+            "skip_update_version",
+            serde_json::json!({ "version": "v0.9.9" }),
+        );
+
+        let settings = app.state::<SqliteAppSettingsRepository>();
+        assert_eq!(
+            settings.get(bme_core::update::SKIPPED_VERSION_KEY).unwrap(),
+            Some("0.9.9".to_string())
+        );
+    }
+
+    #[test]
+    fn check_for_updates_surfaces_a_failure_as_a_string_over_ipc() {
+        // Proves the async command works over the same IPC path as the sync
+        // ones, and that errors reach the frontend as plain strings.
+        let app = build_test_app();
+        let webview = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+
+        let err = invoke_err(
+            &webview,
+            "check_for_updates",
+            serde_json::json!({ "force": true }),
+        );
+
+        assert!(
+            err.contains("could not reach GitHub"),
+            "unexpected error: {err}"
+        );
     }
 
     #[test]
