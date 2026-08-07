@@ -22,6 +22,7 @@ bme/
 │   └── src/
 │       ├── models.rs          Domain types (BrokerConnection, FavoriteMessage, QoS, …)
 │       ├── mqtt/              port.rs (trait + events) · rumqttc_adapter.rs · manager.rs
+│       ├── update/            port.rs (trait) · github.rs · version.rs · checker.rs
 │       └── storage/           mod.rs (open/migrate) · *_repo.rs · migrations/*.sql
 ├── src-tauri/             Rust: the Tauri shell. Thin — wiring, not logic.
 │   ├── src/lib.rs             App setup: DB, state, plugins, event pump, IPC handler list
@@ -49,7 +50,7 @@ bme/
 
 | I want to change… | Start at |
 | --- | --- |
-| What the frontend can ask the backend to do | `src-tauri/src/commands.rs` (+ add to the `generate_handler!` list in `src-tauri/src/lib.rs`, + `capabilities/default.json`) |
+| What the frontend can ask the backend to do | `src-tauri/src/commands.rs` (+ the `generate_handler!` list and `build_test_app()` in `src-tauri/src/lib.rs`, + `capabilities/default.json`, + the command list in `src-tauri/build.rs`) |
 | MQTT behaviour (connect/publish/subscribe) | `core/src/mqtt/rumqttc_adapter.rs`, then `manager.rs` |
 | The database schema | A **new** file in `core/src/storage/migrations/` — never edit an applied one |
 | A domain type shared across the app | `core/src/models.rs`, then mirror it in `src/app/core/models/` |
@@ -58,13 +59,15 @@ bme/
 | How messages are held in memory | `src/app/core/services/message-store.service.ts` |
 | Import/export of templates | `src/app/core/services/template-exchange.service.ts` + `spec/` |
 | App startup, logging, window quirks | `src-tauri/src/lib.rs` |
+| Whether the app tells you a new version exists | `core/src/update/checker.rs`, then `src/app/core/services/update-notifier.service.ts` |
+| An app-level setting (not per-connection) | `core/src/storage/app_settings_repo.rs`, with the key constants next to whatever owns the setting |
 
 ## The one architectural rule
 
 `core/` knows nothing about Tauri, and nothing about SQLite outside
-`storage/`. MQTT is behind the `MqttPort` trait, storage behind
-`*Repository` traits — that's what makes both testable without a broker or a
-display. `src-tauri/` is the only place allowed to know about both `core/`
+`storage/`. MQTT is behind the `MqttPort` trait, release lookups behind
+`ReleaseSource`, storage behind `*Repository` traits — that's what makes all
+three testable without a broker, a network, or a display. `src-tauri/` is the only place allowed to know about both `core/`
 and Tauri; keep it thin.
 
 ## Reading the code directly

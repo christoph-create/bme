@@ -1,3 +1,4 @@
+pub mod app_settings_repo;
 pub mod connections_repo;
 pub mod favorite_collections_repo;
 pub mod favorites_repo;
@@ -77,6 +78,7 @@ static MIGRATIONS: LazyLock<Migrations<'static>> = LazyLock::new(|| {
             "migrations/0007_favorite_collections_unique_name.sql"
         )),
         M::up(include_str!("migrations/0008_reconnect_settings.sql")),
+        M::up(include_str!("migrations/0009_app_settings.sql")),
     ])
 });
 

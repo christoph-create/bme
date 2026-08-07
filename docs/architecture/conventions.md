@@ -23,8 +23,8 @@ failed build.
 
 - **Rust unit tests** live in a `#[cfg(test)] mod tests` at the bottom of the
   file they cover. Storage tests use `storage::open_in_memory()`; MQTT tests
-  inject a fake `MqttPort` — nothing in the suite opens a socket or needs a
-  broker.
+  inject a fake `MqttPort` and update-check tests a fake `ReleaseSource` —
+  nothing in the suite opens a socket or needs a broker.
 - **IPC integration tests** live in `src-tauri/src/lib.rs`'s test module and
   drive real commands through real IPC against an in-memory DB. Add one when
   you add a command whose JSON shape matters.
@@ -33,6 +33,19 @@ failed build.
   own spec** rather than tested through a component (see
   `pages/broker-workspace/topic-tree/build-topic-tree.ts`,
   `message-stream/virtual-range.ts`, `format/time-ago.ts`). Keep doing this.
+
+## Network access
+
+Any outbound HTTP sits behind a port trait in `core/`, with the real client as
+an adapter — `MqttPort`/`rumqttc_adapter`, `ReleaseSource`/`GithubReleaseSource`.
+That's what keeps the test suite socket-free, and it's what lets the policy
+(when to check, what counts as newer) be tested separately from the transport.
+Don't call out to the network from `src-tauri/`; it belongs in `core/` behind
+a trait like everything else.
+
+App-settings keys are namespaced `area.name`, values are strings the consumer
+encodes itself, and timestamps are RFC 3339 in UTC — stated explicitly rather
+than left to rusqlite's chrono support, since the column is a generic `TEXT`.
 
 ## Naming
 
@@ -70,10 +83,19 @@ Pushing a `vX.Y.Z` tag builds and publishes Linux (AppImage/deb/rpm) and
 Windows (portable exe/NSIS/msi) artifacts. A tag containing `-` is published
 as a prerelease.
 
+The app now **displays** its version (connections footer) and compares it
+against the newest GitHub release, so a `bump-version.sh` that half-ran is
+user-visible rather than just a CI failure.
+
 ## Database migrations
 
 Add a new numbered `.sql` in `core/src/storage/migrations/`. **Never modify a
 migration that has shipped** — installed copies have already run it.
+
+`rusqlite_migration` counts migrations rather than reading their names, so two
+feature branches that each add `0009_*.sql` will collide: whichever merges
+second must renumber, and any database that already applied the first will
+never run the second. Check the other branches before claiming a number.
 
 ## Not in the repo
 

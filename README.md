@@ -75,11 +75,19 @@ The Windows builds are unsigned, so Windows will show a SmartScreen warning
 ("Windows protected your PC") on first run — click "More info" → "Run
 anyway" to proceed. No macOS build yet.
 
+bme checks GitHub for a newer release when it starts, at most once a day, and
+tells you if there is one — with a "Skip this version" button if you'd rather
+it didn't mention that one again. It never downloads or installs anything by
+itself; you go to the release page and decide. There's also a
+"Check for updates" button in the footer of the connections screen if you'd
+rather ask than be told.
+
 ## Roadmap
 
 Rough order of what's next, no promises on timing:
 
 - [ ] Client certificate support for brokers that require mutual TLS
+- [ ] In-app auto-update — today bme only *tells* you a release exists
 
 Have an opinion on priority, or something else you'd want? Open an issue.
 

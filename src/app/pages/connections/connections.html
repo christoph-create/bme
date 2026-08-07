@@ -71,4 +71,18 @@
   <button class="btn-link" type="button" (click)="openLogDir()">
     Open Logs Folder
   </button>
+  <button
+    class="btn-link"
+    type="button"
+    [disabled]="checkingUpdate()"
+    (click)="checkForUpdates()"
+  >
+    {{ checkingUpdate() ? "Checking…" : "Check for updates" }}
+  </button>
+  @if (updateStatus(); as status) {
+    <span class="footer-status">{{ status }}</span>
+  }
+  @if (notifier.currentVersion(); as version) {
+    <span class="footer-version">v{{ version }}</span>
+  }
 </footer>

@@ -20,15 +20,31 @@
   margin-bottom: 28px;
 }
 
+/* Deliberately one row: :host reserves a fixed 52px of bottom padding for
+   this bar, so a second row would let the list slide underneath it. */
 .page-footer {
   position: fixed;
   bottom: 0;
   left: 0;
   width: 100%;
   display: flex;
+  align-items: center;
+  gap: var(--space-5);
   padding: var(--space-4) var(--space-7);
   border-top: 1px solid var(--color-border-faint);
   background: var(--color-bg);
+}
+
+.footer-status {
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+}
+
+.footer-version {
+  margin-left: auto;
+  color: var(--color-text-faint);
+  font-size: 12px;
+  font-family: var(--font-mono);
 }
 
 .btn-link {
@@ -43,6 +59,11 @@
 
 .btn-link:hover {
   color: var(--color-text);
+}
+
+.btn-link:disabled {
+  color: var(--color-text-faint);
+  cursor: default;
 }
 
 h1 {

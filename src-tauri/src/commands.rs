@@ -1,20 +1,80 @@
+use std::sync::LazyLock;
+
 use bme_core::models::{
     BrokerConnection, FavoriteCollection, FavoriteMessage, NewBrokerConnection,
     NewFavoriteCollection, NewFavoriteMessage, NewSubscription, QoS, Subscription,
-    UpdateBrokerConnection, UpdateFavoriteCollection, UpdateFavoriteMessage,
+    UpdateBrokerConnection, UpdateCheck, UpdateFavoriteCollection, UpdateFavoriteMessage,
 };
 use bme_core::mqtt::manager::MqttClientManager;
 use bme_core::mqtt::port::MqttError;
 use bme_core::mqtt::rumqttc_adapter::RumqttcAdapter;
+use bme_core::storage::app_settings_repo::SqliteAppSettingsRepository;
 use bme_core::storage::connections_repo::{ConnectionsRepository, SqliteConnectionsRepository};
 use bme_core::storage::favorite_collections_repo::{
     FavoriteCollectionsRepository, SqliteFavoriteCollectionsRepository,
 };
 use bme_core::storage::favorites_repo::{FavoritesRepository, SqliteFavoritesRepository};
+use bme_core::update::checker::UpdateChecker;
+use bme_core::update::github::GithubReleaseSource;
 use tauri::{AppHandle, Manager, State};
 use uuid::Uuid;
 
 pub type MqttManagerState = MqttClientManager<RumqttcAdapter>;
+pub type UpdateCheckerState = UpdateChecker<GithubReleaseSource, SqliteAppSettingsRepository>;
+
+/// The version the app reports and compares against the newest release.
+///
+/// `CARGO_PKG_VERSION` rather than `app.package_info().version` (which reads
+/// `tauri.conf.json`) because `src-tauri/Cargo.toml` is the file the release
+/// job checks the pushed tag against - so this is the number that can't be
+/// wrong without CI failing.
+///
+/// `BME_UPDATE_VERSION` overrides it. That exists for one reason: the update
+/// dialog is otherwise untestable without publishing a release, since you can
+/// only see it while running something older than the newest tag. Set it lower
+/// than the latest release and the popup appears against the real release
+/// notes. `run()` logs a warning whenever it's set, so it can never be quietly
+/// on in a build someone is trusting.
+pub fn effective_version() -> &'static str {
+    static VERSION: LazyLock<String> = LazyLock::new(|| {
+        std::env::var("BME_UPDATE_VERSION")
+            .unwrap_or_else(|_| env!("CARGO_PKG_VERSION").to_string())
+    });
+    &VERSION
+}
+
+#[tauri::command]
+pub fn get_app_version() -> String {
+    effective_version().to_string()
+}
+
+/// The first async command in this file, and it has to be: a network call in a
+/// plain `#[tauri::command]` runs on the main thread and would freeze the
+/// window for the length of the request timeout. Async commands need the
+/// explicit `State<'_, _>` lifetime and a `Result` return.
+///
+/// Returns facts, never a verdict - whether any of this is worth interrupting
+/// the user over is decided in the frontend, which knows whether they asked.
+#[tauri::command]
+pub async fn check_for_updates(
+    checker: State<'_, UpdateCheckerState>,
+    force: bool,
+) -> Result<UpdateCheck, String> {
+    checker
+        .check(force, chrono::Utc::now())
+        .await
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub fn skip_update_version(
+    checker: State<'_, UpdateCheckerState>,
+    version: String,
+) -> Result<(), String> {
+    checker
+        .skip_version(&version)
+        .map_err(|err| err.to_string())
+}
 
 #[tauri::command]
 pub fn open_log_dir(app: AppHandle) -> Result<(), String> {
