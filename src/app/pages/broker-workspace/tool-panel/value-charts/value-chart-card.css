@@ -1,0 +1,158 @@
+:host {
+  display: block;
+  padding: 10px 12px 12px;
+  border: 1px solid var(--color-border-faint);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.card-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.card-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.card-topic {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--color-text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card-remove {
+  background: none;
+  border: none;
+  color: var(--color-text-quaternary);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+.card-remove:hover {
+  color: var(--color-text);
+  background: var(--color-surface-hover);
+}
+
+.reading {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin: 6px 0 8px;
+  min-height: 22px;
+}
+
+.reading-value {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--color-text);
+  line-height: 1;
+}
+
+.reading-count,
+.reading-empty {
+  font-size: 11px;
+  color: var(--color-text-quaternary);
+}
+
+/* The plot's row height matches the SVG viewBox height exactly, so vertical
+   scale stays 1:1 and the value labels can be positioned in plain pixels. */
+.plot-area {
+  display: grid;
+  grid-template-columns: 40px 1fr;
+  grid-template-rows: 160px auto;
+  column-gap: 6px;
+}
+
+.value-gutter {
+  position: relative;
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.value-label {
+  position: absolute;
+  right: 0;
+  transform: translateY(-50%);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-chart-axis-text);
+  white-space: nowrap;
+}
+
+.plot-cell {
+  position: relative;
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.plot {
+  display: block;
+  width: 100%;
+  /* The newest point sits exactly on the right edge; without room to spill,
+     its marker and the line cap are sliced in half. */
+  overflow: visible;
+}
+
+.gridline {
+  stroke: var(--color-chart-grid);
+  stroke-width: 1;
+}
+
+.area {
+  fill: var(--color-chart-fill);
+}
+
+.line {
+  fill: none;
+  stroke: var(--color-chart-line);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.latest-dot {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-chart-line);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.time-axis {
+  position: relative;
+  grid-column: 2;
+  grid-row: 2;
+  height: 14px;
+  margin-top: 3px;
+}
+
+.time-label {
+  position: absolute;
+  top: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-chart-axis-text);
+  white-space: nowrap;
+}

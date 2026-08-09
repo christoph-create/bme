@@ -17,20 +17,28 @@ import { reconnectLabel } from "./format/reconnect-label";
 import { MessageStream } from "./message-stream/message-stream";
 import { PublishPanel } from "./publish-panel/publish-panel";
 import { SubscriptionsPanel } from "./subscriptions-panel/subscriptions-panel";
+import { ToolPanel } from "./tool-panel/tool-panel";
 import { TopicTree } from "./topic-tree/topic-tree";
 
 const MIN_SIDEBAR_WIDTH = 200;
 const MAX_SIDEBAR_WIDTH = 1200;
 const MIN_PUBLISH_HEIGHT = 200;
 const MAX_PUBLISH_HEIGHT = 560;
+const MIN_TOOL_PANEL_WIDTH = 240;
+const MAX_TOOL_PANEL_WIDTH = 900;
 const DEFAULT_SIDEBAR_WIDTH = 260;
 const DEFAULT_PUBLISH_HEIGHT = 260;
+const DEFAULT_TOOL_PANEL_WIDTH = 360;
+/** How little the message stream may be squeezed to before the side panels
+ * stop growing. Without it, a wide sidebar plus a wide tool panel can leave
+ * the stream at zero with no way to drag it back. */
+const MIN_MESSAGES_WIDTH = 320;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
-type ResizeMode = "column" | "row" | null;
+type ResizeMode = "column" | "row" | "tool" | null;
 
 /** What the backend is currently attempting, per its `Reconnecting` events. */
 interface ReconnectState {
@@ -40,7 +48,13 @@ interface ReconnectState {
 
 @Component({
   selector: "app-broker-workspace",
-  imports: [SubscriptionsPanel, TopicTree, MessageStream, PublishPanel],
+  imports: [
+    SubscriptionsPanel,
+    TopicTree,
+    MessageStream,
+    PublishPanel,
+    ToolPanel,
+  ],
   templateUrl: "./broker-workspace.html",
   styleUrl: "./broker-workspace.css",
 })
@@ -68,6 +82,11 @@ export class BrokerWorkspace {
   readonly selectedTopic = signal<string | null>(null);
   readonly connection = signal<BrokerConnection | null>(null);
 
+  /** Owned here rather than in the message stream because the charts freeze
+   * on it too. The stream still writes to it - it clears the pause when the
+   * selected topic changes. */
+  readonly paused = signal(false);
+
   private readonly publishPanel = viewChild(PublishPanel);
 
   /** Hands a message the user asked to resend straight to the publish panel.
@@ -86,6 +105,20 @@ export class BrokerWorkspace {
     this.publishPanel()?.setTopic(topic);
   }
 
+  toggleToolPanel(): void {
+    this.toolPanelOpen.update((open) => !open);
+    // Leaving the panel expanded while closed would make the next open jump
+    // straight over the message stream, which is never what a plain reopen
+    // is asking for.
+    if (!this.toolPanelOpen()) {
+      this.toolPanelExpanded.set(false);
+    }
+  }
+
+  toggleToolPanelExpanded(): void {
+    this.toolPanelExpanded.update((expanded) => !expanded);
+  }
+
   // The size of each window-relative panel is stored as a fraction of the
   // window's current dimensions (not a pixel value that gets nudged around
   // on every resize event) so that recomputing it after a window resize is
@@ -99,6 +132,20 @@ export class BrokerWorkspace {
   private readonly publishHeightFraction = signal(
     DEFAULT_PUBLISH_HEIGHT / window.innerHeight,
   );
+  private readonly toolPanelWidthFraction = signal(
+    DEFAULT_TOOL_PANEL_WIDTH / window.innerWidth,
+  );
+
+  // Collapsed is a separate flag rather than a zero fraction: the minimum
+  // clamp below would immediately pull a zero back up to MIN_TOOL_PANEL_WIDTH.
+  // Keeping the fraction untouched also means reopening restores the width
+  // the user last dragged to.
+  readonly toolPanelOpen = signal(false);
+
+  /** Expanded over the message stream's column. The sidebar and the publish
+   * panel are untouched - this trades the message list for chart room, not
+   * the whole workspace. */
+  readonly toolPanelExpanded = signal(false);
 
   readonly sidebarWidth = computed(() =>
     clamp(
@@ -114,9 +161,51 @@ export class BrokerWorkspace {
       MAX_PUBLISH_HEIGHT,
     ),
   );
+  readonly toolPanelWidth = computed(() => {
+    // Depends on the sidebar as well as the window, so widening the sidebar
+    // squeezes the tool panel rather than the message stream.
+    const available =
+      this.windowWidth() - this.sidebarWidth() - MIN_MESSAGES_WIDTH;
+    return clamp(
+      this.toolPanelWidthFraction() * this.windowWidth(),
+      MIN_TOOL_PANEL_WIDTH,
+      Math.max(MIN_TOOL_PANEL_WIDTH, Math.min(MAX_TOOL_PANEL_WIDTH, available)),
+    );
+  });
+
+  readonly gridTemplateColumns = computed(() => {
+    const sidebar = `${this.sidebarWidth()}px 6px`;
+    if (!this.toolPanelOpen()) {
+      return `${sidebar} 1fr 0 0`;
+    }
+    // Expanded, the messages column and its splitter go to zero and the panel
+    // takes the `1fr`. Keeping all five tracks in every state is what lets
+    // `.publish` span `3 / 6` without any CSS branching.
+    if (this.toolPanelExpanded()) {
+      return `${sidebar} 0 0 1fr`;
+    }
+    return `${sidebar} 1fr 6px ${this.toolPanelWidth()}px`;
+  });
+
+  /** Hidden rather than merely zero-width, so the stream isn't re-measuring
+   * and re-wrapping 500 cards behind a panel nobody can see through. */
+  readonly messagesHidden = computed(
+    () => this.toolPanelOpen() && this.toolPanelExpanded(),
+  );
+
+  readonly toolSplitterVisible = computed(
+    () => this.toolPanelOpen() && !this.toolPanelExpanded(),
+  );
+
   readonly resizing = signal<ResizeMode>(null);
 
-  private dragOrigin = { x: 0, y: 0, sidebarWidth: 0, publishHeight: 0 };
+  private dragOrigin = {
+    x: 0,
+    y: 0,
+    sidebarWidth: 0,
+    publishHeight: 0,
+    toolPanelWidth: 0,
+  };
 
   constructor() {
     // The `connect` command only confirms the broker accepted the request,
@@ -210,25 +299,15 @@ export class BrokerWorkspace {
     void this.router.navigate(["/connections"]);
   }
 
-  startColumnResize(event: PointerEvent): void {
+  startResize(mode: Exclude<ResizeMode, null>, event: PointerEvent): void {
     event.preventDefault();
-    this.resizing.set("column");
+    this.resizing.set(mode);
     this.dragOrigin = {
       x: event.clientX,
       y: event.clientY,
       sidebarWidth: this.sidebarWidth(),
       publishHeight: this.publishHeight(),
-    };
-  }
-
-  startRowResize(event: PointerEvent): void {
-    event.preventDefault();
-    this.resizing.set("row");
-    this.dragOrigin = {
-      x: event.clientX,
-      y: event.clientY,
-      sidebarWidth: this.sidebarWidth(),
-      publishHeight: this.publishHeight(),
+      toolPanelWidth: this.toolPanelWidth(),
     };
   }
 
@@ -243,6 +322,16 @@ export class BrokerWorkspace {
         MAX_SIDEBAR_WIDTH,
       );
       this.sidebarWidthFraction.set(width / this.windowWidth());
+    } else if (mode === "tool") {
+      // The handle is on the panel's left edge, so dragging right shrinks it -
+      // the same inversion the publish splitter needs.
+      const delta = event.clientX - this.dragOrigin.x;
+      const width = clamp(
+        this.dragOrigin.toolPanelWidth - delta,
+        MIN_TOOL_PANEL_WIDTH,
+        MAX_TOOL_PANEL_WIDTH,
+      );
+      this.toolPanelWidthFraction.set(width / this.windowWidth());
     } else if (mode === "row") {
       const delta = event.clientY - this.dragOrigin.y;
       const height = clamp(

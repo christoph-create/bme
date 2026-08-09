@@ -47,6 +47,20 @@
         >
           {{ prettyJson() ? "Raw" : "Pretty JSON" }}
         </span>
+        <span
+          class="toggle-link"
+          [class.active]="toolPanelOpen()"
+          (click)="toolPanelToggled.emit()"
+          (keydown.enter)="toolPanelToggled.emit()"
+          role="button"
+          tabindex="0"
+          [attr.aria-pressed]="toolPanelOpen()"
+          [title]="
+            toolPanelOpen() ? 'Hide the tools panel' : 'Show the tools panel'
+          "
+        >
+          Tools
+        </span>
       </div>
     </div>
     <div class="count-label">

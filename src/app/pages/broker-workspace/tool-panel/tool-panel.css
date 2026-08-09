@@ -1,0 +1,97 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  background: var(--color-surface-elevated);
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px 8px 12px;
+  border-bottom: 1px solid var(--color-border-faint);
+  flex-shrink: 0;
+}
+
+.panel-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* Matches the publish panel's format switcher - this is the app's tab strip,
+   and it only appears once there is a second tool to switch to. */
+.segmented {
+  display: flex;
+  height: 26px;
+  background: var(--color-input-bg);
+  border: 1px solid var(--color-input-border);
+  border-radius: var(--radius-input);
+  padding: 2px;
+  flex-shrink: 0;
+}
+
+.segment {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  border-radius: 5px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.segment.selected {
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+}
+
+.segment:not(.selected):hover {
+  background: var(--color-surface-hover);
+}
+
+.panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.panel-button {
+  background: none;
+  border: none;
+  color: var(--color-text-tertiary);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+.panel-button:hover {
+  color: var(--color-text);
+  background: var(--color-surface-hover);
+}
+
+.panel-button.active {
+  color: var(--color-accent);
+}
+
+.panel-close {
+  font-size: 16px;
+  padding: 2px 6px;
+}
+
+.panel-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}

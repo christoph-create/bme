@@ -1,0 +1,85 @@
+<div class="card-header">
+  <div class="card-identity">
+    <span class="card-label">{{ spec().label }}</span>
+    <span class="card-topic" [title]="spec().topic">{{ spec().topic }}</span>
+  </div>
+  <button
+    type="button"
+    class="card-remove"
+    [attr.aria-label]="'Remove chart ' + spec().label"
+    (click)="remove()"
+  >
+    ×
+  </button>
+</div>
+
+<div class="reading">
+  @if (currentValue(); as value) {
+    <span class="reading-value">{{ value }}</span>
+    <span class="reading-count">{{ sampleCountLabel() }}</span>
+  } @else if (fieldMissing()) {
+    <span class="reading-empty">No recent value for {{ spec().label }}</span>
+  } @else {
+    <span class="reading-empty">Waiting for messages…</span>
+  }
+</div>
+
+@if (hasData()) {
+  <div class="plot-area">
+    <div class="value-gutter">
+      @for (label of valueLabels(); track label.text) {
+        <span class="value-label" [style.top.px]="label.top">{{ label.text }}</span>
+      }
+    </div>
+
+    <div class="plot-cell">
+      <svg
+        class="plot"
+        aria-hidden="true"
+        [attr.viewBox]="'0 0 ' + viewWidth + ' ' + viewHeight"
+        [style.height.px]="viewHeight"
+        preserveAspectRatio="none"
+      >
+        @for (tick of geometry().valueTicks; track tick.position) {
+          <line
+            class="gridline"
+            x1="0"
+            [attr.x2]="viewWidth"
+            [attr.y1]="tick.position"
+            [attr.y2]="tick.position"
+            vector-effect="non-scaling-stroke"
+          />
+        }
+        @if (geometry().area) {
+          <path class="area" [attr.d]="geometry().area" />
+        }
+        @if (geometry().polyline) {
+          <polyline
+            class="line"
+            [attr.points]="geometry().polyline"
+            vector-effect="non-scaling-stroke"
+          />
+        }
+      </svg>
+
+      @if (latestPoint(); as point) {
+        <span
+          class="latest-dot"
+          [style.left.%]="(point.x / viewWidth) * 100"
+          [style.top.px]="point.y"
+        ></span>
+      }
+    </div>
+
+    <div class="time-axis">
+      @for (label of timeLabels(); track $index) {
+        <span
+          class="time-label"
+          [style.left.%]="label.left"
+          [style.transform]="'translateX(' + label.shift + '%)'"
+          >{{ label.text }}</span
+        >
+      }
+    </div>
+  </div>
+}

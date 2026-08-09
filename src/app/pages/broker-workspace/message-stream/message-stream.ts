@@ -7,6 +7,7 @@ import {
   effect,
   inject,
   input,
+  model,
   output,
   signal,
   untracked,
@@ -73,7 +74,9 @@ export class MessageStream {
   readonly connectionId = input.required<string>();
   readonly topic = input<string | null>(null);
   readonly connected = input<boolean>(true);
+  readonly toolPanelOpen = input(false);
   readonly resendRequested = output<MessageDraft>();
+  readonly toolPanelToggled = output<void>();
 
   private readonly messageStore = inject(MessageStoreService);
   private readonly jsonFormat = inject(JsonFormatService);
@@ -89,7 +92,11 @@ export class MessageStream {
   // accumulating underneath, and resuming shows everything that arrived. The
   // point is to be able to read a message during a flood, so anything that
   // dropped messages instead of buffering them would miss it.
-  readonly paused = signal(false);
+  //
+  // A model rather than a plain signal because the charts freeze on the same
+  // flag: the workspace owns it and hands it to the tool panel, while this
+  // component still needs to clear it when the topic changes.
+  readonly paused = model(false);
   readonly pendingCount = signal(0);
   private pendingMessages: readonly StoredMessage[] | null = null;
 
@@ -142,6 +149,7 @@ export class MessageStream {
     const count = this.messages().length;
     return `${count} ${count === 1 ? "message" : "messages"} in this session`;
   });
+
 
   // Virtualization: only the messages currently scrolled into view (plus a
   // small buffer) are rendered as `.message-card` elements. Keeping every

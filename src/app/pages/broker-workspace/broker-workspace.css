@@ -179,6 +179,7 @@ h1 {
 }
 
 .layout.resizing-col,
+.layout.resizing-tool,
 .layout.resizing-row {
   user-select: none;
 }
@@ -201,8 +202,28 @@ h1 {
   border-bottom: 1px solid var(--color-border);
 }
 
+.messages.hidden {
+  display: none;
+}
+
+.tool-panel {
+  grid-column: 5;
+  grid-row: 1;
+  min-height: 0;
+  overflow: hidden;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tool-panel.collapsed {
+  display: none;
+}
+
+/* Spans past the tool panel: the publish row is the full width of the
+   right-hand side whether the panel is open or not, and the collapsed grid
+   keeps both of its tracks at zero rather than removing them, so this
+   placement stays valid in either state. */
 .publish {
-  grid-column: 3;
+  grid-column: 3 / 6;
   grid-row: 3;
   min-height: 0;
   overflow: hidden;
@@ -213,16 +234,27 @@ h1 {
   touch-action: none;
 }
 
-.resizer-col {
-  grid-column: 2;
+.resizer-col,
+.resizer-tool {
   grid-row: 1 / 4;
   cursor: col-resize;
   position: relative;
   background: transparent;
+}
+
+.resizer-col {
+  grid-column: 2;
   border-right: 1px solid var(--color-border);
 }
 
-.resizer-col::after {
+.resizer-tool {
+  grid-column: 4;
+  grid-row: 1;
+  border-left: 1px solid var(--color-border);
+}
+
+.resizer-col::after,
+.resizer-tool::after {
   content: "";
   position: absolute;
   top: 50%;
@@ -239,18 +271,25 @@ h1 {
 }
 
 .resizer-col:hover,
-.layout.resizing-col .resizer-col {
+.resizer-tool:hover,
+.layout.resizing-col .resizer-col,
+.layout.resizing-tool .resizer-tool {
   background: var(--color-border);
 }
 
 .resizer-col:hover::after,
-.layout.resizing-col .resizer-col::after {
+.resizer-tool:hover::after,
+.layout.resizing-col .resizer-col::after,
+.layout.resizing-tool .resizer-tool::after {
   background: var(--color-text-secondary);
   opacity: 1;
 }
 
+/* Spans the whole right-hand side, matching `.publish` below it. Anchored to
+   the messages column alone, the handle would shrink to nothing whenever the
+   tool panel expanded over it, leaving no way to resize the publish panel. */
 .resizer-row {
-  grid-column: 3;
+  grid-column: 3 / 6;
   grid-row: 2;
   cursor: row-resize;
   position: relative;
