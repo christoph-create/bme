@@ -1,77 +1,236 @@
 <div class="header">
-  <span class="label">Publish</span>
-  @if (publishedFlash()) {
+  <span class="label">{{ showSettings() ? "Publish · Settings" : "Publish" }}</span>
+  @if (repeatProgress(); as progress) {
+    <span class="flash running">● {{ progress }}</span>
+  } @else if (publishedFlash()) {
     <span class="flash">✓ Published</span>
+  } @else if (finishedFlash(); as message) {
+    <span class="flash">{{ message }}</span>
   }
 </div>
 
-<form class="body" [formGroup]="form" (ngSubmit)="publish()">
-  <div class="row">
-    <input
-      class="topic-input mono"
-      formControlName="topic"
-      placeholder="topic"
-    />
-    <div class="segmented">
-      @for (opt of formatOptions; track opt) {
-        <div
-          class="segment"
-          [class.selected]="format() === opt"
-          (click)="selectFormat(opt)"
-          (keydown.enter)="selectFormat(opt)"
-          role="button"
-          tabindex="0"
-        >
-          {{ opt.toUpperCase() }}
+@if (showSettings()) {
+  <div class="settings-body">
+    <button type="button" class="back-link" (click)="toggleSettings()">
+      ‹ Back to publish
+    </button>
+
+    <div class="settings-form">
+      <div class="field-row">
+        <label class="toggle-field">
+          <span>Retain</span>
+          <span class="switch">
+            <input
+              type="checkbox"
+              class="retain-checkbox"
+              [checked]="retain()"
+              (change)="toggleRetain()"
+            />
+            <span class="switch-track"></span>
+          </span>
+        </label>
+      </div>
+
+      <div class="field-row">
+        <label class="toggle-field">
+          <span>Repeat publishing</span>
+          <span class="switch">
+            <input
+              type="checkbox"
+              class="repeat-checkbox"
+              [checked]="repeatEnabled()"
+              (change)="toggleRepeatEnabled()"
+            />
+            <span class="switch-track"></span>
+          </span>
+        </label>
+      </div>
+
+      @if (repeatEnabled()) {
+        <div class="field">
+          <label for="repeatInterval">Interval (milliseconds)</label>
+          <input
+            id="repeatInterval"
+            type="text"
+            class="mono"
+            [value]="intervalMs()"
+            (change)="onIntervalInput($any($event.target).value)"
+          />
         </div>
+
+        <div class="field-row">
+          <label class="toggle-field">
+            <span>Keep going until stopped</span>
+            <span class="switch">
+              <input
+                type="checkbox"
+                class="forever-checkbox"
+                [checked]="repeatForever()"
+                (change)="toggleRepeatForever()"
+              />
+              <span class="switch-track"></span>
+            </span>
+          </label>
+        </div>
+
+        @if (!repeatForever()) {
+          <div class="field">
+            <label for="repeatCount">Number of messages</label>
+            <input
+              id="repeatCount"
+              type="text"
+              class="mono"
+              [value]="repeatCount()"
+              (change)="onRepeatCountInput($any($event.target).value)"
+            />
+          </div>
+        }
       }
+
+      <div class="field">
+        <span class="field-label">Variables</span>
+        <div class="variables-summary">
+          <p class="settings-note">
+            {{ variables().length }} defined, shared across every broker and
+            template.
+          </p>
+          @if (counterValues().size > 0) {
+            <p class="settings-note">
+              Counters restart when a repeat run starts, and advance on every
+              single Publish. Reset one at any time from Edit variables.
+            </p>
+          }
+          <button
+            type="button"
+            class="btn-outline"
+            (click)="openVariablesModal()"
+          >
+            Edit variables…
+          </button>
+        </div>
+      </div>
     </div>
-    <app-qos-select [(value)]="qos" />
-    <label class="retain-field">
-      <span>Retain</span>
-      <span class="switch">
-        <input
-          type="checkbox"
-          class="retain-checkbox"
-          [checked]="retain()"
-          (change)="toggleRetain()"
-        />
-        <span class="switch-track"></span>
-      </span>
-    </label>
   </div>
+} @else {
+  <form class="body" [formGroup]="form" (ngSubmit)="submit()">
+    <div class="row">
+      <input
+        class="topic-input mono"
+        formControlName="topic"
+        placeholder="topic"
+      />
+      <div class="segmented">
+        @for (opt of formatOptions; track opt) {
+          <div
+            class="segment"
+            [class.selected]="format() === opt"
+            (click)="selectFormat(opt)"
+            (keydown.enter)="selectFormat(opt)"
+            role="button"
+            tabindex="0"
+          >
+            {{ opt.toUpperCase() }}
+          </div>
+        }
+      </div>
+      <app-qos-select [(value)]="qos" />
+      <button
+        type="button"
+        class="settings-toggle"
+        aria-label="Publish settings"
+        title="Publish settings"
+        (click)="toggleSettings()"
+      >
+        ⚙
+      </button>
+    </div>
 
-  <app-payload-input class="payload-input" formControlName="payload" [format]="format()" />
+    <app-payload-input
+      class="payload-input"
+      formControlName="payload"
+      [format]="format()"
+      [placeholderKinds]="placeholderKinds()"
+    />
 
-  @if (publishError(); as message) {
-    <p class="error">{{ message }}</p>
-  }
-
-  <div class="actions">
-    @if (templateSaved()) {
-      <span class="flash">✓ Saved as template</span>
+    @if (usesVariables()) {
+      <div class="preview-row">
+        <button type="button" class="btn-link" (click)="togglePreview()">
+          {{ showPreview() ? "Hide preview" : "Show preview" }}
+        </button>
+        @if (showPreview()) {
+          <div class="preview-body mono">
+            <div class="preview-line">
+              <span class="preview-tag">topic</span>{{ preview()?.topic }}
+            </div>
+            <div class="preview-line">
+              <span class="preview-tag">body</span>{{ preview()?.payload }}
+            </div>
+          </div>
+        }
+      </div>
     }
-    <button type="button" class="btn-save-template" (click)="openLoadModal()">
-      Load Template
-    </button>
-    <button
-      type="button"
-      class="btn-save-template"
-      [disabled]="form.invalid || payloadInvalid()"
-      (click)="openSaveModal()"
-    >
-      Save as Template
-    </button>
-    <button
-      type="submit"
-      class="btn-publish"
-      [disabled]="form.invalid || payloadInvalid() || !connected()"
-      [title]="connected() ? '' : 'Connect to the broker to publish'"
-    >
-      Publish
-    </button>
-  </div>
-</form>
+
+    @if (unknownVariables().length > 0) {
+      <p class="warning">
+        unknown variable{{ unknownVariables().length > 1 ? "s" : "" }}:
+        {{ unknownVariables().join(", ") }} — sent as written
+      </p>
+    }
+
+    @if (publishError(); as message) {
+      <p class="error">{{ message }}</p>
+    }
+
+    <div class="actions">
+      @if (templateSaved()) {
+        <span class="flash">✓ Saved as template</span>
+      }
+      @if (repeatEnabled()) {
+        <button
+          type="button"
+          class="repeat-chip"
+          title="Change repeat settings"
+          (click)="openSettings()"
+        >
+          {{ repeatSummary() }}
+        </button>
+      }
+      <button
+        type="button"
+        class="btn-save-template"
+        (click)="openVariablesModal()"
+      >
+        Edit Vars
+      </button>
+      <button type="button" class="btn-save-template" (click)="openLoadModal()">
+        Load Template
+      </button>
+      <button
+        type="button"
+        class="btn-save-template"
+        [disabled]="form.invalid || payloadInvalid()"
+        (click)="openSaveModal()"
+      >
+        Save as Template
+      </button>
+      <button
+        type="submit"
+        class="btn-publish"
+        [class.stopping]="running()"
+        [disabled]="!running() && (form.invalid || payloadInvalid() || !connected())"
+        [title]="connected() ? '' : 'Connect to the broker to publish'"
+      >
+        @if (running()) {
+          Stop
+        } @else if (repeatEnabled()) {
+          Start
+        } @else {
+          Publish
+        }
+      </button>
+    </div>
+  </form>
+}
 
 @if (saveModalDraft(); as draft) {
   <app-save-template-modal
@@ -85,5 +244,13 @@
   <app-load-template-modal
     (close_modal)="closeLoadModal()"
     (selected)="onTemplateSelected($event)"
+  />
+}
+
+@if (showVariablesModal()) {
+  <app-variables-modal
+    [counterValues]="counterValues()"
+    (close_modal)="closeVariablesModal()"
+    (reset_counter)="resetCounter($event)"
   />
 }

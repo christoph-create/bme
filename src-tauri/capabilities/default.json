@@ -32,6 +32,11 @@
     "allow-create-favorite-collection",
     "allow-get-favorite-collection",
     "allow-update-favorite-collection",
-    "allow-delete-favorite-collection"
+    "allow-delete-favorite-collection",
+    "allow-list-payload-variables",
+    "allow-create-payload-variable",
+    "allow-get-payload-variable",
+    "allow-update-payload-variable",
+    "allow-delete-payload-variable"
   ]
 }

@@ -1,0 +1,244 @@
+<app-modal title="Variables" (close_modal)="close_modal.emit()">
+  <p class="intro">
+    Reference a variable as <code class="mono">{{ syntaxExample }}</code> in a
+    topic or payload; it expands to a fresh value on every publish. Variables
+    are shared across every broker and template.
+  </p>
+
+  <ul class="variable-list">
+    @for (variable of variables(); track variable.id) {
+      <li class="variable-row" [class.editing]="draft()?.id === variable.id">
+        <span class="variable-name mono">{{ variable.name }}</span>
+        <span class="variable-kind">{{ generatorLabel(variable.generator) }}</span>
+        <span class="variable-summary mono">
+          {{ generatorSummary(variable.generator) }}
+          @if (counterValue(variable); as next) {
+            <span class="next-value">· next {{ next }}</span>
+          }
+        </span>
+        @if (counterValue(variable)) {
+          <button
+            type="button"
+            class="row-action"
+            title="Restart this counter from its start value"
+            (click)="reset_counter.emit(variable.id)"
+          >
+            Reset
+          </button>
+        }
+        <button type="button" class="row-action" (click)="startEdit(variable)">
+          Edit
+        </button>
+        <button
+          type="button"
+          class="row-action danger"
+          aria-label="Delete variable"
+          (click)="askDelete(variable)"
+        >
+          ✕
+        </button>
+      </li>
+    } @empty {
+      <li class="empty">No variables yet.</li>
+    }
+  </ul>
+
+  @if (pendingDelete(); as variable) {
+    <p class="confirm">
+      Delete <code class="mono">{{ reference(variable.name) }}</code>? Payloads
+      referring to it will send the text as written.
+      <button type="button" class="row-action danger" (click)="confirmDelete()">
+        Delete
+      </button>
+      <button type="button" class="row-action" (click)="cancelDelete()">
+        Cancel
+      </button>
+    </p>
+  }
+
+  @if (draft(); as current) {
+    <div class="editor">
+      <div class="field">
+        <label for="variableName">Name</label>
+        <input
+          id="variableName"
+          type="text"
+          class="mono"
+          [value]="current.name"
+          placeholder="deviceId"
+          (input)="setName($any($event.target).value)"
+        />
+      </div>
+
+      <div class="field">
+        <label for="variableKind">Type</label>
+        <!-- `[selected]` per option rather than `[value]` on the select:
+             the select's value is applied before @for has created the
+             options, so it silently falls back to the first one. -->
+        <select
+          id="variableKind"
+          (change)="selectKind($any($event.target).value)"
+        >
+          @for (kind of generatorKinds; track kind) {
+            <option [value]="kind" [selected]="kind === current.generator.kind">
+              {{ generatorKindLabel(kind) }}
+            </option>
+          }
+        </select>
+      </div>
+
+      @switch (current.generator.kind) {
+        @case ("fixedText") {
+          <div class="field">
+            <label for="fixedValue">Value</label>
+            <input
+              id="fixedValue"
+              type="text"
+              [value]="current.generator.value"
+              (input)="setGeneratorText('value', $any($event.target).value)"
+            />
+          </div>
+        }
+        @case ("counter") {
+          <div class="field-pair">
+            <div class="field">
+              <label for="counterStart">Start</label>
+              <input
+                id="counterStart"
+                type="number"
+                [value]="current.generator.start"
+                (input)="setGeneratorNumber('start', $any($event.target).value)"
+              />
+            </div>
+            <div class="field">
+              <label for="counterStep">Step</label>
+              <input
+                id="counterStep"
+                type="number"
+                [value]="current.generator.step"
+                (input)="setGeneratorNumber('step', $any($event.target).value)"
+              />
+            </div>
+          </div>
+        }
+        @case ("randomInt") {
+          <div class="field-pair">
+            <div class="field">
+              <label for="intMin">Min</label>
+              <input
+                id="intMin"
+                type="number"
+                [value]="current.generator.min"
+                (input)="setGeneratorNumber('min', $any($event.target).value)"
+              />
+            </div>
+            <div class="field">
+              <label for="intMax">Max</label>
+              <input
+                id="intMax"
+                type="number"
+                [value]="current.generator.max"
+                (input)="setGeneratorNumber('max', $any($event.target).value)"
+              />
+            </div>
+          </div>
+        }
+        @case ("randomFloat") {
+          <div class="field-pair">
+            <div class="field">
+              <label for="floatMin">Min</label>
+              <input
+                id="floatMin"
+                type="number"
+                [value]="current.generator.min"
+                (input)="setGeneratorNumber('min', $any($event.target).value)"
+              />
+            </div>
+            <div class="field">
+              <label for="floatMax">Max</label>
+              <input
+                id="floatMax"
+                type="number"
+                [value]="current.generator.max"
+                (input)="setGeneratorNumber('max', $any($event.target).value)"
+              />
+            </div>
+            <div class="field">
+              <label for="floatDecimals">Decimals</label>
+              <input
+                id="floatDecimals"
+                type="number"
+                min="0"
+                max="10"
+                [value]="current.generator.decimals"
+                (input)="setGeneratorNumber('decimals', $any($event.target).value)"
+              />
+            </div>
+          </div>
+        }
+        @case ("timestamp") {
+          <div class="field">
+            <label for="timestampFormat">Format</label>
+            <select
+              id="timestampFormat"
+              (change)="setGeneratorText('format', $any($event.target).value)"
+            >
+              <option
+                value="unixMillis"
+                [selected]="current.generator.format === 'unixMillis'"
+              >
+                Unix milliseconds (number)
+              </option>
+              <option
+                value="iso8601"
+                [selected]="current.generator.format === 'iso8601'"
+              >
+                ISO 8601 (string)
+              </option>
+            </select>
+          </div>
+        }
+      }
+
+      @if (current.generator.kind === "counter") {
+        <p class="hint">
+          Counters restart when a repeat run starts, and advance on every
+          single Publish. Reset one at any time from the publish settings.
+        </p>
+      }
+
+      @if (nameError(); as message) {
+        <p class="error">{{ message }}</p>
+      }
+      @if (error(); as message) {
+        <p class="error">{{ message }}</p>
+      }
+
+      <footer class="actions">
+        <button type="button" class="btn-secondary" (click)="cancelEdit()">
+          Cancel
+        </button>
+        <button
+          type="button"
+          class="btn-primary"
+          [disabled]="!canSave() || saving()"
+          (click)="save()"
+        >
+          {{ saving() ? "Saving…" : current.id === null ? "Add" : "Save" }}
+        </button>
+      </footer>
+    </div>
+  } @else {
+    @if (error(); as message) {
+      <p class="error">{{ message }}</p>
+    }
+    <footer class="actions">
+      <button type="button" class="btn-secondary" (click)="close_modal.emit()">
+        Close
+      </button>
+      <button type="button" class="btn-primary" (click)="startAdd()">
+        Add variable
+      </button>
+    </footer>
+  }
+</app-modal>

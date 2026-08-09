@@ -2,6 +2,7 @@ pub mod app_settings_repo;
 pub mod connections_repo;
 pub mod favorite_collections_repo;
 pub mod favorites_repo;
+pub mod payload_variables_repo;
 
 use std::sync::LazyLock;
 
@@ -19,6 +20,13 @@ pub enum StorageError {
     Migration(#[from] rusqlite_migration::Error),
     #[error("a collection named \"{0}\" already exists")]
     DuplicateCollectionName(String),
+    #[error("a variable named \"{0}\" already exists")]
+    DuplicateVariableName(String),
+    /// Encoding a `VariableGenerator` for its JSON column. Reachable in
+    /// practice only for a non-finite `RandomFloat` bound, which serde_json
+    /// refuses to write.
+    #[error("could not encode value for storage: {0}")]
+    Serialization(#[from] serde_json::Error),
 }
 
 /// True when `err` is a SQLite `UNIQUE`/`PRIMARY KEY` constraint violation,
@@ -79,6 +87,7 @@ static MIGRATIONS: LazyLock<Migrations<'static>> = LazyLock::new(|| {
         )),
         M::up(include_str!("migrations/0008_reconnect_settings.sql")),
         M::up(include_str!("migrations/0009_app_settings.sql")),
+        M::up(include_str!("migrations/0010_payload_variables.sql")),
     ])
 });
 

@@ -1,0 +1,183 @@
+/* The second layer and the preview row. Split out of publish-panel.css purely
+   for size: one file was over the 4kB anyComponentStyle budget in
+   angular.json.
+
+   Field shapes here deliberately mirror connection-form.css - `.field`,
+   `.field-row`, `.toggle-field` - so the settings layer reads as the same
+   kind of form as the rest of the app rather than a panel-local invention. */
+
+.settings-body {
+  padding: 0 18px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.back-link {
+  align-self: flex-start;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.back-link:hover {
+  color: var(--color-text);
+}
+
+.settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 420px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+}
+
+.field > label,
+.field > .field-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-2);
+}
+
+.field-row {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.toggle-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex: 1;
+  padding: 9px 12px;
+  background: var(--color-input-bg);
+  border: 1px solid var(--color-input-border);
+  border-radius: var(--radius-input);
+  font-size: 13px;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.variables-summary {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.settings-note {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--color-text-tertiary);
+}
+
+.counter-chip {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--color-badge-bg);
+  color: var(--color-text-secondary);
+  font-size: 11px;
+}
+
+.settings-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.btn-outline {
+  padding: 6px 12px;
+  border-radius: var(--radius-input);
+  border: 1px solid var(--color-input-border);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-outline:hover {
+  color: var(--color-text);
+  border-color: var(--color-text-secondary);
+}
+
+/* ---- preview row on the main layer ---- */
+
+.preview-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.btn-link {
+  align-self: flex-start;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.btn-link:hover {
+  color: var(--color-text-secondary);
+}
+
+.preview-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+}
+
+.preview-line {
+  display: flex;
+  gap: 8px;
+  color: var(--color-text-secondary);
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.preview-tag {
+  flex-shrink: 0;
+  width: 34px;
+  color: var(--color-text-faint);
+}
+
+.warning {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--color-warning);
+}
+
+.repeat-chip {
+  margin-right: auto;
+  padding: 4px 9px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-input-border);
+  background: transparent;
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.repeat-chip:hover {
+  color: var(--color-text);
+  border-color: var(--color-text-secondary);
+}

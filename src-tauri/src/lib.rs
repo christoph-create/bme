@@ -9,6 +9,7 @@ use bme_core::storage::app_settings_repo::SqliteAppSettingsRepository;
 use bme_core::storage::connections_repo::SqliteConnectionsRepository;
 use bme_core::storage::favorite_collections_repo::SqliteFavoriteCollectionsRepository;
 use bme_core::storage::favorites_repo::SqliteFavoritesRepository;
+use bme_core::storage::payload_variables_repo::SqlitePayloadVariablesRepository;
 use bme_core::update::checker::UpdateChecker;
 use bme_core::update::github::GithubReleaseSource;
 use tauri::{Emitter, Manager};
@@ -96,6 +97,7 @@ pub fn run() {
             app.manage(SqliteConnectionsRepository::new(Arc::clone(&conn)));
             app.manage(SqliteFavoritesRepository::new(Arc::clone(&conn)));
             app.manage(SqliteFavoriteCollectionsRepository::new(Arc::clone(&conn)));
+            app.manage(SqlitePayloadVariablesRepository::new(Arc::clone(&conn)));
             app.manage(SqliteAppSettingsRepository::new(Arc::clone(&conn)));
 
             // Two handles onto the same settings table: the checker keeps one
@@ -178,6 +180,11 @@ pub fn run() {
             commands::get_favorite_collection,
             commands::update_favorite_collection,
             commands::delete_favorite_collection,
+            commands::list_payload_variables,
+            commands::create_payload_variable,
+            commands::get_payload_variable,
+            commands::update_payload_variable,
+            commands::delete_payload_variable,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -219,6 +226,11 @@ mod tests {
                 commands::get_favorite_collection,
                 commands::update_favorite_collection,
                 commands::delete_favorite_collection,
+                commands::list_payload_variables,
+                commands::create_payload_variable,
+                commands::get_payload_variable,
+                commands::update_payload_variable,
+                commands::delete_payload_variable,
                 commands::get_app_version,
                 commands::check_for_updates,
                 commands::skip_update_version,
@@ -230,6 +242,7 @@ mod tests {
         app.manage(SqliteConnectionsRepository::new(Arc::clone(&conn)));
         app.manage(SqliteFavoritesRepository::new(Arc::clone(&conn)));
         app.manage(SqliteFavoriteCollectionsRepository::new(Arc::clone(&conn)));
+        app.manage(SqlitePayloadVariablesRepository::new(Arc::clone(&conn)));
         app.manage(SqliteAppSettingsRepository::new(Arc::clone(&conn)));
 
         // A real adapter aimed at a closed local port: these tests are about
@@ -907,5 +920,121 @@ mod tests {
 
         let all = invoke(&webview, "list_connections", serde_json::json!({}));
         assert_eq!(all[0]["subscriptions"].as_array().unwrap().len(), 0);
+    }
+
+    /// The `generator` JSON is the contract the TypeScript union mirrors, so
+    /// this asserts the tagged shape survives a real IPC round trip in both
+    /// directions - not just that the command is reachable.
+    #[test]
+    fn create_payload_variable_round_trips_its_generator_over_ipc() {
+        let app = build_test_app();
+        let webview = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+
+        let created = invoke(
+            &webview,
+            "create_payload_variable",
+            serde_json::json!({
+                "newVariable": {
+                    "name": "tempC",
+                    "generator": {
+                        "kind": "randomFloat", "min": 18.0, "max": 24.0, "decimals": 1
+                    }
+                }
+            }),
+        );
+        assert_eq!(created["name"], "tempC");
+        assert_eq!(created["generator"]["kind"], "randomFloat");
+        assert_eq!(created["generator"]["decimals"], 1);
+
+        let fetched = invoke(
+            &webview,
+            "get_payload_variable",
+            serde_json::json!({ "id": created["id"] }),
+        );
+        assert_eq!(fetched, created);
+    }
+
+    #[test]
+    fn list_payload_variables_returns_the_seeded_built_ins() {
+        let app = build_test_app();
+        let webview = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+
+        let all = invoke(&webview, "list_payload_variables", serde_json::json!({}));
+
+        let names: Vec<&str> = all
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v["name"].as_str().unwrap())
+            .collect();
+        assert_eq!(names, vec!["counter", "isoDate", "timestamp", "uuid"]);
+    }
+
+    #[test]
+    fn update_and_delete_payload_variable_round_trip_over_ipc() {
+        let app = build_test_app();
+        let webview = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+
+        let created = invoke(
+            &webview,
+            "create_payload_variable",
+            serde_json::json!({
+                "newVariable": {
+                    "name": "state",
+                    "generator": { "kind": "randomInt", "min": 0, "max": 9 }
+                }
+            }),
+        );
+
+        let updated = invoke(
+            &webview,
+            "update_payload_variable",
+            serde_json::json!({
+                "id": created["id"],
+                "update": {
+                    "name": "mode",
+                    "generator": { "kind": "counter", "start": 10, "step": 5 }
+                }
+            }),
+        );
+        assert_eq!(updated["name"], "mode");
+        assert_eq!(updated["generator"]["start"], 10);
+
+        invoke(
+            &webview,
+            "delete_payload_variable",
+            serde_json::json!({ "id": created["id"] }),
+        );
+
+        let fetched = invoke(
+            &webview,
+            "get_payload_variable",
+            serde_json::json!({ "id": created["id"] }),
+        );
+        assert!(fetched.is_null());
+    }
+
+    #[test]
+    fn create_payload_variable_reports_a_duplicate_name_as_a_readable_error() {
+        let app = build_test_app();
+        let webview = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+
+        let message = invoke_err(
+            &webview,
+            "create_payload_variable",
+            serde_json::json!({
+                "newVariable": { "name": "UUID", "generator": { "kind": "uuid" } }
+            }),
+        );
+
+        assert_eq!(message, "a variable named \"UUID\" already exists");
     }
 }

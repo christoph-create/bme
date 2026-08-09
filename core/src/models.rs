@@ -182,6 +182,61 @@ pub struct UpdateFavoriteCollection {
     pub description: Option<String>,
 }
 
+/// How a payload variable produces its value.
+///
+/// Internally tagged, and this one serde shape is used *both* as the
+/// `payload_variables.generator` column and as the IPC representation - so
+/// there is a single encoding to keep in sync with the frontend, not two.
+/// Every generator is fully parameterised here, which is what lets the
+/// reference syntax stay a bare `{{name}}` with no call arguments.
+///
+/// Expansion itself happens in the frontend (it has to run live, per
+/// keystroke, for the preview); the backend only stores definitions.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum VariableGenerator {
+    FixedText { value: String },
+    Counter { start: i64, step: i64 },
+    RandomInt { min: i64, max: i64 },
+    RandomFloat { min: f64, max: f64, decimals: u8 },
+    Uuid,
+    Timestamp { format: TimestampFormat },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TimestampFormat {
+    /// Milliseconds since the epoch, as a bare JSON number.
+    UnixMillis,
+    /// RFC 3339 / ISO 8601, as a string.
+    Iso8601,
+}
+
+/// A named `{{placeholder}}` and the generator behind it. App-wide: variables
+/// are deliberately not scoped to a connection or a template, so one defined
+/// fleet is usable everywhere.
+///
+/// `PartialEq` but not `Eq`, because `RandomFloat` carries `f64`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PayloadVariable {
+    pub id: Uuid,
+    pub name: String,
+    pub generator: VariableGenerator,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct NewPayloadVariable {
+    pub name: String,
+    pub generator: VariableGenerator,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UpdatePayloadVariable {
+    pub name: String,
+    pub generator: VariableGenerator,
+}
+
 /// The result of one update check. `Serialize` only - nothing sends this in.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct UpdateCheck {
@@ -253,5 +308,68 @@ mod tests {
             serde_json::to_string(&MessageFormat::Raw).unwrap(),
             "\"raw\""
         );
+    }
+
+    /// The generator JSON is both the SQLite column *and* the IPC shape the
+    /// TypeScript union mirrors, so the exact wire text is pinned here - a
+    /// rename that only happens on one side is otherwise silent.
+    #[test]
+    fn variable_generator_serializes_with_a_camel_case_kind_tag() {
+        assert_eq!(
+            serde_json::to_string(&VariableGenerator::Uuid).unwrap(),
+            r#"{"kind":"uuid"}"#
+        );
+        assert_eq!(
+            serde_json::to_string(&VariableGenerator::Counter { start: 1, step: 2 }).unwrap(),
+            r#"{"kind":"counter","start":1,"step":2}"#
+        );
+        assert_eq!(
+            serde_json::to_string(&VariableGenerator::RandomFloat {
+                min: 18.0,
+                max: 24.0,
+                decimals: 1
+            })
+            .unwrap(),
+            r#"{"kind":"randomFloat","min":18.0,"max":24.0,"decimals":1}"#
+        );
+        assert_eq!(
+            serde_json::to_string(&VariableGenerator::Timestamp {
+                format: TimestampFormat::UnixMillis
+            })
+            .unwrap(),
+            r#"{"kind":"timestamp","format":"unixMillis"}"#
+        );
+    }
+
+    #[test]
+    fn variable_generator_roundtrips_through_json() {
+        let generators = [
+            VariableGenerator::FixedText {
+                value: "dev-42".to_string(),
+            },
+            VariableGenerator::Counter { start: 1, step: 1 },
+            VariableGenerator::RandomInt { min: 0, max: 100 },
+            VariableGenerator::RandomFloat {
+                min: 18.5,
+                max: 24.5,
+                decimals: 2,
+            },
+            VariableGenerator::Uuid,
+            VariableGenerator::Timestamp {
+                format: TimestampFormat::Iso8601,
+            },
+        ];
+
+        for generator in generators {
+            let json = serde_json::to_string(&generator).unwrap();
+            let parsed: VariableGenerator = serde_json::from_str(&json).unwrap();
+            assert_eq!(parsed, generator);
+        }
+    }
+
+    #[test]
+    fn variable_generator_rejects_an_unknown_kind() {
+        let result = serde_json::from_str::<VariableGenerator>(r#"{"kind":"script"}"#);
+        assert!(result.is_err());
     }
 }

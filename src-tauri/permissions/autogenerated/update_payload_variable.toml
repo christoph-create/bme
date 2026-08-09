@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-update-payload-variable"
+description = "Enables the update_payload_variable command without any pre-configured scope."
+commands.allow = ["update_payload_variable"]
+
+[[permission]]
+identifier = "deny-update-payload-variable"
+description = "Denies the update_payload_variable command without any pre-configured scope."
+commands.deny = ["update_payload_variable"]

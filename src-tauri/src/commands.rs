@@ -2,8 +2,9 @@ use std::sync::LazyLock;
 
 use bme_core::models::{
     BrokerConnection, FavoriteCollection, FavoriteMessage, NewBrokerConnection,
-    NewFavoriteCollection, NewFavoriteMessage, NewSubscription, QoS, Subscription,
-    UpdateBrokerConnection, UpdateCheck, UpdateFavoriteCollection, UpdateFavoriteMessage,
+    NewFavoriteCollection, NewFavoriteMessage, NewPayloadVariable, NewSubscription,
+    PayloadVariable, QoS, Subscription, UpdateBrokerConnection, UpdateCheck,
+    UpdateFavoriteCollection, UpdateFavoriteMessage, UpdatePayloadVariable,
 };
 use bme_core::mqtt::manager::MqttClientManager;
 use bme_core::mqtt::port::MqttError;
@@ -14,6 +15,9 @@ use bme_core::storage::favorite_collections_repo::{
     FavoriteCollectionsRepository, SqliteFavoriteCollectionsRepository,
 };
 use bme_core::storage::favorites_repo::{FavoritesRepository, SqliteFavoritesRepository};
+use bme_core::storage::payload_variables_repo::{
+    PayloadVariablesRepository, SqlitePayloadVariablesRepository,
+};
 use bme_core::update::checker::UpdateChecker;
 use bme_core::update::github::GithubReleaseSource;
 use tauri::{AppHandle, Manager, State};
@@ -309,6 +313,48 @@ pub fn update_favorite_collection(
 #[tauri::command]
 pub fn delete_favorite_collection(
     repo: State<SqliteFavoriteCollectionsRepository>,
+    id: Uuid,
+) -> Result<(), String> {
+    repo.delete(id).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub fn list_payload_variables(
+    repo: State<SqlitePayloadVariablesRepository>,
+) -> Result<Vec<PayloadVariable>, String> {
+    repo.list().map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub fn create_payload_variable(
+    repo: State<SqlitePayloadVariablesRepository>,
+    new_variable: NewPayloadVariable,
+) -> Result<PayloadVariable, String> {
+    repo.create(new_variable).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub fn get_payload_variable(
+    repo: State<SqlitePayloadVariablesRepository>,
+    id: Uuid,
+) -> Result<Option<PayloadVariable>, String> {
+    repo.get(id).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub fn update_payload_variable(
+    repo: State<SqlitePayloadVariablesRepository>,
+    id: Uuid,
+    update: UpdatePayloadVariable,
+) -> Result<PayloadVariable, String> {
+    repo.update(id, update)
+        .map_err(|err| err.to_string())?
+        .ok_or_else(|| format!("payload variable {id} not found"))
+}
+
+#[tauri::command]
+pub fn delete_payload_variable(
+    repo: State<SqlitePayloadVariablesRepository>,
     id: Uuid,
 ) -> Result<(), String> {
     repo.delete(id).map_err(|err| err.to_string())

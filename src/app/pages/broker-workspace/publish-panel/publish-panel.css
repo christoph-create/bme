@@ -28,6 +28,36 @@
   color: var(--color-success);
 }
 
+/* Amber, not green: a run in progress is a state to notice, not a success. */
+.flash.running {
+  color: var(--color-warning);
+}
+
+/* Sits in the control row after QoS, sized to `--control-height` so it lines
+   up with the inputs and segmented controls either side of it rather than
+   floating in the header. */
+.settings-toggle {
+  flex-shrink: 0;
+  width: var(--control-height);
+  height: var(--control-height);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--color-input-border);
+  border-radius: var(--radius-input);
+  background: var(--color-input-bg);
+  color: var(--color-text-secondary);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.settings-toggle:hover {
+  color: var(--color-text);
+  border-color: var(--color-text-secondary);
+}
+
 .body {
   padding: 0 18px 14px;
   display: flex;
@@ -78,18 +108,6 @@
 
 .segment:not(.selected):hover {
   background: var(--color-surface-hover);
-}
-
-.retain-field {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  flex-shrink: 0;
-  white-space: nowrap;
 }
 
 .payload-input {
@@ -151,4 +169,11 @@
 .btn-publish:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Stop has to read as "interrupt", not as the same affirmative action the
+   button was a moment ago. */
+.btn-publish.stopping {
+  background: var(--color-danger);
+  color: var(--color-danger-ink);
 }

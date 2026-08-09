@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-payload-variable"
+description = "Enables the get_payload_variable command without any pre-configured scope."
+commands.allow = ["get_payload_variable"]
+
+[[permission]]
+identifier = "deny-get-payload-variable"
+description = "Denies the get_payload_variable command without any pre-configured scope."
+commands.deny = ["get_payload_variable"]

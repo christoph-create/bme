@@ -1,14 +1,23 @@
 @if (format() === "json") {
   <div class="toolbar">
-    <span
-      class="format-action"
-      (click)="formatPayload()"
-      (keydown.enter)="formatPayload()"
-      role="button"
-      tabindex="0"
-    >
-      Format
-    </span>
+    @if (hasVariables()) {
+      <span
+        class="format-action disabled"
+        title="Formatting is unavailable while the payload contains variables"
+      >
+        Format
+      </span>
+    } @else {
+      <span
+        class="format-action"
+        (click)="formatPayload()"
+        (keydown.enter)="formatPayload()"
+        role="button"
+        tabindex="0"
+      >
+        Format
+      </span>
+    }
   </div>
   <div #editorHost class="editor-host"></div>
   @if (formatError(); as message) {

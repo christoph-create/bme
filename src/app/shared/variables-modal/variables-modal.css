@@ -1,0 +1,206 @@
+.intro {
+  margin: 0 0 var(--space-4);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text-tertiary);
+}
+
+.intro code {
+  color: var(--color-text-secondary);
+  font-size: 11.5px;
+}
+
+.variable-list {
+  margin: 0 0 var(--space-4);
+  padding: 0;
+  list-style: none;
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid var(--color-input-border);
+  border-radius: var(--radius-input);
+  background: var(--color-input-bg);
+}
+
+.variable-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 7px 10px;
+  font-size: 12px;
+  border-bottom: 1px solid var(--color-border-faint);
+}
+
+.variable-row:last-child {
+  border-bottom: none;
+}
+
+.variable-row.editing {
+  background: var(--color-accent-tint);
+}
+
+.variable-name {
+  width: 108px;
+  flex-shrink: 0;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.variable-kind {
+  width: 92px;
+  flex-shrink: 0;
+  color: var(--color-text-tertiary);
+  font-size: 11.5px;
+}
+
+.variable-summary {
+  flex: 1;
+  min-width: 0;
+  color: var(--color-text-secondary);
+  font-size: 11.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.next-value {
+  color: var(--color-text-faint);
+}
+
+.row-action {
+  flex-shrink: 0;
+  padding: 3px 8px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-tertiary);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.row-action:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+.row-action.danger:hover {
+  background: var(--color-danger-tint);
+  color: var(--color-danger);
+}
+
+.empty {
+  padding: 12px 10px;
+  color: var(--color-text-faint);
+  font-size: 12px;
+}
+
+.confirm {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4);
+  padding: 8px 10px;
+  border-radius: var(--radius-input);
+  background: var(--color-danger-tint);
+  color: var(--color-text-secondary);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border-faint);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.field label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-2);
+}
+
+.field select {
+  height: var(--control-height);
+  background: var(--color-input-bg);
+  border: 1px solid var(--color-input-border);
+  border-radius: var(--radius-input);
+  padding: 0 10px;
+  color: var(--color-text);
+  font-size: 12.5px;
+}
+
+/* Counter/range parameters read as one setting, so they share a row rather
+   than stacking into three full-width fields. */
+.field-pair {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.field-pair .field {
+  flex: 1;
+}
+
+.hint {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--color-text-tertiary);
+}
+
+.error {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--color-danger);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+.btn-secondary {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  background: none;
+  border: none;
+  padding: 9px 16px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.btn-secondary:hover {
+  color: var(--color-text);
+}
+
+.btn-primary {
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 9px 18px;
+  border-radius: var(--radius-md);
+  border: none;
+  cursor: pointer;
+}
+
+.btn-primary:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

@@ -1,5 +1,6 @@
 import {
   Component,
+  DestroyRef,
   computed,
   effect,
   inject,
@@ -20,9 +21,13 @@ import { QoS } from "../../../core/models/qos";
 import { FavoriteCollectionsService } from "../../../core/services/favorite-collections.service";
 import { FavoritesService } from "../../../core/services/favorites.service";
 import { JsonFormatService } from "../../../core/services/json-format.service";
+import { VariablesService } from "../../../core/services/variables.service";
+import { unknownPlaceholderNames } from "../../../core/variables/placeholders";
+import { probeExpand } from "../../../core/variables/probe-expand";
 import { QosSelect } from "../../broker-workspace/qos-select/qos-select";
 import { Modal } from "../../../shared/modal/modal";
 import { PayloadInput } from "../../../shared/payload-input/payload-input";
+import { VariablesModal } from "../../../shared/variables-modal/variables-modal";
 
 /** Sentinel `collectionId` form value meaning "create a new collection from
  * `newCollectionName` and use that", distinct from "" (no collection). */
@@ -31,7 +36,7 @@ const FORMAT_OPTIONS: readonly MessageFormat[] = ["json", "raw"];
 
 @Component({
   selector: "app-template-form",
-  imports: [Modal, QosSelect, ReactiveFormsModule, PayloadInput],
+  imports: [Modal, QosSelect, ReactiveFormsModule, PayloadInput, VariablesModal],
   templateUrl: "./template-form.html",
   styleUrl: "./template-form.css",
 })
@@ -43,6 +48,11 @@ export class TemplateForm {
   private readonly favoritesService = inject(FavoritesService);
   private readonly collectionsService = inject(FavoriteCollectionsService);
   private readonly jsonFormat = inject(JsonFormatService);
+  private readonly variablesService = inject(VariablesService);
+
+  /** Read-only here: the definitions are managed from the publish panel, this
+   * form only needs to know each name's value kind to validate against. */
+  readonly placeholderKinds = this.variablesService.valueKinds;
   private readonly formBuilder = inject(FormBuilder);
 
   readonly newCollectionValue = NEW_COLLECTION;
@@ -75,14 +85,52 @@ export class TemplateForm {
    * on the next change-detection pass, which CodeMirror's edits don't
    * trigger (they're not an Angular-bound DOM event), so that would lag a
    * beat behind the live error text below the field. `value` is set
-   * directly by PayloadInput itself on every keystroke, no such lag. */
+   * directly by PayloadInput itself on every keystroke, no such lag.
+   *
+   * Judged on the probe-expanded text, so a template carrying `{{tempC}}`
+   * in a value position is savable - the whole point of storing
+   * placeholders in a template is that they aren't literal JSON yet. */
   readonly payloadInvalid = computed(() => {
     if (this.format() !== "json") {
       return false;
     }
     const text = this.payloadInputRef()?.value() ?? this.form.controls.payload.value;
-    return text.trim() !== "" && !this.jsonFormat.format(text).ok;
+    if (text.trim() === "") {
+      return false;
+    }
+    return !this.jsonFormat.format(probeExpand(text, this.placeholderKinds())).ok;
   });
+
+  /** Placeholder names with no variable behind them. Shown even when the
+   * payload still parses - `"id": "{{typo}}"` is valid JSON that will send
+   * the literal braces, which is almost never what was meant. */
+  readonly showVariablesModal = signal(false);
+
+  readonly unknownVariables = computed(() => {
+    const text =
+      this.payloadInputRef()?.value() ?? this.draft().payload;
+    const known = new Set(this.placeholderKinds().keys());
+    return [
+      ...new Set([
+        ...unknownPlaceholderNames(this.draft().topic, known),
+        ...unknownPlaceholderNames(text, known),
+      ]),
+    ];
+  });
+
+  /** The live form values, as a signal. A reactive form control's `.value` is
+   * a plain property, so a `computed` reading it registers no dependency and
+   * would never recompute as you type - the same trap the publish panel's
+   * preview fell into. */
+  private readonly draft = signal(this.form.getRawValue());
+
+  openVariablesModal(): void {
+    this.showVariablesModal.set(true);
+  }
+
+  closeVariablesModal(): void {
+    this.showVariablesModal.set(false);
+  }
 
   get isEditMode(): boolean {
     return this.favorite() !== null;
@@ -105,6 +153,18 @@ export class TemplateForm {
   }
 
   constructor() {
+    // Same tolerance as the publish panel: without the definitions, a
+    // placeholder is just text, which is a worse edit experience but not a
+    // reason to fail opening the form.
+    this.variablesService.load().catch(() => undefined);
+
+    const draftSubscription = this.form.valueChanges.subscribe(() => {
+      this.draft.set(this.form.getRawValue());
+    });
+    inject(DestroyRef).onDestroy(() => {
+      draftSubscription.unsubscribe();
+    });
+
     // `favorite` is an optional input - reading it in a field initializer
     // would only ever see the default (null), since Angular applies input
     // bindings after the constructor runs. An effect defers the read until

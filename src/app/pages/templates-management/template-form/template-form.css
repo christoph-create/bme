@@ -140,3 +140,15 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+.warning {
+  margin: var(--space-2) 0 0;
+  font-size: 11.5px;
+  color: var(--color-warning);
+}
+
+/* Pushed left so Cancel/Save keep their place on the right - this is a
+   side-trip out of the form, not one of its outcomes. */
+.edit-vars {
+  margin-right: auto;
+}

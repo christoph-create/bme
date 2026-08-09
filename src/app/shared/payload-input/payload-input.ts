@@ -20,7 +20,13 @@ import { EditorView, keymap } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 
 import { MessageFormat } from "../../core/models/message-format.model";
+import { VariableValueKind } from "../../core/models/payload-variable.model";
 import { JsonFormatService } from "../../core/services/json-format.service";
+import {
+  hasPlaceholders,
+  unknownPlaceholderNames,
+} from "../../core/variables/placeholders";
+import { probeExpand } from "../../core/variables/probe-expand";
 
 /** Tags a dispatched transaction as a programmatic sync (from `writeValue`
  * or `formatPayload`) rather than a user edit, so the update listener below
@@ -101,6 +107,19 @@ const editorTheme = EditorView.theme({
 export class PayloadInput implements ControlValueAccessor {
   readonly format = input<MessageFormat>("raw");
 
+  /** Value kinds for the `{{placeholder}}` variables in scope, keyed by name.
+   *
+   * When set, JSON validity is judged on the *probe-expanded* text, so a
+   * payload like `{"t":{{tempC}}}` reads as valid - it will be, once it goes
+   * on the wire. `null` (the default) keeps the plain literal check for every
+   * caller that has nothing to do with variables. A data input rather than a
+   * callback so this component stays presentational and doesn't grow a
+   * dependency on the variables service. */
+  readonly placeholderKinds = input<ReadonlyMap<
+    string,
+    VariableValueKind
+  > | null>(null);
+
   private readonly jsonFormat = inject(JsonFormatService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly editorHost =
@@ -109,8 +128,24 @@ export class PayloadInput implements ControlValueAccessor {
   readonly value = signal("");
   readonly disabled = signal(false);
 
+  /** Placeholder names in the value that have no variable behind them. Those
+   * expand to nothing - they go on the wire as the literal `{{name}}` text -
+   * which is usually the reason a payload using variables fails to parse. */
+  readonly unknownVariables = computed(() => {
+    const kinds = this.placeholderKinds();
+    if (kinds === null) {
+      return [];
+    }
+    return unknownPlaceholderNames(this.value(), new Set(kinds.keys()));
+  });
+
   /** Live JSON validity error for the current value - recomputed on every
-   * keystroke, not just when Format is clicked. */
+   * keystroke, not just when Format is clicked.
+   *
+   * When the payload uses an undefined variable, that gets named. Otherwise
+   * `{"n": {{count}}}` reports only "Payload isn't valid JSON", which is true
+   * but sends you hunting for a syntax error that isn't there - the real
+   * problem is that `count` doesn't exist, so it never became a number. */
   readonly formatError = computed(() => {
     if (this.format() !== "json") {
       return null;
@@ -119,9 +154,24 @@ export class PayloadInput implements ControlValueAccessor {
     if (text.trim() === "") {
       return null;
     }
-    const result = this.jsonFormat.format(text);
-    return result.ok ? null : result.error;
+    const result = this.jsonFormat.format(this.textToValidate(text));
+    if (result.ok) {
+      return null;
+    }
+
+    const unknown = this.unknownVariables();
+    if (unknown.length === 0) {
+      return result.error;
+    }
+    const names = unknown.map((name) => `"${name}"`).join(", ");
+    return unknown.length === 1
+      ? `${result.error} — there is no variable named ${names}`
+      : `${result.error} — there are no variables named ${names}`;
   });
+
+  /** True when the value contains `{{placeholder}}` syntax, which is what
+   * makes pretty-printing unavailable - see `formatPayload`. */
+  readonly hasVariables = computed(() => hasPlaceholders(this.value()));
 
   private onChange: (value: string) => void = noop;
   private onTouched: () => void = noop;
@@ -184,8 +234,14 @@ export class PayloadInput implements ControlValueAccessor {
   }
 
   /** Pretty-prints the current payload, in place. A no-op for invalid JSON
-   * - the live error above already reports why. */
+   * - the live error above already reports why - and for a payload containing
+   * variables, where round-tripping through JSON.parse would have to
+   * reconstruct the placeholders afterwards. The button is disabled in that
+   * case; this is the guard behind it. */
   formatPayload(): void {
+    if (this.hasVariables()) {
+      return;
+    }
     const result = this.jsonFormat.format(this.value());
     if (!result.ok) {
       return;
@@ -231,6 +287,13 @@ export class PayloadInput implements ControlValueAccessor {
     });
 
     this.editorView = new EditorView({ state, parent });
+  }
+
+  /** The text JSON validity is judged on: probe-expanded when placeholder
+   * kinds are in scope, the literal text otherwise. */
+  private textToValidate(text: string): string {
+    const kinds = this.placeholderKinds();
+    return kinds === null ? text : probeExpand(text, kinds);
   }
 
   private syncEditorContent(text: string): void {
