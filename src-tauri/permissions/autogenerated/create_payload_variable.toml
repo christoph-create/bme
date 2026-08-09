@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-create-payload-variable"
+description = "Enables the create_payload_variable command without any pre-configured scope."
+commands.allow = ["create_payload_variable"]
+
+[[permission]]
+identifier = "deny-create-payload-variable"
+description = "Denies the create_payload_variable command without any pre-configured scope."
+commands.deny = ["create_payload_variable"]

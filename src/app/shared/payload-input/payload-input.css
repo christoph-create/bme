@@ -22,6 +22,11 @@
   color: var(--color-text);
 }
 
+.format-action.disabled {
+  color: var(--color-text-faint);
+  cursor: not-allowed;
+}
+
 .editor-host {
   flex: 1;
   min-height: 0;

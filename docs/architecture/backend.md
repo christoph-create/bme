@@ -73,6 +73,12 @@ Four repositories, each a trait + a `Sqlite*` impl over a shared
   they can be replayed on reconnect.
 - `favorites_repo.rs` — templates.
 - `favorite_collections_repo.rs` — template collections.
+- `payload_variables_repo.rs` — the `{{name}}` variable definitions
+  (migration `0010`), app-wide rather than per connection or per template.
+  The `generator` column holds the serde JSON of `VariableGenerator`, so a new
+  generator type costs no migration (removing one does need care: an existing
+  row would then fail to decode). The migration seeds `uuid`, `timestamp`,
+  `isoDate` and `counter`; they're ordinary rows, editable and deletable.
 - `app_settings_repo.rs` — a generic `key`/`value` table for app-level
   settings (migration `0009`). Not domain data: no model type, no ids, just
   `get`/`set`/`remove` on namespaced `area.name` keys, with each consumer
@@ -199,6 +205,9 @@ Current commands, by area:
 - **collections** — `list_favorite_collections`,
   `create_favorite_collection`, `get_favorite_collection`,
   `update_favorite_collection`, `delete_favorite_collection`
+- **payload variables** — `list_payload_variables`,
+  `create_payload_variable`, `get_payload_variable`,
+  `update_payload_variable`, `delete_payload_variable`
 
 Arguments are camelCase over IPC (`newConnection`, `connectionId`) even
 though the Rust params are snake_case — Tauri does that conversion.

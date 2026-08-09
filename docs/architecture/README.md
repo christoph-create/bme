@@ -58,6 +58,7 @@ bme/
 | The message list / topic tree | `src/app/pages/broker-workspace/` |
 | How messages are held in memory | `src/app/core/services/message-store.service.ts` |
 | Import/export of templates | `src/app/core/services/template-exchange.service.ts` + `spec/` |
+| Repeat publishing, or `{{name}}` payload variables | `src/app/pages/broker-workspace/publish-panel/`, with the expansion logic in `src/app/core/variables/` |
 | App startup, logging, window quirks | `src-tauri/src/lib.rs` |
 | Whether the app tells you a new version exists | `core/src/update/checker.rs`, then `src/app/core/services/update-notifier.service.ts` |
 | An app-level setting (not per-connection) | `core/src/storage/app_settings_repo.rs`, with the key constants next to whatever owns the setting |

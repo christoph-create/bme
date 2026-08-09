@@ -54,6 +54,7 @@ Rust type and you must change its mirror here. `stored-message` and
 | `message-store.service` | The in-memory message history (see below) |
 | `template-exchange.service` | Serializes/parses the `spec/` exchange format, including version checking |
 | `json-format.service` | Pretty-print, compact, and tokenize JSON for the payload editor's highlighting |
+| `variables.service` | CRUD over the `{{name}}` variable definitions, plus a loaded-once signal cache. The cache is the point: the publish panel validates and previews on every keystroke, which an `invoke()` per keystroke can't serve. The expansion logic itself is in the plain functions under `core/variables/` |
 | `logger.service` | Forwards to the Rust log file via `@tauri-apps/plugin-log` |
 | `update.service` | `invoke()` wrapper over `get_app_version` / `check_for_updates` / `skip_update_version` |
 | `update-notifier.service` | App-wide update state, and the one throttled check per launch. Its policy — silent vs. up-to-date vs. offer — lives in the plain `update-announcement.ts` next to it |

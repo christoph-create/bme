@@ -25,6 +25,11 @@ fn main() {
             "get_favorite_collection",
             "update_favorite_collection",
             "delete_favorite_collection",
+            "list_payload_variables",
+            "create_payload_variable",
+            "get_payload_variable",
+            "update_payload_variable",
+            "delete_payload_variable",
         ]),
     ))
     .expect("failed to run tauri-build");

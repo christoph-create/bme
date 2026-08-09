@@ -14,3 +14,8 @@ of the format bump the major part of `specVersion` and get their own
 `template-format-vN.md` file; the previous version's file is kept as-is.
 Consumers should reject documents whose major `specVersion` they don't
 recognize rather than guess.
+
+Conventions that ride on top of existing fields — such as the `{{name}}`
+payload placeholders described in v1 — don't bump anything: a consumer that
+doesn't implement them still reads the document correctly, it just sends the
+text as written.

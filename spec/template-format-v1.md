@@ -130,6 +130,47 @@ kind: a bundle is flat, one level, no bundles-of-bundles.
 }
 ```
 
+## Payload placeholders
+
+`topic` and `payload` may contain `{{name}}` placeholders, where `name` is a
+letter or underscore followed by letters, digits or underscores. Optional
+whitespace inside the braces (`{{ name }}`) is part of the syntax.
+
+This is a **producer/consumer convention layered on top of the format, not a
+new field**. Nothing above changes, and no version bump is implied:
+
+- A consumer that implements placeholders substitutes a generated value for
+  each one before publishing.
+- A consumer that does not **must send the text exactly as written**. A
+  literal `{{uuid}}` on the wire is the correct behaviour for such a consumer,
+  never an error and never an empty string.
+- A `format` of `"json"` still doesn't require `payload` to parse — see the
+  Template Item table. `{"t":{{tempC}}}` is a legitimate JSON-format template:
+  it becomes valid JSON once expanded. This is already covered by the existing
+  rule that a consumer must not reject a document solely because a
+  JSON-format payload doesn't parse.
+- Placeholder *names* are the only thing that travels. The **definitions** —
+  what generates each value — are deliberately not part of this format; they
+  are local application configuration. So an imported template may refer to
+  names the importer has never heard of, and that is not a validation error.
+  What such a consumer does about it (leave it literal, warn, offer to create
+  the variable) is up to it.
+
+An exchange document is therefore identical whether or not placeholders are
+involved:
+
+```json
+{
+  "name": "Simulated sensor reading",
+  "description": null,
+  "topic": "sensors/{{deviceId}}/temp",
+  "payload": "{\"id\":\"{{uuid}}\",\"t\":{{tempC}},\"n\":{{seq}}}",
+  "format": "json",
+  "qos": 0,
+  "retain": false
+}
+```
+
 ## Validation rules for consumers
 
 A document is rejected (with a field-level error, not a silent drop) if:

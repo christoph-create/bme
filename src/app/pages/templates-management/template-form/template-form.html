@@ -24,7 +24,14 @@
         class="payload-input"
         formControlName="payload"
         [format]="format()"
+        [placeholderKinds]="placeholderKinds()"
       />
+      @if (unknownVariables().length > 0) {
+        <p class="warning">
+          unknown variable{{ unknownVariables().length > 1 ? "s" : "" }}:
+          {{ unknownVariables().join(", ") }} — sent as written
+        </p>
+      }
     </div>
 
     <div class="field-row">
@@ -97,6 +104,13 @@
     }
 
     <footer class="actions">
+      <button
+        type="button"
+        class="btn-secondary edit-vars"
+        (click)="openVariablesModal()"
+      >
+        Edit Vars
+      </button>
       <button type="button" class="btn-secondary" (click)="close_modal.emit()">
         Cancel
       </button>
@@ -112,3 +126,7 @@
     </footer>
   </form>
 </app-modal>
+
+@if (showVariablesModal()) {
+  <app-variables-modal (close_modal)="closeVariablesModal()" />
+}

@@ -2,6 +2,7 @@ import { TestBed } from "@angular/core/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { MessageFormat } from "../../core/models/message-format.model";
+import { VariableValueKind } from "../../core/models/payload-variable.model";
 import { PayloadInput } from "./payload-input";
 
 async function setup(format: MessageFormat = "json") {
@@ -161,5 +162,89 @@ describe("PayloadInput", () => {
 
       expect(onTouched).toHaveBeenCalled();
     });
+  });
+});
+
+describe("PayloadInput with variables in scope", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  /** `xxx` is a UUID (string), `tempC` a random int (number) - the two value
+   * kinds probe expansion has to distinguish. */
+  const kinds: ReadonlyMap<string, VariableValueKind> = new Map([
+    ["xxx", "string"],
+    ["tempC", "number"],
+  ]);
+
+  async function withKinds(value: string) {
+    const { fixture, component } = await setup("json");
+    fixture.componentRef.setInput("placeholderKinds", kinds);
+    component.writeValue(value);
+    fixture.detectChanges();
+    return { fixture, component };
+  }
+
+  it("accepts a defined numeric variable in a value position", async () => {
+    const { component } = await withKinds('{"t":{{tempC}}}');
+
+    expect(component.formatError()).toBeNull();
+  });
+
+  it("accepts a defined string variable inside quotes", async () => {
+    const { component } = await withKinds('{"id":"{{xxx}}"}');
+
+    expect(component.formatError()).toBeNull();
+  });
+
+  it("names the undefined variable instead of only saying the JSON is bad", async () => {
+    // The case from the bug report: "number" was never defined, so it stays
+    // literal and the payload really isn't valid JSON - but "Payload isn't
+    // valid JSON" alone sends you hunting for a syntax error that isn't there.
+    const { component } = await withKinds(
+      '{"uuid":"{{xxx}}","number":{{number}}}',
+    );
+
+    expect(component.formatError()).toBe(
+      "Payload isn't valid JSON — there is no variable named \"number\"",
+    );
+  });
+
+  it("names several undefined variables", async () => {
+    const { component } = await withKinds('{"a":{{one}},"b":{{two}}}');
+
+    expect(component.formatError()).toBe(
+      "Payload isn't valid JSON — there are no variables named \"one\", \"two\"",
+    );
+  });
+
+  it("keeps the plain message when the JSON is broken for an ordinary reason", async () => {
+    const { component } = await withKinds('{"t":{{tempC}},}');
+
+    expect(component.formatError()).toBe("Payload isn't valid JSON");
+  });
+
+  it("reports an unknown name even where the JSON still parses", async () => {
+    const { component } = await withKinds('{"id":"{{typo}}"}');
+
+    expect(component.formatError()).toBeNull();
+    expect(component.unknownVariables()).toEqual(["typo"]);
+  });
+
+  it("reports nothing unknown when no kinds are supplied at all", async () => {
+    // Every other caller of PayloadInput passes nothing, and must keep the
+    // old literal-JSON behaviour.
+    const { fixture, component } = await setup("json");
+    component.writeValue('{"id":"{{typo}}"}');
+    fixture.detectChanges();
+
+    expect(component.unknownVariables()).toEqual([]);
+    expect(component.formatError()).toBeNull();
+  });
+
+  it("still rejects a placeholder-free payload that is genuinely invalid", async () => {
+    const { component } = await withKinds("not json");
+
+    expect(component.formatError()).toBe("Payload isn't valid JSON");
   });
 });

@@ -1,10 +1,16 @@
+import { computed, signal } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { FavoriteCollection } from "../../../core/models/favorite-collection.model";
 import { FavoriteMessage } from "../../../core/models/favorite-message.model";
+import {
+  PayloadVariable,
+  valueKindOf,
+} from "../../../core/models/payload-variable.model";
 import { FavoriteCollectionsService } from "../../../core/services/favorite-collections.service";
 import { FavoritesService } from "../../../core/services/favorites.service";
+import { VariablesService } from "../../../core/services/variables.service";
 import { TemplateForm } from "./template-form";
 
 const COLLECTION: FavoriteCollection = {
@@ -33,6 +39,7 @@ async function setup(overrides: {
   update?: ReturnType<typeof vi.fn>;
   listCollections?: ReturnType<typeof vi.fn>;
   createCollection?: ReturnType<typeof vi.fn>;
+  variables?: PayloadVariable[];
 } = {}) {
   const favoritesService = {
     create: overrides.create ?? vi.fn().mockResolvedValue(EXISTING),
@@ -43,11 +50,21 @@ async function setup(overrides: {
     create: overrides.createCollection ?? vi.fn(),
   };
 
+  const stored = signal<readonly PayloadVariable[]>(overrides.variables ?? []);
+  const variablesService = {
+    variables: stored.asReadonly(),
+    valueKinds: computed(
+      () => new Map(stored().map((v) => [v.name, valueKindOf(v.generator)])),
+    ),
+    load: vi.fn().mockResolvedValue(undefined),
+  };
+
   TestBed.configureTestingModule({
     imports: [TemplateForm],
     providers: [
       { provide: FavoritesService, useValue: favoritesService },
       { provide: FavoriteCollectionsService, useValue: collectionsService },
+      { provide: VariablesService, useValue: variablesService },
     ],
   });
 
@@ -60,7 +77,7 @@ async function setup(overrides: {
   await fixture.whenStable();
   fixture.detectChanges();
 
-  return { fixture, favoritesService, collectionsService };
+  return { fixture, favoritesService, collectionsService, variablesService };
 }
 
 describe("TemplateForm", () => {
@@ -288,5 +305,67 @@ describe("TemplateForm", () => {
     (cancelButton as HTMLElement).click();
 
     expect(close_modal).toHaveBeenCalledOnce();
+  });
+});
+
+describe("TemplateForm variables", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    TestBed.resetTestingModule();
+  });
+
+  function variable(name: string): PayloadVariable {
+    return {
+      id: name,
+      name,
+      generator: { kind: "randomInt", min: 0, max: 9 },
+      created_at: "2026-01-01T00:00:00Z",
+    };
+  }
+
+  it("opens the variables editor from the form", async () => {
+    const { fixture } = await setup();
+    const component = fixture.componentInstance;
+    expect(component.showVariablesModal()).toBe(false);
+
+    const button = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll("button"),
+    ).find((b) => b.textContent?.trim() === "Edit Vars") as HTMLButtonElement;
+    button.click();
+    fixture.detectChanges();
+
+    expect(component.showVariablesModal()).toBe(true);
+    expect(
+      (fixture.nativeElement as HTMLElement).textContent,
+    ).toContain("Variables");
+  });
+
+  it("accepts a numeric variable in a JSON value position", async () => {
+    const { fixture } = await setup({ variables: [variable("tempC")] });
+    const component = fixture.componentInstance;
+
+    component.form.controls.payload.setValue('{"t":{{tempC}}}');
+
+    expect(component.payloadInvalid()).toBe(false);
+  });
+
+  it("warns about an unknown name even where the JSON still parses", async () => {
+    const { fixture } = await setup();
+    const component = fixture.componentInstance;
+
+    component.form.controls.payload.setValue('{"id":"{{typo}}"}');
+    fixture.detectChanges();
+
+    expect(component.payloadInvalid()).toBe(false);
+    expect(component.unknownVariables()).toEqual(["typo"]);
+  });
+
+  it("picks up unknown names used in the topic too", async () => {
+    const { fixture } = await setup();
+    const component = fixture.componentInstance;
+
+    component.form.controls.topic.setValue("sensors/{{missing}}");
+
+    expect(component.unknownVariables()).toEqual(["missing"]);
   });
 });

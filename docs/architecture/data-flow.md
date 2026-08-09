@@ -116,8 +116,16 @@ Change one side of any of these and the other breaks silently:
 | `MqttEvent` in `core/src/mqtt/port.rs` (externally tagged) | `mqtt-event.model.ts` |
 | `QoS` (serialized by name: `"AtLeastOnce"`) | `qos.ts` |
 | `MessageFormat` (`"json"` / `"raw"`) | `message-format.model.ts` |
+| `VariableGenerator` (internally tagged on `kind`, camelCase) | the union in `payload-variable.model.ts` |
 | command names + arg names in `commands.rs` | the `invoke()` calls in `core/services/` |
 | the exchange format in `spec/` | `template-exchange.service.ts` |
+
+`VariableGenerator`'s JSON is doubly load-bearing: it is both the
+`payload_variables.generator` column and the IPC payload, so a change to the
+tag or a field name breaks stored data as well as the frontend. The Rust side
+never *expands* a placeholder — that happens in `core/variables/` in the
+frontend, because the preview needs it live per keystroke — so there is no
+expansion logic duplicated across the boundary, only the definition shape.
 
 The `app_settings` key strings (`update.skipped_version`,
 `update.last_checked_at`, defined in `core/src/update/mod.rs`) are a contract
