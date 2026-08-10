@@ -37,12 +37,15 @@ bme/
 │       ├── core/              models/ (mirror Rust types) · services/ (IPC + state)
 │       ├── pages/             One dir per route; sub-dirs are that page's components
 │       └── shared/            Cross-page components (modal, payload-input, …)
+│   └── demo/              Mock backend + example data; runs the UI with no broker or DB
 ├── spec/                  Public template-exchange format spec (versioned, tool-independent)
 ├── scripts/bump-version.sh    Keeps the 6 places that hold a version number in sync
+├── scripts/screenshots.sh     Regenerates docs/screenshots/ from src/demo/ (+ screenshots.mjs)
+├── .claude/skills/            Repo-specific agent workflows (screenshots, release notes)
 ├── .github/workflows/ci.yml   lint → test → build → release (Linux + Windows)
 └── docs/
     ├── architecture/      ← you are here
-    ├── screenshots/       Used by the root README
+    ├── screenshots/       Used by the root README — generated, never hand-edited
     └── plans/             Scratch planning docs — gitignored, not part of the repo
 ```
 
@@ -62,6 +65,7 @@ bme/
 | App startup, logging, window quirks | `src-tauri/src/lib.rs` |
 | Whether the app tells you a new version exists | `core/src/update/checker.rs`, then `src/app/core/services/update-notifier.service.ts` |
 | An app-level setting (not per-connection) | `core/src/storage/app_settings_repo.rs`, with the key constants next to whatever owns the setting |
+| The README's screenshots, or the example data in them | `src/demo/demo-data.ts` for what's on screen, `scripts/screenshots.mjs` for the shot list — then `npm run screenshots` |
 
 ## The one architectural rule
 

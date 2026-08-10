@@ -44,8 +44,10 @@ testem.log
 .DS_Store
 Thumbs.db
 
-# Claude Code local state
-/.claude
+# Claude Code local state - except the skills, which describe repo-specific
+# workflows and belong with the code they operate on.
+/.claude/*
+!/.claude/skills/
 
 # Scratch planning docs, not for the repo
 /docs/plans
