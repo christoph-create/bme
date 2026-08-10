@@ -57,6 +57,17 @@
               "optimization": false,
               "extractLicenses": false,
               "sourceMap": true
+            },
+            "demo": {
+              "optimization": false,
+              "extractLicenses": false,
+              "sourceMap": true,
+              "fileReplacements": [
+                {
+                  "replace": "src/main.ts",
+                  "with": "src/main.demo.ts"
+                }
+              ]
             }
           },
           "defaultConfiguration": "production"
@@ -72,6 +83,10 @@
             },
             "development": {
               "buildTarget": "bme:build:development"
+            },
+            "demo": {
+              "buildTarget": "bme:build:demo",
+              "port": 1421
             }
           },
           "defaultConfiguration": "development"

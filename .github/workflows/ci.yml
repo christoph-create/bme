@@ -6,6 +6,12 @@ on:
       - "v*"
   pull_request:
 
+# Playwright is a devDependency of the screenshot script only, and nothing in
+# CI captures screenshots. Without this, every `npm ci` here would download a
+# ~180MB Chromium that no job goes on to use.
+env:
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+
 jobs:
   lint:
     runs-on: ubuntu-latest

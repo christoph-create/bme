@@ -33,11 +33,11 @@ It's built with [Tauri](https://tauri.app) (a Rust backend, SQLite for local sto
 <table align="center">
   <tr>
     <td align="center" width="50%">
-      <img src="docs/screenshots/connections.png" width="380" alt="Connections list showing three saved broker connections, with a Manage Templates button in the header">
+      <img src="docs/screenshots/connections.png" width="380" alt="Connections list showing five saved broker connections, with a Manage Templates button in the header and the app version plus a Check for updates button in the footer">
       <br><em>Saved connections</em>
     </td>
     <td align="center" width="50%">
-      <img src="docs/screenshots/new-connection.png" width="380" alt="New Connection form with host, port, client ID, keep-alive, TLS and auth options">
+      <img src="docs/screenshots/new-connection.png" width="380" alt="New Connection form with name, host, port, client ID, keep-alive, TLS, automatic reconnect and authentication options">
       <br><em>Adding a broker</em>
     </td>
   </tr>
@@ -55,6 +55,25 @@ It's built with [Tauri](https://tauri.app) (a Rust backend, SQLite for local sto
   <em>Save as Template — grab the current publish draft into your library, optionally into a collection.</em>
 </p>
 
+<p align="center">
+  <img src="docs/screenshots/value-charts.png" width="820" alt="Charts panel expanded over the message stream, plotting temperature and humidity from the selected topic's payloads as two line charts with their current values and timestamped x-axes">
+  <br>
+  <em>Charts — plot any numeric value in a topic's payload and watch it move.</em>
+</p>
+
+<table align="center">
+  <tr>
+    <td align="center" width="50%">
+      <img src="docs/screenshots/variables-modal.png" width="380" alt="Variables dialog listing uuid, timestamp, isoDate, counter, deviceId and tempC with their generator types and parameters, over a publish draft that references them">
+      <br><em>Variables behind <code>{{name}}</code></em>
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/screenshots/repeat-publishing.png" width="380" alt="Publish settings view showing retain and repeat toggles, publish interval in milliseconds, number of messages, and a summary of the defined variables">
+      <br><em>Repeat publishing</em>
+    </td>
+  </tr>
+</table>
+
 ### How to use it
 
 1. **Add a broker** — `+ New Connection`, fill in host/port (and TLS or credentials if the broker needs them), then **Save & Connect** (or **Test Connection** first to sanity-check it).
@@ -63,7 +82,8 @@ It's built with [Tauri](https://tauri.app) (a Rust backend, SQLite for local sto
 4. **Publish** a message from the panel on the right — topic is pre-filled from whatever you've selected in the tree, payload as JSON or raw text, pick a QoS, hit Publish.
 5. **Save frequently-used payloads as templates** — from the publish panel, "Save as Template" (broker-independent, optionally grouped into a collection) or "Load Template" to pull one back in. Manage the full set — edit any field, delete, or reorganize collections — from **Manage Templates** on the Connections page.
 6. **Share templates and collections** — from the Templates page, **Export** a single template or a whole collection (or **Export All** for everything) as copy-pasteable JSON, and **Import** to bring one back in. It's an open, versioned format, not a bme-specific blob — see [`spec/`](spec/README.md) for the full definition.
-7. **Simulate a device** — put `{{name}}` variables in the topic or payload and they expand to a fresh value on every send: a counter, a random integer or decimal in a range, a UUID, a timestamp, or a fixed string. Define them with **Edit Vars** on the publish panel, and hit **Show preview** to see exactly what the next message will carry. Turn on **Repeat** behind the ⚙ to fire the draft every N milliseconds — a fixed number of times or until you hit Stop — and one template becomes a plausible data stream instead of 500 identical messages. Counters restart when a repeat run starts and advance on every single Publish; there's a **Reset counters** button in the same settings view.
+7. **Simulate a device** — put `{{name}}` variables in the topic or payload and they expand to a fresh value on every send: a counter, a random integer or decimal in a range, a UUID, a timestamp, or a fixed string. Define them with **Edit Vars** on the publish panel, and hit **Show preview** to see exactly what the next message will carry. Turn on **Repeat** behind the ⚙ to fire the draft every N milliseconds — a fixed number of times or until you hit Stop — and one template becomes a plausible data stream instead of 500 identical messages. Counters restart when a repeat run starts and advance on every single Publish; each counter has its own **Reset** button in the variables dialog.
+8. **Chart a value** — click **Tools** above the message stream to open the charts panel, then add any numeric field from the selected topic's payloads. Each one plots as it arrives; **Pause** freezes the stream and the charts together so you can read them.
 
 ## Download
 
@@ -110,6 +130,9 @@ cargo test --workspace
 # Frontend: lint, build
 npm run lint
 npm run build
+
+# Regenerate the screenshots above from the demo fixture in src/demo/
+npm run screenshots
 ```
 
 CI runs the same checks on every push via GitHub Actions (`.github/workflows/ci.yml`); pushing a `v*` tag additionally builds and publishes a release.

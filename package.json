@@ -9,7 +9,8 @@
     "watch": "ng build --watch --configuration development",
     "tauri": "tauri",
     "lint": "ng lint",
-    "test": "ng test"
+    "test": "ng test",
+    "screenshots": "scripts/screenshots.sh"
   },
   "private": true,
   "dependencies": {
@@ -40,6 +41,7 @@
     "angular-eslint": "22.0.0",
     "eslint": "^10.3.0",
     "jsdom": "^29.1.1",
+    "playwright": "^1.62.1",
     "typescript": "~6.0.3",
     "typescript-eslint": "8.60.1",
     "vitest": "^4.1.10"
