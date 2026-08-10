@@ -17,6 +17,7 @@ import { MqttEventsService } from "../../core/services/mqtt-events.service";
 import { BrokerWorkspace } from "./broker-workspace";
 import { MessageStream } from "./message-stream/message-stream";
 import { PublishPanel } from "./publish-panel/publish-panel";
+import { ToolPanel } from "./tool-panel/tool-panel";
 import { TopicTree } from "./topic-tree/topic-tree";
 
 const CONNECTION_ID = "11111111-1111-1111-1111-111111111111";
@@ -492,7 +493,7 @@ describe("BrokerWorkspace", () => {
     const component = fixture.componentInstance;
 
     const startWidth = component.sidebarWidth();
-    component.startColumnResize(pointerEvent(200, 0));
+    component.startResize("column", pointerEvent(200, 0));
     component.onPointerMove(pointerEvent(240, 0));
 
     expect(component.sidebarWidth()).toBe(startWidth + 40);
@@ -503,7 +504,7 @@ describe("BrokerWorkspace", () => {
     await fixture.whenStable();
     const component = fixture.componentInstance;
 
-    component.startColumnResize(pointerEvent(200, 0));
+    component.startResize("column", pointerEvent(200, 0));
     component.onPointerMove(pointerEvent(-5000, 0));
 
     expect(component.sidebarWidth()).toBe(200);
@@ -514,7 +515,7 @@ describe("BrokerWorkspace", () => {
     await fixture.whenStable();
     const component = fixture.componentInstance;
 
-    component.startColumnResize(pointerEvent(200, 0));
+    component.startResize("column", pointerEvent(200, 0));
     component.onPointerMove(pointerEvent(5000, 0));
 
     expect(component.sidebarWidth()).toBe(1200);
@@ -526,7 +527,7 @@ describe("BrokerWorkspace", () => {
     const component = fixture.componentInstance;
 
     const startHeight = component.publishHeight();
-    component.startRowResize(pointerEvent(0, 300));
+    component.startResize("row", pointerEvent(0, 300));
     component.onPointerMove(pointerEvent(0, 260));
 
     expect(component.publishHeight()).toBe(startHeight + 40);
@@ -537,7 +538,7 @@ describe("BrokerWorkspace", () => {
     await fixture.whenStable();
     const component = fixture.componentInstance;
 
-    component.startRowResize(pointerEvent(0, 300));
+    component.startResize("row", pointerEvent(0, 300));
     component.onPointerMove(pointerEvent(0, 5000));
 
     expect(component.publishHeight()).toBe(200);
@@ -548,7 +549,7 @@ describe("BrokerWorkspace", () => {
     await fixture.whenStable();
     const component = fixture.componentInstance;
 
-    component.startRowResize(pointerEvent(0, 300));
+    component.startResize("row", pointerEvent(0, 300));
     component.onPointerMove(pointerEvent(0, -5000));
 
     expect(component.publishHeight()).toBe(560);
@@ -560,7 +561,7 @@ describe("BrokerWorkspace", () => {
     const component = fixture.componentInstance;
 
     const startWidth = component.sidebarWidth();
-    component.startColumnResize(pointerEvent(200, 0));
+    component.startResize("column", pointerEvent(200, 0));
     component.onPointerUp();
     component.onPointerMove(pointerEvent(240, 0));
 
@@ -735,5 +736,222 @@ describe("BrokerWorkspace", () => {
     const panel = fixture.debugElement.query(By.directive(PublishPanel))
       .componentInstance as PublishPanel;
     expect(panel.form.controls.topic.value).toBe("sensors/zone-a");
+  });
+
+  describe("the tool panel", () => {
+    it("starts collapsed, with both of its grid tracks at zero", async () => {
+      const { fixture } = await setup();
+      await fixture.whenStable();
+      const component = fixture.componentInstance;
+
+      expect(component.toolPanelOpen()).toBe(false);
+      expect(component.gridTemplateColumns()).toBe("260px 6px 1fr 0 0");
+      expect(fixture.nativeElement.querySelector(".resizer-tool")).toBeNull();
+    });
+
+    it("takes a column of its own once opened", async () => {
+      const { fixture } = await setup();
+      await fixture.whenStable();
+      const component = fixture.componentInstance;
+
+      component.toggleToolPanel();
+      fixture.detectChanges();
+
+      expect(component.gridTemplateColumns()).toBe("260px 6px 1fr 6px 360px");
+      expect(fixture.nativeElement.querySelector(".resizer-tool")).toBeTruthy();
+    });
+
+    it("shrinks as its resizer is dragged right", async () => {
+      const { fixture } = await setup();
+      await fixture.whenStable();
+      const component = fixture.componentInstance;
+      component.toggleToolPanel();
+
+      const startWidth = component.toolPanelWidth();
+      component.startResize("tool", pointerEvent(600, 0));
+      component.onPointerMove(pointerEvent(640, 0));
+
+      expect(component.toolPanelWidth()).toBe(startWidth - 40);
+    });
+
+    it("clamps its width to the minimum", async () => {
+      const { fixture } = await setup();
+      await fixture.whenStable();
+      const component = fixture.componentInstance;
+      component.toggleToolPanel();
+
+      component.startResize("tool", pointerEvent(600, 0));
+      component.onPointerMove(pointerEvent(5000, 0));
+
+      expect(component.toolPanelWidth()).toBe(240);
+    });
+
+    it("clamps its width to the maximum when there is room for it", async () => {
+      const { fixture } = await setup();
+      await fixture.whenStable();
+      const component = fixture.componentInstance;
+      component.toggleToolPanel();
+      window.innerWidth = 2048;
+      component.onWindowResize();
+
+      component.startResize("tool", pointerEvent(600, 0));
+      component.onPointerMove(pointerEvent(-5000, 0));
+
+      expect(component.toolPanelWidth()).toBe(900);
+    });
+
+    it("gives way to the sidebar rather than letting the message stream vanish", async () => {
+      const { fixture } = await setup();
+      await fixture.whenStable();
+      const component = fixture.componentInstance;
+      component.toggleToolPanel();
+
+      // 1024 wide, 320 reserved for the stream: a 600px sidebar leaves 104,
+      // less than the tool panel's 240 minimum.
+      component.startResize("column", pointerEvent(0, 0));
+      component.onPointerMove(pointerEvent(340, 0));
+
+      expect(component.sidebarWidth()).toBe(600);
+      expect(component.toolPanelWidth()).toBe(240);
+    });
+
+    it("scales proportionally when the window widens", async () => {
+      const { fixture } = await setup();
+      await fixture.whenStable();
+      const component = fixture.componentInstance;
+      component.toggleToolPanel();
+
+      const startWidth = component.toolPanelWidth();
+      window.innerWidth = 2048;
+      component.onWindowResize();
+
+      expect(component.toolPanelWidth()).toBe(startWidth * 2);
+    });
+
+    it("stops resizing after pointerup", async () => {
+      const { fixture } = await setup();
+      await fixture.whenStable();
+      const component = fixture.componentInstance;
+      component.toggleToolPanel();
+
+      const startWidth = component.toolPanelWidth();
+      component.startResize("tool", pointerEvent(600, 0));
+      component.onPointerUp();
+      component.onPointerMove(pointerEvent(640, 0));
+
+      expect(component.toolPanelWidth()).toBe(startWidth);
+    });
+
+    it("restores the width it was dragged to when reopened", async () => {
+      const { fixture } = await setup();
+      await fixture.whenStable();
+      const component = fixture.componentInstance;
+      component.toggleToolPanel();
+      component.startResize("tool", pointerEvent(600, 0));
+      component.onPointerMove(pointerEvent(660, 0));
+      const draggedWidth = component.toolPanelWidth();
+
+      component.toggleToolPanel();
+      component.toggleToolPanel();
+
+      expect(component.toolPanelWidth()).toBe(draggedWidth);
+    });
+
+    it("opens and closes from the message stream's Tools control", async () => {
+      const { fixture } = await setup();
+      await fixture.whenStable();
+      const component = fixture.componentInstance;
+      const stream = fixture.debugElement.query(By.directive(MessageStream))
+        .componentInstance as MessageStream;
+
+      stream.toolPanelToggled.emit();
+      fixture.detectChanges();
+      expect(component.toolPanelOpen()).toBe(true);
+      expect(stream.toolPanelOpen()).toBe(true);
+
+      stream.toolPanelToggled.emit();
+      fixture.detectChanges();
+      expect(component.toolPanelOpen()).toBe(false);
+    });
+
+    it("freezes the charts with the message stream's pause", async () => {
+      const { fixture } = await setup();
+      await fixture.whenStable();
+      const component = fixture.componentInstance;
+      component.toggleToolPanel();
+      fixture.detectChanges();
+
+      const stream = fixture.debugElement.query(By.directive(MessageStream))
+        .componentInstance as MessageStream;
+      stream.togglePause();
+      fixture.detectChanges();
+
+      expect(component.paused()).toBe(true);
+      const panel = fixture.debugElement.query(By.directive(ToolPanel))
+        .componentInstance as ToolPanel;
+      expect(panel.paused()).toBe(true);
+
+      stream.togglePause();
+      fixture.detectChanges();
+      expect(panel.paused()).toBe(false);
+    });
+
+    describe("expanded over the message stream", () => {
+      it("gives the panel the whole row and hides the stream", async () => {
+        const { fixture } = await setup();
+        await fixture.whenStable();
+        const component = fixture.componentInstance;
+        component.toggleToolPanel();
+
+        component.toggleToolPanelExpanded();
+        fixture.detectChanges();
+
+        expect(component.gridTemplateColumns()).toBe("260px 6px 0 0 1fr");
+        expect(component.messagesHidden()).toBe(true);
+        expect(fixture.nativeElement.querySelector(".resizer-tool")).toBeNull();
+      });
+
+      it("leaves the sidebar and publish panel alone", async () => {
+        const { fixture } = await setup();
+        await fixture.whenStable();
+        const component = fixture.componentInstance;
+        const sidebar = component.sidebarWidth();
+        const publish = component.publishHeight();
+        component.toggleToolPanel();
+
+        component.toggleToolPanelExpanded();
+
+        expect(component.sidebarWidth()).toBe(sidebar);
+        expect(component.publishHeight()).toBe(publish);
+      });
+
+      it("goes back to the split view when shrunk", async () => {
+        const { fixture } = await setup();
+        await fixture.whenStable();
+        const component = fixture.componentInstance;
+        component.toggleToolPanel();
+        component.toggleToolPanelExpanded();
+
+        component.toggleToolPanelExpanded();
+        fixture.detectChanges();
+
+        expect(component.gridTemplateColumns()).toBe("260px 6px 1fr 6px 360px");
+        expect(component.messagesHidden()).toBe(false);
+      });
+
+      it("does not stay expanded across a close, so reopening is not a surprise", async () => {
+        const { fixture } = await setup();
+        await fixture.whenStable();
+        const component = fixture.componentInstance;
+        component.toggleToolPanel();
+        component.toggleToolPanelExpanded();
+
+        component.toggleToolPanel();
+        component.toggleToolPanel();
+
+        expect(component.toolPanelExpanded()).toBe(false);
+        expect(component.gridTemplateColumns()).toBe("260px 6px 1fr 6px 360px");
+      });
+    });
   });
 });

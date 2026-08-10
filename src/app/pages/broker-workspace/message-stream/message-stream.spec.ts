@@ -659,4 +659,28 @@ describe("MessageStream", () => {
       expect(text).toContain("No messages yet on this topic");
     });
   });
+
+  describe("tools panel toggle", () => {
+    it("asks the workspace to toggle the panel", async () => {
+      const { fixture } = await setup({ device: [message()] });
+      await selectTopic(fixture, "device");
+      const toggled = vi.fn();
+      fixture.componentInstance.toolPanelToggled.subscribe(toggled);
+
+      toggleLink(fixture.nativeElement as HTMLElement, "Tools").click();
+
+      expect(toggled).toHaveBeenCalledTimes(1);
+    });
+
+    it("reads as active while the panel is open", async () => {
+      const { fixture } = await setup({ device: [message()] });
+      await selectTopic(fixture, "device");
+      fixture.componentRef.setInput("toolPanelOpen", true);
+      fixture.detectChanges();
+
+      const link = toggleLink(fixture.nativeElement as HTMLElement, "Tools");
+      expect(link.classList).toContain("active");
+      expect(link.title).toBe("Hide the tools panel");
+    });
+  });
 });

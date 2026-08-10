@@ -58,6 +58,7 @@ Rust type and you must change its mirror here. `stored-message` and
 | `logger.service` | Forwards to the Rust log file via `@tauri-apps/plugin-log` |
 | `update.service` | `invoke()` wrapper over `get_app_version` / `check_for_updates` / `skip_update_version` |
 | `update-notifier.service` | App-wide update state, and the one throttled check per launch. Its policy — silent vs. up-to-date vs. offer — lives in the plain `update-announcement.ts` next to it |
+| `value-charts.service` | Which value charts are open, per connection. Signal-backed rather than RxJS like the store next door, because nothing streams into it. Session-only, same as the history it plots |
 
 Services are `providedIn: "root"` and injected with `inject()`, not
 constructor params.
@@ -83,6 +84,7 @@ The biggest surface in the app — one screen composed of several panels:
 - `topic-tree/` — the live tree. Pure helpers next to it: `build-topic-tree.ts`, `find-updated-leaf-paths.ts`
 - `message-stream/` — the history list. Virtualized: `virtual-range.ts` + `measure-height.directive.ts`
 - `publish-panel/` — compose and publish; entry point for save/load template
+- `tool-panel/` — the right-hand panel of the messages row, one tool at a time (a `@switch`, so Pin/Compare drop in as extra cases). `value-charts/` is the only tool today: a stack of hand-rolled SVG charts, with `numeric-fields.ts`, `sample-series.ts`, `chart-geometry.ts`, `axis-ticks.ts` and `axis-format.ts` as its pure helpers
 - `qos-select/`, `save-template-modal/`, `load-template-modal/`
 - `format/` — `payload-text.ts`, `time-ago.ts`
 

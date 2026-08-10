@@ -1,0 +1,61 @@
+@if (pickerOpen()) {
+  <div class="picker">
+    <div class="picker-header">
+      <span class="picker-title">Values on {{ selectedTopic() }}</span>
+      <button type="button" class="picker-close" (click)="closePicker()">
+        Done
+      </button>
+    </div>
+    <ul class="picker-list">
+      @for (field of selectedTopicFields(); track field.label) {
+        <li>
+          <button
+            type="button"
+            class="picker-option"
+            [class.picked]="isPicked(field)"
+            [attr.aria-pressed]="isPicked(field)"
+            (click)="toggle(field)"
+          >
+            <span class="picker-check" aria-hidden="true">{{
+              isPicked(field) ? "✓" : "+"
+            }}</span>
+            <span class="picker-field">{{ field.label }}</span>
+            <span class="picker-value">{{ field.value }}</span>
+          </button>
+        </li>
+      }
+    </ul>
+  </div>
+} @else {
+  <div class="add-row">
+    <button
+      type="button"
+      class="add-chart"
+      [disabled]="addBlockedReason() !== null"
+      [title]="addBlockedReason() ?? ''"
+      (click)="openPicker()"
+    >
+      + {{ addLabel() }}
+    </button>
+    @if (addBlockedReason(); as reason) {
+      <span class="add-hint">{{ reason }}</span>
+    }
+  </div>
+}
+
+@if (openCharts().length === 0) {
+  <p class="empty">
+    No charts yet. Pick a topic in the tree, then add one of its numeric
+    values above.
+  </p>
+} @else {
+  <div class="card-stack" [class.wide]="wide()">
+    @for (chart of openCharts(); track chart.id) {
+      <app-value-chart-card
+        [spec]="chart"
+        [paused]="paused()"
+        (removeRequested)="removeChart($event)"
+      />
+    }
+  </div>
+}

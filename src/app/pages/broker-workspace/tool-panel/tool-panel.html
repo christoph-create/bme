@@ -1,0 +1,56 @@
+<header class="panel-header">
+  @if (tools.length > 1) {
+    <div class="segmented">
+      @for (tool of tools; track tool.id) {
+        <div
+          class="segment"
+          [class.selected]="activeTool() === tool.id"
+          (click)="selectTool(tool.id)"
+          (keydown.enter)="selectTool(tool.id)"
+          role="button"
+          tabindex="0"
+        >
+          {{ tool.label }}
+        </div>
+      }
+    </div>
+  } @else {
+    <span class="panel-title">{{ tools[0].label }}</span>
+  }
+  <div class="panel-actions">
+    <button
+      type="button"
+      class="panel-button"
+      [class.active]="expanded()"
+      [attr.aria-pressed]="expanded()"
+      [attr.aria-label]="
+        expanded() ? 'Shrink back beside the messages' : 'Expand over the messages'
+      "
+      [title]="expanded() ? 'Shrink' : 'Expand over the message stream'"
+      (click)="expandToggled.emit()"
+    >
+      {{ expanded() ? "⤡" : "⤢" }}
+    </button>
+    <button
+      type="button"
+      class="panel-button panel-close"
+      aria-label="Close tool panel"
+      (click)="closeRequested.emit()"
+    >
+      ›
+    </button>
+  </div>
+</header>
+
+<div class="panel-body">
+  @switch (activeTool()) {
+    @case ("charts") {
+      <app-value-charts
+        [connectionId]="connectionId()"
+        [selectedTopic]="selectedTopic()"
+        [wide]="expanded()"
+        [paused]="paused()"
+      />
+    }
+  }
+</div>

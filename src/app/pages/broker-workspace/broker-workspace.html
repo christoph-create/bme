@@ -39,8 +39,9 @@
 <div
   class="layout"
   [class.resizing-col]="resizing() === 'column'"
+  [class.resizing-tool]="resizing() === 'tool'"
   [class.resizing-row]="resizing() === 'row'"
-  [style.grid-template-columns]="sidebarWidth() + 'px 6px 1fr'"
+  [style.grid-template-columns]="gridTemplateColumns()"
   [style.grid-template-rows]="'1fr 6px ' + publishHeight() + 'px'"
 >
   <aside class="sidebar">
@@ -52,18 +53,47 @@
     />
   </aside>
 
-  <div class="resizer resizer-col" (pointerdown)="startColumnResize($event)"></div>
+  <div
+    class="resizer resizer-col"
+    (pointerdown)="startResize('column', $event)"
+  ></div>
 
-  <section class="messages">
+  <section class="messages" [class.hidden]="messagesHidden()">
     <app-message-stream
       [connectionId]="connectionId"
       [topic]="selectedTopic()"
       [connected]="connected()"
+      [toolPanelOpen]="toolPanelOpen()"
+      [(paused)]="paused"
       (resendRequested)="loadDraft($event)"
+      (toolPanelToggled)="toggleToolPanel()"
     />
   </section>
 
-  <div class="resizer resizer-row" (pointerdown)="startRowResize($event)"></div>
+  @if (toolSplitterVisible()) {
+    <div
+      class="resizer resizer-tool"
+      (pointerdown)="startResize('tool', $event)"
+    ></div>
+  }
+
+  <!-- Kept mounted while collapsed so open charts keep accumulating points
+       rather than restarting every time the panel is hidden. -->
+  <aside class="tool-panel" [class.collapsed]="!toolPanelOpen()">
+    <app-tool-panel
+      [connectionId]="connectionId"
+      [selectedTopic]="selectedTopic()"
+      [expanded]="toolPanelExpanded()"
+      [paused]="paused()"
+      (expandToggled)="toggleToolPanelExpanded()"
+      (closeRequested)="toggleToolPanel()"
+    />
+  </aside>
+
+  <div
+    class="resizer resizer-row"
+    (pointerdown)="startResize('row', $event)"
+  ></div>
 
   <section class="publish">
     <app-publish-panel

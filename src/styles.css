@@ -67,6 +67,15 @@
   --color-json-null: var(--color-text-tertiary);
   --color-json-punctuation: var(--color-text-secondary);
 
+  /* Value charts. The line is the brand orange because a chart is the one
+     place in the app where the accent marks data rather than chrome; the
+     grid and axis text stay deliberately quiet so several stacked charts
+     don't turn the panel into a lattice. Retune here, not in the card. */
+  --color-chart-line: var(--color-accent);
+  --color-chart-fill: rgb(249 115 22 / 10%);
+  --color-chart-grid: rgb(255 255 255 / 6%);
+  --color-chart-axis-text: var(--color-text-quaternary);
+
   --font-sans:
       "Inter",          /* The gold standard for modern UI alignment (if installed) */
       "Segoe UI",       /* Kept for Windows, but we neutralize it next */
