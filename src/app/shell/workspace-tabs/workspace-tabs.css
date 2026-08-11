@@ -1,0 +1,63 @@
+:host {
+  display: flex;
+  align-items: stretch;
+  height: 30px;
+  flex-shrink: 0;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border-faint);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+:host::-webkit-scrollbar {
+  display: none;
+}
+
+.home,
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 100%;
+  padding: 0 12px;
+  border: none;
+  /* A transparent top border on every tab, so gaining the accent one on
+     activation does not shift the label by two pixels. */
+  border-top: 2px solid transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.home {
+  padding: 0 10px;
+  border-right: 1px solid var(--color-border-faint);
+}
+
+.tab {
+  border-right: 1px solid var(--color-border-faint);
+  max-width: 200px;
+}
+
+.tab-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home:hover,
+.tab:hover {
+  color: var(--color-text);
+  background: var(--color-surface-hover);
+}
+
+.home.active,
+.tab.active {
+  color: var(--color-text);
+  background: var(--color-surface-hover);
+  border-top-color: var(--color-accent);
+}

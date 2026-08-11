@@ -3,19 +3,28 @@ import { Router, RouterLink } from "@angular/router";
 import { invoke } from "@tauri-apps/api/core";
 
 import { BrokerConnection } from "../../core/models/broker-connection.model";
+import { ConnectionStatusService } from "../../core/services/connection-status.service";
 import { ConnectionsService } from "../../core/services/connections.service";
 import { UpdateNotifierService } from "../../core/services/update-notifier.service";
+import { WorkspacesService } from "../../core/services/workspaces.service";
+import { StatusDot } from "../../shared/status-dot/status-dot";
 
 @Component({
   selector: "app-connections",
-  imports: [RouterLink],
+  imports: [RouterLink, StatusDot],
   templateUrl: "./connections.html",
   styleUrl: "./connections.css",
 })
 export class Connections {
   private readonly connectionsService = inject(ConnectionsService);
+  private readonly status = inject(ConnectionStatusService);
+  private readonly workspaces = inject(WorkspacesService);
   private readonly router = inject(Router);
   readonly notifier = inject(UpdateNotifierService);
+
+  /** Brokers stay connected after you leave their workspace, so this list is
+   * the only place that says which ones still are. */
+  readonly statusOf = this.status.statusOf.bind(this.status);
 
   readonly connections = signal<BrokerConnection[]>([]);
   readonly loading = signal(true);
@@ -73,6 +82,10 @@ export class Connections {
     event.stopPropagation();
     this.openMenuId.set(null);
     await this.connectionsService.delete(id);
+    // The backend drops the live session as part of the delete, so anything
+    // this id left behind is now about a broker that no longer exists.
+    this.workspaces.close(id);
+    this.status.forget(id);
     await this.refresh();
   }
 

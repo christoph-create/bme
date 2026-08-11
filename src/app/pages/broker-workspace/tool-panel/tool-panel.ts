@@ -18,7 +18,7 @@ interface ToolTab {
 }
 
 /**
- * The right-hand panel of the messages row, showing one tool at a time.
+ * The workspace's right-hand dock, showing one tool at a time.
  *
  * A plain `@switch` on a signal rather than content projection or a DI
  * registry: projection would push the choice of active tool up into the
@@ -36,12 +36,11 @@ interface ToolTab {
 export class ToolPanel {
   readonly connectionId = input.required<string>();
   readonly selectedTopic = input<string | null>(null);
-  /** Expanded over the message stream. Owned by the workspace, which is what
-   * actually reshapes the grid. */
-  readonly expanded = input(false);
+  /** Wide enough for two columns of charts. Decided by the workspace from the
+   * dock's measured width, since it is the one that owns the grid. */
+  readonly wide = input(false);
   /** The message stream's Pause, forwarded so the charts freeze with it. */
   readonly paused = input(false);
-  readonly expandToggled = output<void>();
   readonly closeRequested = output<void>();
 
   readonly tools: readonly ToolTab[] = [{ id: "charts", label: "Charts" }];

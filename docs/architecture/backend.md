@@ -29,10 +29,11 @@ Plain serde types, no I/O. The vocabulary of the whole app:
 | `port.rs` | `MqttPort` trait, `MqttEvent` enum, `MqttError`. The contract. |
 | `rumqttc_adapter.rs` | The real implementation, on top of `rumqttc`. |
 | `manager.rs` | Owns the set of live connections; generic over `P: MqttPort`. |
+| `connection_registry.rs` | Which connection task currently owns each id, with a generation per task. |
 | `reconnect.rs` | The backoff schedule, as a pure function of the attempt number. |
 | `subscription_set.rs` | The topics a connection wants, replayed after every ConnAck. |
 
-Three things worth knowing before you touch this:
+Four things worth knowing before you touch this:
 
 1. **Every `MqttPort` method is fire-and-forget.** `Ok(())` means "the
    command was accepted", not "the broker did it". Real outcomes arrive
@@ -50,6 +51,14 @@ Three things worth knowing before you touch this:
    a broker that never answered fails fast instead. Because the session is
    clean, the task re-issues its whole `SubscriptionSet` on every ConnAck;
    `connect_broker` deliberately does *not* replay subscriptions itself.
+4. **Connecting an id that is already connected replaces the session, it does
+   not add one.** Two tasks for one id would deliver every message twice, and
+   whichever exited first would unregister the other — which is why the
+   registry tags each entry with a generation and a task may only remove *its
+   own*. The task being replaced shuts down with `announce: false`, so its
+   `Disconnected` doesn't land after the replacement's `Connected` and read as
+   a fresh drop. `ConnectionRegistry` is generic over its value so this
+   bookkeeping is tested without a socket.
 
 `MqttClientManager` is generic over the port, so tests inject a fake and
 never open a socket. The reconnect schedule and the subscription set are

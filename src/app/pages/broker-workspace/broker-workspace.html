@@ -1,104 +1,134 @@
 <header class="page-header">
   <div class="header-info">
-    <div class="header-title">
-      <h1>{{ connection()?.name ?? "Broker Workspace" }}</h1>
-      @if (connecting()) {
-        <span class="status-pill connecting">Connecting…</span>
-      } @else if (reconnecting()) {
-        <span class="status-pill reconnecting">Reconnecting…</span>
-      } @else if (connectError()) {
-        <span class="status-pill error">Connection failed</span>
-      } @else {
-        <span class="status-pill connected">Connected</span>
-      }
-    </div>
+    <h1>{{ connection()?.name ?? "Broker Workspace" }}</h1>
     @if (connection(); as conn) {
       <span class="header-subtitle">{{ conn.host }}:{{ conn.port }}</span>
     }
+    @switch (connectionStatus().kind) {
+      @case ("connecting") {
+        <span class="status-pill connecting">Connecting…</span>
+      }
+      @case ("reconnecting") {
+        <span class="status-pill reconnecting">Reconnecting…</span>
+      }
+      @case ("connected") {
+        <span class="status-pill connected">Connected</span>
+      }
+      @default {
+        <span class="status-pill error">Connection failed</span>
+      }
+    }
   </div>
-  <button type="button" class="btn-disconnect" (click)="disconnect()">
-    Disconnect
-  </button>
+  <div class="header-actions">
+    @for (toggle of dockToggles; track toggle.id) {
+      <app-dock-toggle
+        [side]="toggle.side"
+        [label]="toggle.label"
+        [active]="docksOpen()[toggle.id]"
+        (toggled)="toggleDock(toggle.id)"
+      />
+    }
+    <button type="button" class="btn-disconnect" (click)="disconnect()">
+      Disconnect
+    </button>
+  </div>
 </header>
 
-@if (reconnecting(); as state) {
-  <div class="reconnect-banner" role="status">
-    <span class="reconnect-status">
-      <span class="spinner" aria-hidden="true"></span>
-      <span>{{ reconnectLabel(state.attempt, state.maxAttempts) }}</span>
-    </span>
-    <button type="button" (click)="stopReconnecting()">Stop</button>
-  </div>
-} @else if (connectError()) {
-  <div class="connect-error-banner">
-    <span>{{ connectError() }}</span>
-    <button type="button" (click)="connect()">Retry</button>
-  </div>
+@if (connectionStatus(); as status) {
+  @if (status.kind === "reconnecting") {
+    <div class="reconnect-banner" role="status">
+      <span class="reconnect-status">
+        <span class="spinner" aria-hidden="true"></span>
+        <span>{{ reconnectLabel(status.attempt, status.maxAttempts) }}</span>
+      </span>
+      <button type="button" (click)="stopReconnecting()">Stop</button>
+    </div>
+  } @else if (status.kind === "disconnected" && status.error) {
+    <div class="connect-error-banner">
+      <span>{{ status.error }}</span>
+      <button type="button" (click)="connect()">Retry</button>
+    </div>
+  }
 }
 
 <div
   class="layout"
-  [class.resizing-col]="resizing() === 'column'"
-  [class.resizing-tool]="resizing() === 'tool'"
-  [class.resizing-row]="resizing() === 'row'"
+  [class.resizing]="resizing() !== null"
   [style.grid-template-columns]="gridTemplateColumns()"
-  [style.grid-template-rows]="'1fr 6px ' + publishHeight() + 'px'"
+  [style.grid-template-rows]="gridTemplateRows()"
 >
-  <aside class="sidebar">
-    <app-subscriptions-panel [connectionId]="connectionId" />
-    <app-topic-tree
-      [connectionId]="connectionId"
-      (topicSelected)="selectedTopic.set($event)"
-      (publishTopicRequested)="setPublishTopic($event)"
-    />
+  <!-- Every dock stays mounted while hidden - its grid track goes to zero and
+       clips it. Unmounting would restart the charts, drop the topic tree's
+       expansion and reset the publish draft, none of which a user hiding a
+       panel for a moment is asking for. -->
+  <aside class="sidebar" [attr.inert]="docksOpen().subscriptions ? null : ''">
+    <!-- The padding lives on the inner element because a hidden dock's track
+         goes to zero, and padding on the pane itself cannot compress that far. -->
+    <div class="sidebar-inner">
+      <app-subscriptions-panel [connectionId]="connectionId()" />
+      <app-topic-tree
+        [connectionId]="connectionId()"
+        (topicSelected)="selectedTopic.set($event)"
+        (publishTopicRequested)="setPublishTopic($event)"
+      />
+    </div>
   </aside>
 
-  <div
-    class="resizer resizer-col"
-    (pointerdown)="startResize('column', $event)"
-  ></div>
-
-  <section class="messages" [class.hidden]="messagesHidden()">
-    <app-message-stream
-      [connectionId]="connectionId"
-      [topic]="selectedTopic()"
-      [connected]="connected()"
-      [toolPanelOpen]="toolPanelOpen()"
-      [(paused)]="paused"
-      (resendRequested)="loadDraft($event)"
-      (toolPanelToggled)="toggleToolPanel()"
+  @if (docksOpen().subscriptions) {
+    <app-splitter
+      class="resizer-col"
+      orientation="vertical"
+      (dragStarted)="startDrag('subscriptions')"
+      (dragged)="onDragged('subscriptions', $event)"
+      (dragEnded)="endDrag()"
     />
-  </section>
-
-  @if (toolSplitterVisible()) {
-    <div
-      class="resizer resizer-tool"
-      (pointerdown)="startResize('tool', $event)"
-    ></div>
   }
 
-  <!-- Kept mounted while collapsed so open charts keep accumulating points
-       rather than restarting every time the panel is hidden. -->
-  <aside class="tool-panel" [class.collapsed]="!toolPanelOpen()">
-    <app-tool-panel
-      [connectionId]="connectionId"
-      [selectedTopic]="selectedTopic()"
-      [expanded]="toolPanelExpanded()"
-      [paused]="paused()"
-      (expandToggled)="toggleToolPanelExpanded()"
-      (closeRequested)="toggleToolPanel()"
+  <section class="messages">
+    <app-message-stream
+      [connectionId]="connectionId()"
+      [topic]="selectedTopic()"
+      [connected]="connected()"
+      [active]="active()"
+      [(paused)]="paused"
+      (resendRequested)="loadDraft($event)"
     />
-  </aside>
+  </section>
 
-  <div
-    class="resizer resizer-row"
-    (pointerdown)="startResize('row', $event)"
-  ></div>
+  @if (docksOpen().publish) {
+    <app-splitter
+      class="resizer-row"
+      orientation="horizontal"
+      (dragStarted)="startDrag('publish')"
+      (dragged)="onDragged('publish', $event)"
+      (dragEnded)="endDrag()"
+    />
+  }
 
-  <section class="publish">
+  <section class="publish" [attr.inert]="docksOpen().publish ? null : ''">
     <app-publish-panel
-      [connectionId]="connectionId"
+      [connectionId]="connectionId()"
       [connected]="connected()"
     />
   </section>
+
+  @if (docksOpen().tools) {
+    <app-splitter
+      class="resizer-tool"
+      orientation="vertical"
+      (dragStarted)="startDrag('tools')"
+      (dragged)="onDragged('tools', $event)"
+      (dragEnded)="endDrag()"
+    />
+  }
+
+  <aside class="tool-panel" [attr.inert]="docksOpen().tools ? null : ''">
+    <app-tool-panel
+      [connectionId]="connectionId()"
+      [selectedTopic]="selectedTopic()"
+      [wide]="toolsWide()"
+      [paused]="paused()"
+      (closeRequested)="toggleDock('tools')"
+    />
+  </aside>
 </div>

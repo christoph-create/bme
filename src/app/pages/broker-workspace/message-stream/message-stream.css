@@ -45,10 +45,6 @@
   color: var(--color-text);
 }
 
-.toggle-link.active {
-  color: var(--color-accent);
-}
-
 .toggle-link.danger:hover {
   color: var(--color-danger);
 }

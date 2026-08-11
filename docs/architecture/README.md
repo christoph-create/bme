@@ -59,6 +59,9 @@ bme/
 | A domain type shared across the app | `core/src/models.rs`, then mirror it in `src/app/core/models/` |
 | A screen | `src/app/pages/<route>/` |
 | The message list / topic tree | `src/app/pages/broker-workspace/` |
+| The workspace's panel layout (sizes, hiding, splitters) | `src/app/pages/broker-workspace/layout/dock-layout.ts` |
+| Broker tabs, or anything about several brokers at once | `src/app/shell/`, then `src/app/core/services/workspaces.service.ts` |
+| Whether a broker reads as connected | `src/app/core/status/connection-status.ts`, then `connection-status.service.ts` |
 | How messages are held in memory | `src/app/core/services/message-store.service.ts` |
 | Import/export of templates | `src/app/core/services/template-exchange.service.ts` + `spec/` |
 | Repeat publishing, or `{{name}}` payload variables | `src/app/pages/broker-workspace/publish-panel/`, with the expansion logic in `src/app/core/variables/` |

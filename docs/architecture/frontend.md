@@ -12,12 +12,46 @@ Bootstrapped from `src/main.ts` → `src/app/app.config.ts`.
 | `connections` | `Connections` | `pages/connections/` |
 | `connections/new` | `ConnectionForm` | `pages/connection-form/` |
 | `connections/:id/edit` | `ConnectionForm` | (same component) |
-| `broker/:id` | `BrokerWorkspace` | `pages/broker-workspace/` |
+| `broker/:id` | `BrokerRouteShell` | `pages/broker-workspace/` |
 | `templates` | `TemplatesManagement` | `pages/templates-management/` |
 
 Five routes, five page directories. A page directory holds its own
 `.ts`/`.html`/`.css`/`.spec.ts` plus sub-directories for components that
 belong to that page alone.
+
+### The workspace shell — `src/app/shell/`
+
+`broker/:id` is the exception: it maps to `BrokerRouteShell`, which renders
+**nothing**. The workspaces themselves are mounted by `WorkspaceHost`, which
+sits in `AppComponent` *outside* the router outlet and keeps one
+`BrokerWorkspace` per open tab alive, showing only the active one
+(`display: none` for the rest).
+
+That is what makes tabs tabs: switching between brokers must not destroy a
+workspace, because a background tab has work in flight — a repeating
+publisher still firing, a half-typed draft, an expanded topic tree, a stream
+scrolled to where you left it. `BrokerRouteShell` exists only to translate the
+URL into "show this one", which keeps deep links, the address bar and the back
+button working exactly as they did when the workspace *was* the route.
+
+```
+AppComponent
+├─ <app-workspace-tabs>     shell/workspace-tabs/  — one tab per open broker
+└─ .shell-body
+   ├─ <app-workspace-host>  shell/workspace-host/  — every open workspace, one visible
+   └─ <router-outlet />     the five routes above
+```
+
+Two consequences worth knowing before touching either side:
+
+- **Anything that measures the DOM has to tolerate being hidden.** A hidden
+  element reports zero height and fires a `scroll` event as it goes. Both
+  guards live in `message-stream/` (`MeasureHeight` never reports a zero
+  height; `onScroll` ignores events while inactive) and both exist to protect
+  a background tab's scroll position.
+- **A tab's lifetime is a session's lifetime.** Tabs have no close button:
+  `Disconnect` ends the session *and* closes the tab, and closing drops that
+  broker's message history and charts, since none of it is persisted.
 
 ## `app.config.ts`
 
@@ -50,7 +84,9 @@ Rust type and you must change its mirror here. `stored-message` and
 | `favorites.service` | Same, for templates |
 | `favorite-collections.service` | Same, for collections |
 | `mqtt.service` | `publish` / `subscribe` / `unsubscribe` |
-| `mqtt-events.service` | `events$` — one `Observable<MqttEvent>` over the Tauri `"mqtt-event"` listener |
+| `mqtt-events.service` | `events$` — one `Observable<MqttEvent>` over the Tauri `"mqtt-event"` listener. `share()`d, so N subscribers still mean one listener |
+| `connection-status.service` | Every broker's connection status, keyed by id, folded from `events$` by the pure `core/status/connection-status.ts`. App-wide because status outlives whatever is showing it — a broker stays connected after you leave its workspace, and the tab bar and the connections list both say so |
+| `workspaces.service` | Which broker workspaces are open, in tab order, and which is active. Owns tab closing, including dropping that broker's history and charts. Tab-selection logic is the pure `core/workspaces/next-active-tab.ts` |
 | `message-store.service` | The in-memory message history (see below) |
 | `template-exchange.service` | Serializes/parses the `spec/` exchange format, including version checking |
 | `json-format.service` | Pretty-print, compact, and tokenize JSON for the payload editor's highlighting |
@@ -84,9 +120,17 @@ The biggest surface in the app — one screen composed of several panels:
 - `topic-tree/` — the live tree. Pure helpers next to it: `build-topic-tree.ts`, `find-updated-leaf-paths.ts`
 - `message-stream/` — the history list. Virtualized: `virtual-range.ts` + `measure-height.directive.ts`
 - `publish-panel/` — compose and publish; entry point for save/load template
-- `tool-panel/` — the right-hand panel of the messages row, one tool at a time (a `@switch`, so Pin/Compare drop in as extra cases). `value-charts/` is the only tool today: a stack of hand-rolled SVG charts, with `numeric-fields.ts`, `sample-series.ts`, `chart-geometry.ts`, `axis-ticks.ts` and `axis-format.ts` as its pure helpers
+- `tool-panel/` — the right-hand dock, one tool at a time (a `@switch`, so Pin/Compare drop in as extra cases). `value-charts/` is the only tool today: a stack of hand-rolled SVG charts, with `numeric-fields.ts`, `sample-series.ts`, `chart-geometry.ts`, `axis-ticks.ts` and `axis-format.ts` as its pure helpers
+- `layout/dock-layout.ts` — the whole geometry of the three docks as plain functions over a plain `LayoutInput`: sizes, the two grid templates, and folding a splitter drag back in. Sizes are stored as a **fraction of the window**, so recomputing after a resize is a pure multiply rather than an increment that could drift
 - `qos-select/`, `save-template-modal/`, `load-template-modal/`
 - `format/` — `payload-text.ts`, `time-ago.ts`
+
+The three docks (subscriptions left, publish along the bottom of the centre
+column, tools right) each hide from a button in the header. A hidden dock
+keeps **zero-width grid tracks rather than losing them**, which is both what
+lets the centre column's rows stay anchored unconditionally and what makes the
+open/close transition interpolable. Its component stays mounted, and is marked
+`inert` so nothing in it can be tabbed into.
 
 The pattern to notice: anything with real logic (tree building, virtual
 range, formatting) is extracted into a **plain function file with its own
@@ -97,11 +141,16 @@ small.
 
 What isn't owned by a single page: `modal/` (the dialog shell),
 `confirm-dialog/`, `payload-input/` (the CodeMirror-based JSON/raw editor),
-`formatted-payload/` (read-only highlighted display), and `update-dialog/`.
+`formatted-payload/` (read-only highlighted display), `update-dialog/`, and
+three small pieces the workspace shell is built from — `splitter/` (a drag
+handle reporting a cumulative delta, using pointer capture rather than
+document listeners), `dock-toggle/` (the header's show/hide buttons, whose
+icon is a miniature of the workspace with that dock's edge filled in) and
+`status-dot/`.
 
 `update-dialog/` is the odd one — no page uses it. It's rendered from
-`AppComponent` (which is therefore no longer just `<router-outlet />`) so it
-can appear over whatever route the user happens to be on. Like
+`AppComponent`, alongside the tab bar and the workspace host, so it can appear
+over whatever route the user happens to be on. Like
 `confirm-dialog`, it's purely presentational: every action is an output, and
 Escape/backdrop/close all resolve to *dismiss* rather than *skip*, so the
 harmless outcome is the one you get by accident.

@@ -3,6 +3,8 @@ import {
   Component,
   DestroyRef,
   ElementRef,
+  Injector,
+  afterNextRender,
   computed,
   effect,
   inject,
@@ -74,14 +76,17 @@ export class MessageStream {
   readonly connectionId = input.required<string>();
   readonly topic = input<string | null>(null);
   readonly connected = input<boolean>(true);
-  readonly toolPanelOpen = input(false);
+  /** False while this workspace is a background tab. The component stays alive
+   * either way; hidden it just stops trusting what the DOM reports about its
+   * own size, and restores its scroll position when it comes back. */
+  readonly active = input(true);
   readonly resendRequested = output<MessageDraft>();
-  readonly toolPanelToggled = output<void>();
 
   private readonly messageStore = inject(MessageStoreService);
   private readonly jsonFormat = inject(JsonFormatService);
   private readonly mqttService = inject(MqttService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly injector = inject(Injector);
 
   readonly messages = signal<readonly StoredMessage[]>([]);
   private readonly now = signal(Date.now());
@@ -228,12 +233,35 @@ export class MessageStream {
         typeof ResizeObserver !== "undefined"
       ) {
         this.containerObserver = new ResizeObserver(([entry]) => {
-          if (entry) {
+          // A `display: none` tab reports zero, which is not a resize - taking
+          // it would collapse the virtualized range and lose the scroll
+          // position the user left behind on that tab.
+          if (entry && entry.contentRect.height > 0) {
             this.viewportHeight.set(entry.contentRect.height);
           }
         });
         this.containerObserver.observe(el);
       }
+    });
+
+    // Hiding an element zeroes its scrollTop, so the position has to be put
+    // back by hand when the tab is shown again - and only once the element is
+    // on screen, because a `display: none` element has no scroll box and drops
+    // the assignment silently.
+    effect(() => {
+      if (!this.active()) {
+        return;
+      }
+      const restoreTo = untracked(() => this.scrollTop());
+      afterNextRender(
+        () => {
+          const el = this.listEl()?.nativeElement;
+          if (el) {
+            el.scrollTop = restoreTo;
+          }
+        },
+        { injector: this.injector },
+      );
     });
 
     const tickHandle = setInterval(
@@ -348,6 +376,12 @@ export class MessageStream {
   }
 
   onScroll(event: Event): void {
+    // Hiding this tab zeroes the element's scrollTop and fires a scroll event
+    // for it. Recording that would wipe the position the effect above exists
+    // to put back.
+    if (!this.active()) {
+      return;
+    }
     this.scrollTop.set((event.target as HTMLElement).scrollTop);
   }
 

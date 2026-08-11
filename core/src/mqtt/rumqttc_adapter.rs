@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use rumqttc::{AsyncClient, Event, EventLoop, MqttOptions, Packet, Transport};
@@ -7,6 +5,7 @@ use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use crate::models::{BrokerConnection, QoS};
+use crate::mqtt::connection_registry::ConnectionRegistry;
 use crate::mqtt::port::{MqttError, MqttEvent, MqttPort};
 use crate::mqtt::reconnect::ReconnectPolicy;
 use crate::mqtt::subscription_set::SubscriptionSet;
@@ -45,8 +44,16 @@ enum Command {
     Unsubscribe {
         topic: String,
     },
-    Disconnect,
+    Disconnect {
+        /// False when the connection is being replaced by a fresh one for the
+        /// same broker. The replacement will announce itself, and a
+        /// `Disconnected` from the task it replaced would land *after* that
+        /// and read as "the new session dropped".
+        announce: bool,
+    },
 }
+
+type Connections = ConnectionRegistry<mpsc::UnboundedSender<Command>>;
 
 /// Drives real MQTT connections with `rumqttc`. Each connected broker gets
 /// its own background task, spawned on an owned tokio runtime, that owns
@@ -56,7 +63,7 @@ enum Command {
 pub struct RumqttcAdapter {
     runtime: tokio::runtime::Runtime,
     events_tx: mpsc::UnboundedSender<MqttEvent>,
-    connections: Arc<Mutex<HashMap<Uuid, mpsc::UnboundedSender<Command>>>>,
+    connections: Connections,
 }
 
 impl RumqttcAdapter {
@@ -64,14 +71,14 @@ impl RumqttcAdapter {
         Self {
             runtime: tokio::runtime::Runtime::new().expect("failed to start tokio runtime"),
             events_tx,
-            connections: Arc::new(Mutex::new(HashMap::new())),
+            connections: ConnectionRegistry::new(),
         }
     }
 
     fn send_command(&self, connection_id: Uuid, command: Command) -> Result<(), MqttError> {
-        let connections = self.connections.lock().unwrap();
-        let command_tx = connections
-            .get(&connection_id)
+        let command_tx = self
+            .connections
+            .get(connection_id)
             .ok_or(MqttError::UnknownConnection(connection_id))?;
         command_tx
             .send(command)
@@ -80,7 +87,20 @@ impl RumqttcAdapter {
 }
 
 impl MqttPort for RumqttcAdapter {
+    /// Connecting an id that is already connected replaces the live session
+    /// rather than stacking a second one on top of it. Two tasks for one id
+    /// would deliver every message twice, and the first to exit would take the
+    /// other's registry entry with it.
     fn connect(&self, connection_id: Uuid, broker: &BrokerConnection) -> Result<(), MqttError> {
+        if let Some(superseded) = self.connections.take(connection_id) {
+            log::info!("mqtt connection {connection_id}: replacing the live session");
+            // Fire-and-forget: the old task stops at its next poll. It is
+            // already out of the registry, so it can no longer receive
+            // commands - the worst it can still do is deliver a message or
+            // two from the session it is closing.
+            let _ = superseded.send(Command::Disconnect { announce: false });
+        }
+
         let mut options =
             MqttOptions::new(broker.client_id.clone(), broker.host.clone(), broker.port);
         options.set_keep_alive(Duration::from_secs(broker.keep_alive_secs as u64));
@@ -94,21 +114,22 @@ impl MqttPort for RumqttcAdapter {
         let (client, eventloop) = AsyncClient::new(options, 64);
         let (command_tx, command_rx) = mpsc::unbounded_channel();
 
+        // Registered before the task is spawned, so a publish issued the
+        // instant connect() returns finds a channel to go down.
+        let generation = self.connections.insert(connection_id, command_tx);
+
         self.runtime.spawn(run_connection(
             connection_id,
+            generation,
             client,
             eventloop,
             command_rx,
             self.events_tx.clone(),
-            Arc::clone(&self.connections),
+            self.connections.clone(),
             ReconnectPolicy::from_broker(broker),
             SubscriptionSet::from_broker(broker),
         ));
 
-        self.connections
-            .lock()
-            .unwrap()
-            .insert(connection_id, command_tx);
         Ok(())
     }
 
@@ -156,8 +177,8 @@ impl MqttPort for RumqttcAdapter {
     /// since the end state the caller wants - "not connected" - already
     /// holds.
     fn disconnect(&self, connection_id: Uuid) -> Result<(), MqttError> {
-        if let Some(command_tx) = self.connections.lock().unwrap().remove(&connection_id) {
-            let _ = command_tx.send(Command::Disconnect);
+        if let Some(command_tx) = self.connections.take(connection_id) {
+            let _ = command_tx.send(Command::Disconnect { announce: true });
         }
         Ok(())
     }
@@ -166,11 +187,12 @@ impl MqttPort for RumqttcAdapter {
 #[allow(clippy::too_many_arguments)]
 async fn run_connection(
     connection_id: Uuid,
+    generation: u64,
     client: AsyncClient,
     mut eventloop: EventLoop,
     mut command_rx: mpsc::UnboundedReceiver<Command>,
     events_tx: mpsc::UnboundedSender<MqttEvent>,
-    connections: Arc<Mutex<HashMap<Uuid, mpsc::UnboundedSender<Command>>>>,
+    connections: Connections,
     policy: ReconnectPolicy,
     mut subscriptions: SubscriptionSet,
 ) {
@@ -236,7 +258,7 @@ async fn run_connection(
                         // retry takes is waiting, then looping.
                         let Some(delay) = policy.delay_for(attempt).filter(|_| has_connected) else {
                             log::warn!("mqtt connection {connection_id}: disconnected due to eventloop error");
-                            connections.lock().unwrap().remove(&connection_id);
+                            connections.remove_if_current(connection_id, generation);
                             let _ = events_tx.send(MqttEvent::Disconnected { connection_id });
                             return;
                         };
@@ -272,11 +294,14 @@ async fn run_connection(
                         subscriptions.remove(&topic);
                         let _ = client.unsubscribe(topic).await;
                     }
-                    Some(Command::Disconnect) | None => {
-                        log::info!("mqtt connection {connection_id}: disconnected (client requested)");
-                        let _ = client.disconnect().await;
-                        connections.lock().unwrap().remove(&connection_id);
-                        let _ = events_tx.send(MqttEvent::Disconnected { connection_id });
+                    Some(Command::Disconnect { announce }) => {
+                        shutdown(connection_id, generation, &client, &connections, &events_tx, announce).await;
+                        return;
+                    }
+                    // A closed channel means the adapter itself is going away,
+                    // which is as much a disconnect as an explicit request.
+                    None => {
+                        shutdown(connection_id, generation, &client, &connections, &events_tx, true).await;
                         return;
                     }
                 }
@@ -284,15 +309,39 @@ async fn run_connection(
         }
 
         if let Some(delay) = pending_backoff {
-            if !backoff(connection_id, delay, &mut command_rx, &mut subscriptions).await {
+            if let BackoffOutcome::Stopped { announce } =
+                backoff(connection_id, delay, &mut command_rx, &mut subscriptions).await
+            {
                 log::info!(
                     "mqtt connection {connection_id}: disconnected (client requested while reconnecting)"
                 );
-                connections.lock().unwrap().remove(&connection_id);
-                let _ = events_tx.send(MqttEvent::Disconnected { connection_id });
+                connections.remove_if_current(connection_id, generation);
+                if announce {
+                    let _ = events_tx.send(MqttEvent::Disconnected { connection_id });
+                }
                 return;
             }
         }
+    }
+}
+
+/// Closes the session down and takes the connection out of the registry.
+///
+/// `announce` is false only when this task is being replaced by a fresh
+/// connection to the same broker - see `Command::Disconnect`.
+async fn shutdown(
+    connection_id: Uuid,
+    generation: u64,
+    client: &AsyncClient,
+    connections: &Connections,
+    events_tx: &mpsc::UnboundedSender<MqttEvent>,
+    announce: bool,
+) {
+    log::info!("mqtt connection {connection_id}: disconnected (client requested)");
+    let _ = client.disconnect().await;
+    connections.remove_if_current(connection_id, generation);
+    if announce {
+        let _ = events_tx.send(MqttEvent::Disconnected { connection_id });
     }
 }
 
@@ -303,19 +352,17 @@ async fn run_connection(
 /// take effect now, not half a minute later, and subscription edits made while
 /// offline need to be recorded so the next ConnAck replays them.
 ///
-/// Returns false when the caller should stop retrying and shut the connection
-/// down.
 async fn backoff(
     connection_id: Uuid,
     delay: Duration,
     command_rx: &mut mpsc::UnboundedReceiver<Command>,
     subscriptions: &mut SubscriptionSet,
-) -> bool {
+) -> BackoffOutcome {
     let deadline = tokio::time::Instant::now() + delay;
 
     loop {
         tokio::select! {
-            _ = tokio::time::sleep_until(deadline) => return true,
+            _ = tokio::time::sleep_until(deadline) => return BackoffOutcome::Elapsed,
             command = command_rx.recv() => {
                 match command {
                     Some(Command::Subscribe { topic, qos }) => {
@@ -333,11 +380,22 @@ async fn backoff(
                             "mqtt connection {connection_id}: dropped publish to {topic} while reconnecting"
                         );
                     }
-                    Some(Command::Disconnect) | None => return false,
+                    Some(Command::Disconnect { announce }) => {
+                        return BackoffOutcome::Stopped { announce }
+                    }
+                    None => return BackoffOutcome::Stopped { announce: true },
                 }
             }
         }
     }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum BackoffOutcome {
+    /// The delay ran out; the caller should try the broker again.
+    Elapsed,
+    /// The client asked to stop retrying. `announce` as in `Command::Disconnect`.
+    Stopped { announce: bool },
 }
 
 #[cfg(test)]
@@ -387,7 +445,7 @@ mod tests {
         let (_command_tx, mut command_rx) = mpsc::unbounded_channel();
         let mut subscriptions = SubscriptionSet::default();
 
-        let waited = backoff(
+        let outcome = backoff(
             Uuid::new_v4(),
             Duration::from_millis(20),
             &mut command_rx,
@@ -395,23 +453,46 @@ mod tests {
         )
         .await;
 
-        assert!(waited);
+        assert_eq!(outcome, BackoffOutcome::Elapsed);
     }
 
     #[tokio::test]
     async fn a_disconnect_during_the_backoff_stops_the_wait_immediately() {
         let (command_tx, mut command_rx) = mpsc::unbounded_channel();
         let mut subscriptions = SubscriptionSet::default();
-        command_tx.send(Command::Disconnect).unwrap();
+        command_tx
+            .send(Command::Disconnect { announce: true })
+            .unwrap();
 
-        let waited = timeout(
+        let outcome = timeout(
             Duration::from_secs(5),
             backoff(Uuid::new_v4(), NEVER, &mut command_rx, &mut subscriptions),
         )
         .await
         .expect("backoff should return without waiting out the delay");
 
-        assert!(!waited);
+        assert_eq!(outcome, BackoffOutcome::Stopped { announce: true });
+    }
+
+    /// Being replaced mid-backoff must stay silent: the replacement announces
+    /// itself, and a Disconnected landing after that would read as the new
+    /// session having dropped.
+    #[tokio::test]
+    async fn being_superseded_during_the_backoff_stops_the_wait_without_announcing() {
+        let (command_tx, mut command_rx) = mpsc::unbounded_channel();
+        let mut subscriptions = SubscriptionSet::default();
+        command_tx
+            .send(Command::Disconnect { announce: false })
+            .unwrap();
+
+        let outcome = timeout(
+            Duration::from_secs(5),
+            backoff(Uuid::new_v4(), NEVER, &mut command_rx, &mut subscriptions),
+        )
+        .await
+        .expect("backoff should return without waiting out the delay");
+
+        assert_eq!(outcome, BackoffOutcome::Stopped { announce: false });
     }
 
     #[tokio::test]
@@ -420,14 +501,14 @@ mod tests {
         let mut subscriptions = SubscriptionSet::default();
         drop(command_tx);
 
-        let waited = timeout(
+        let outcome = timeout(
             Duration::from_secs(5),
             backoff(Uuid::new_v4(), NEVER, &mut command_rx, &mut subscriptions),
         )
         .await
         .expect("backoff should return without waiting out the delay");
 
-        assert!(!waited);
+        assert_eq!(outcome, BackoffOutcome::Stopped { announce: true });
     }
 
     #[tokio::test]
@@ -480,6 +561,43 @@ mod tests {
         assert_eq!(adapter.disconnect(broker.id), Ok(()));
     }
 
+    /// Connecting twice used to leave two tasks running for one id, which both
+    /// duplicated every message and let the first to exit unregister the other.
+    #[test]
+    fn connecting_an_already_connected_id_leaves_exactly_one_live_connection() {
+        let (events_tx, _events_rx) = mpsc::unbounded_channel();
+        let adapter = RumqttcAdapter::new(events_tx);
+        let broker = sample_broker("localhost", 1883);
+
+        adapter.connect(broker.id, &broker).unwrap();
+        let first = adapter.connections.get(broker.id).expect("registered");
+        adapter.connect(broker.id, &broker).unwrap();
+        let second = adapter.connections.get(broker.id).expect("registered");
+
+        assert!(!first.same_channel(&second));
+        // The superseded task was told to stop, and quietly, so the
+        // replacement's Connected is not immediately contradicted.
+        assert!(first.is_closed() || !second.is_closed());
+        assert_eq!(adapter.disconnect(broker.id), Ok(()));
+        assert!(!adapter.connections.contains(broker.id));
+    }
+
+    /// The command channel exists before `connect` returns, so a publish issued
+    /// straight afterwards is not rejected as an unknown connection.
+    #[test]
+    fn a_connection_is_reachable_the_moment_connect_returns() {
+        let (events_tx, _events_rx) = mpsc::unbounded_channel();
+        let adapter = RumqttcAdapter::new(events_tx);
+        let broker = sample_broker("localhost", 1883);
+
+        adapter.connect(broker.id, &broker).unwrap();
+
+        assert_eq!(
+            adapter.publish(broker.id, "t", b"x".to_vec(), QoS::AtMostOnce, false),
+            Ok(())
+        );
+    }
+
     /// Requires network access to a real broker. Defaults to the public
     /// test.mosquitto.org sandbox; point `sample_broker` at "localhost" for
     /// a local Mosquitto instead (e.g. `docker run -p 1883:1883 eclipse-mosquitto`).
@@ -526,6 +644,75 @@ mod tests {
                 }
                 _ => unreachable!(),
             }
+        });
+
+        adapter.disconnect(broker.id).unwrap();
+    }
+
+    /// The regression `ConnectionRegistry` exists for, end to end: reconnecting
+    /// an id that is already live used to leave both sessions subscribed, so
+    /// every message arrived twice.
+    ///
+    /// Run explicitly with: cargo test -p bme-core -- --ignored reconnecting
+    #[test]
+    #[ignore]
+    fn reconnecting_a_live_connection_does_not_deliver_messages_twice() {
+        let (events_tx, mut events_rx) = mpsc::unbounded_channel();
+        let adapter = RumqttcAdapter::new(events_tx);
+        let broker = sample_broker("test.mosquitto.org", 1883);
+        let topic = format!("bme/tests/{}", broker.id);
+
+        adapter.connect(broker.id, &broker).unwrap();
+        adapter.runtime.block_on(async {
+            wait_for(&mut events_rx, |event| {
+                matches!(event, MqttEvent::Connected { .. })
+            })
+            .await;
+        });
+        adapter
+            .subscribe(broker.id, &topic, QoS::AtLeastOnce)
+            .unwrap();
+
+        // Second connect for the same id: the first session must be replaced,
+        // not joined by a second one.
+        adapter.connect(broker.id, &broker).unwrap();
+        adapter.runtime.block_on(async {
+            wait_for(&mut events_rx, |event| {
+                matches!(event, MqttEvent::Connected { .. })
+            })
+            .await;
+        });
+        adapter
+            .subscribe(broker.id, &topic, QoS::AtLeastOnce)
+            .unwrap();
+        adapter
+            .publish(broker.id, &topic, b"once".to_vec(), QoS::AtLeastOnce, false)
+            .unwrap();
+
+        adapter.runtime.block_on(async {
+            wait_for(
+                &mut events_rx,
+                |event| matches!(event, MqttEvent::MessageReceived { topic: t, .. } if t == &topic),
+            )
+            .await;
+
+            // A second copy would arrive right behind the first, so a short
+            // wait is enough to catch the duplicate.
+            let duplicate = timeout(Duration::from_secs(2), async {
+                loop {
+                    let event = events_rx.recv().await.expect("event channel closed");
+                    if matches!(&event, MqttEvent::MessageReceived { topic: t, .. } if t == &topic)
+                    {
+                        return event;
+                    }
+                }
+            })
+            .await;
+
+            assert!(
+                duplicate.is_err(),
+                "the replaced session delivered the message a second time"
+            );
         });
 
         adapter.disconnect(broker.id).unwrap();

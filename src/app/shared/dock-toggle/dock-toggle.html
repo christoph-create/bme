@@ -1,0 +1,21 @@
+<button
+  type="button"
+  class="dock-toggle"
+  [class.active]="active()"
+  [attr.aria-pressed]="active()"
+  [attr.aria-label]="label()"
+  [title]="title()"
+  (click)="toggled.emit()"
+>
+  <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+    <rect class="frame" x="0.5" y="0.5" width="13" height="13" rx="1.5" />
+    <rect
+      class="strip"
+      [attr.x]="strip().x"
+      [attr.y]="strip().y"
+      [attr.width]="strip().width"
+      [attr.height]="strip().height"
+      rx="0.5"
+    />
+  </svg>
+</button>

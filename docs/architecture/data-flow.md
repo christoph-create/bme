@@ -66,10 +66,14 @@ exactly that in `src-tauri/src/lib.rs`). Unsubscribing takes both the
 The adapter's event loop pushes `MqttEvent`s into an unbounded `tokio::mpsc`
 channel. `lib.rs`'s spawned task drains it and `emit`s each one to the
 webview under the single event name `"mqtt-event"`.
-`MqttEventsService.events$` wraps that listener as an Observable;
-`MessageStoreService` is the only subscriber that keeps state, folding
-`MessageReceived` into its per-connection/per-topic map (capped per topic)
-and letting `Connected`/`Reconnecting`/`Disconnected` through for status.
+`MqttEventsService.events$` wraps that listener as an Observable, `share()`d
+so N subscribers still mean one listener. Two subscribers keep state, and they
+split the stream by what it is about: `MessageStoreService` folds
+`MessageReceived` into its per-connection/per-topic map (capped per topic),
+and `ConnectionStatusService` folds `Connected`/`Reconnecting`/`Disconnected`
+into its per-connection status map. Every variant carries a `connection_id`,
+which is the only thing separating one broker's traffic from another's on this
+single shared channel.
 
 Payloads cross as `Vec<u8>` → `number[]`; decoding to text happens in the
 frontend (`format/payload-text.ts`).
