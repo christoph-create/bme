@@ -251,7 +251,6 @@ h1 {
   grid-row: 3;
   min-height: 0;
   overflow: hidden;
-  background: var(--color-surface-elevated);
 }
 
 .resizer-col {

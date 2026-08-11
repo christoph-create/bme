@@ -56,7 +56,9 @@
   padding: 8px 10px 10px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background: var(--color-surface-elevated);
+  /* The same raised surface as the chart cards - two raised things in one
+     panel should not be two different shades. */
+  background: var(--color-input-bg);
 }
 
 .picker-header {

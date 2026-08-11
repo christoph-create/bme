@@ -2,7 +2,6 @@ import {
   ChangeDetectionStrategy,
   Component,
   input,
-  output,
   signal,
 } from "@angular/core";
 
@@ -41,7 +40,6 @@ export class ToolPanel {
   readonly wide = input(false);
   /** The message stream's Pause, forwarded so the charts freeze with it. */
   readonly paused = input(false);
-  readonly closeRequested = output<void>();
 
   readonly tools: readonly ToolTab[] = [{ id: "charts", label: "Charts" }];
   readonly activeTool = signal<WorkspaceTool>("charts");

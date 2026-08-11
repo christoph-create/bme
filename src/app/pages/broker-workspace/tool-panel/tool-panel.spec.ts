@@ -46,14 +46,12 @@ describe("ToolPanel", () => {
     );
   });
 
-  it("asks to be closed", async () => {
+  /** Hiding the dock is the header's job, and having two controls for it
+   * meant one of them was always the wrong one to reach for. */
+  it("leaves showing and hiding to the header's dock toggle", async () => {
     const { fixture } = await setup();
-    const closed = vi.fn();
-    fixture.componentInstance.closeRequested.subscribe(closed);
 
-    fixture.nativeElement.querySelector(".panel-close").click();
-
-    expect(closed).toHaveBeenCalledTimes(1);
+    expect(fixture.nativeElement.querySelector(".panel-actions")).toBeNull();
   });
 
   it("hands the workspace's width verdict down so the cards can go two-up", async () => {

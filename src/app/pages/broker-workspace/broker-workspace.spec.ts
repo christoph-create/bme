@@ -492,21 +492,6 @@ describe("BrokerWorkspace", () => {
       ).not.toBeNull();
     });
 
-    it("closes its dock from its own close button", async () => {
-      const { fixture } = await setup();
-      await fixture.whenStable();
-      const component = fixture.componentInstance;
-      component.toggleDock("tools");
-      fixture.detectChanges();
-
-      const panel = fixture.debugElement.query(By.directive(ToolPanel))
-        .componentInstance as ToolPanel;
-      panel.closeRequested.emit();
-      fixture.detectChanges();
-
-      expect(component.docksOpen().tools).toBe(false);
-    });
-
     it("freezes the charts with the message stream's pause", async () => {
       const { fixture } = await setup();
       await fixture.whenStable();
