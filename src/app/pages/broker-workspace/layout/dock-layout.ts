@@ -19,8 +19,8 @@ interface DockLimits {
 
 export const DOCK_LIMITS: Record<DockId, DockLimits> = {
   subscriptions: { min: 200, max: 1200, default: 260 },
-  publish: { min: 200, max: 560, default: 260 },
-  tools: { min: 240, max: 900, default: 360 },
+  publish: { min: 200, max: 800, default: 260 },
+  tools: { min: 240, max: 1600, default: 360 },
 };
 
 /** Width of every splitter track, and so the width of the drag target. */
@@ -29,11 +29,11 @@ export const SPLITTER_PX = 6;
 /** How little the centre column may be squeezed to before the side docks stop
  * growing. Without it, a wide sidebar plus a wide tool panel can leave the
  * stream at zero with no way to drag it back. */
-export const MIN_CENTRE_WIDTH = 320;
+export const MIN_CENTRE_WIDTH = 400;
 
 /** Below this the charts stay in one column - two columns of cards this narrow
  * are less readable than one. */
-export const WIDE_TOOLS_WIDTH = 560;
+export const WIDE_TOOLS_WIDTH = 600;
 
 export type DockFractions = Record<DockId, number>;
 
