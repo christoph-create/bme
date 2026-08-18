@@ -1,34 +1,47 @@
+/* 100% rather than 100vh: the tab bar above it is part of the same column, so
+   a viewport-height workspace would push itself off the bottom. */
 :host {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100%;
+  min-height: 0;
 }
 
 .page-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 16px;
+  gap: 12px;
+  min-height: 34px;
+  padding: 4px 12px;
   border-bottom: 1px solid var(--color-border-faint);
   flex-shrink: 0;
 }
 
+/* One line: the broker's name and where it points are read together, and the
+   row above has to stay short enough that it doesn't cost the workspace a
+   second header's worth of height. */
 .header-info {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
 }
 
-.header-title {
+.header-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 2px;
+  flex-shrink: 0;
 }
 
 .header-subtitle {
   font-size: 11.5px;
   font-family: var(--font-mono);
   color: var(--color-text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 h1 {
@@ -163,8 +176,10 @@ h1 {
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  padding: 6px 10px;
+  padding: 5px 8px;
+  margin-left: 6px;
   border-radius: var(--radius-sm);
+  flex-shrink: 0;
 }
 
 .btn-disconnect:hover {
@@ -176,22 +191,40 @@ h1 {
   flex: 1;
   min-height: 0;
   display: grid;
+  transition:
+    grid-template-columns 150ms ease,
+    grid-template-rows 150ms ease;
 }
 
-.layout.resizing-col,
-.layout.resizing-tool,
-.layout.resizing-row {
+/* The splitter itself captures the pointer, but the panes it drags past would
+   still start a text selection under it. */
+.layout.resizing {
   user-select: none;
+  /* Every drag frame would otherwise chase a 150ms tween, so the handle would
+     lag behind the pointer for as long as the drag lasted. */
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .layout {
+    transition: none;
+  }
 }
 
 .sidebar {
   overflow: auto;
-  padding: 16px;
   grid-column: 1;
   grid-row: 1 / 4;
+  min-width: 0;
+}
+
+.sidebar-inner {
+  padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-height: 100%;
+  box-sizing: border-box;
 }
 
 .messages {
@@ -202,123 +235,37 @@ h1 {
   border-bottom: 1px solid var(--color-border);
 }
 
-.messages.hidden {
-  display: none;
-}
-
+/* Full height, so the charts get the whole side of the window rather than
+   stopping where the publish panel starts. */
 .tool-panel {
   grid-column: 5;
-  grid-row: 1;
+  grid-row: 1 / 4;
   min-height: 0;
   overflow: hidden;
-  border-bottom: 1px solid var(--color-border);
 }
 
-.tool-panel.collapsed {
-  display: none;
-}
-
-/* Spans past the tool panel: the publish row is the full width of the
-   right-hand side whether the panel is open or not, and the collapsed grid
-   keeps both of its tracks at zero rather than removing them, so this
-   placement stays valid in either state. */
+/* The bottom of the centre column only - it belongs to the topic you are
+   looking at, and the docks on either side run past it. */
 .publish {
-  grid-column: 3 / 6;
+  grid-column: 3;
   grid-row: 3;
   min-height: 0;
   overflow: hidden;
-  background: var(--color-surface-elevated);
-}
-
-.resizer {
-  touch-action: none;
-}
-
-.resizer-col,
-.resizer-tool {
-  grid-row: 1 / 4;
-  cursor: col-resize;
-  position: relative;
-  background: transparent;
 }
 
 .resizer-col {
   grid-column: 2;
+  grid-row: 1 / 4;
   border-right: 1px solid var(--color-border);
 }
 
 .resizer-tool {
   grid-column: 4;
-  grid-row: 1;
+  grid-row: 1 / 4;
   border-left: 1px solid var(--color-border);
 }
 
-.resizer-col::after,
-.resizer-tool::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 3px;
-  height: 32px;
-  border-radius: 2px;
-  background: var(--color-text-tertiary);
-  opacity: 0.5;
-  transform: translate(-50%, -50%);
-  transition:
-    opacity 0.12s,
-    background-color 0.12s;
-}
-
-.resizer-col:hover,
-.resizer-tool:hover,
-.layout.resizing-col .resizer-col,
-.layout.resizing-tool .resizer-tool {
-  background: var(--color-border);
-}
-
-.resizer-col:hover::after,
-.resizer-tool:hover::after,
-.layout.resizing-col .resizer-col::after,
-.layout.resizing-tool .resizer-tool::after {
-  background: var(--color-text-secondary);
-  opacity: 1;
-}
-
-/* Spans the whole right-hand side, matching `.publish` below it. Anchored to
-   the messages column alone, the handle would shrink to nothing whenever the
-   tool panel expanded over it, leaving no way to resize the publish panel. */
 .resizer-row {
-  grid-column: 3 / 6;
+  grid-column: 3;
   grid-row: 2;
-  cursor: row-resize;
-  position: relative;
-  background: transparent;
-}
-
-.resizer-row::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 32px;
-  height: 3px;
-  border-radius: 2px;
-  background: var(--color-text-tertiary);
-  opacity: 0.5;
-  transform: translate(-50%, -50%);
-  transition:
-    opacity 0.12s,
-    background-color 0.12s;
-}
-
-.resizer-row:hover,
-.layout.resizing-row .resizer-row {
-  background: var(--color-border);
-}
-
-.resizer-row:hover::after,
-.layout.resizing-row .resizer-row::after {
-  background: var(--color-text-secondary);
-  opacity: 1;
 }

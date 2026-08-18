@@ -1,0 +1,14 @@
+:host {
+  display: contents;
+}
+
+.workspace {
+  height: 100%;
+}
+
+/* `display: none` rather than `visibility: hidden`: a background tab should
+   cost nothing to lay out, and the message stream restores its own scroll
+   position when it comes back. */
+.workspace.hidden {
+  display: none;
+}

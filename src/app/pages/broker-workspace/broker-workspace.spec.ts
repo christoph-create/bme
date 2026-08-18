@@ -1,11 +1,6 @@
-import { TestBed } from "@angular/core/testing";
+import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { By } from "@angular/platform-browser";
-import {
-  ActivatedRoute,
-  Router,
-  convertToParamMap,
-  provideRouter,
-} from "@angular/router";
+import { Router, provideRouter } from "@angular/router";
 import { Subject, of } from "rxjs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -14,6 +9,8 @@ import { MqttEvent } from "../../core/models/mqtt-event.model";
 import { ConnectionsService } from "../../core/services/connections.service";
 import { MessageStoreService } from "../../core/services/message-store.service";
 import { MqttEventsService } from "../../core/services/mqtt-events.service";
+import { WorkspacesService } from "../../core/services/workspaces.service";
+import { Splitter } from "../../shared/splitter/splitter";
 import { BrokerWorkspace } from "./broker-workspace";
 import { MessageStream } from "./message-stream/message-stream";
 import { PublishPanel } from "./publish-panel/publish-panel";
@@ -43,14 +40,6 @@ function sampleConnection(
   };
 }
 
-function pointerEvent(x: number, y: number): PointerEvent {
-  return {
-    clientX: x,
-    clientY: y,
-    preventDefault: vi.fn(),
-  } as unknown as PointerEvent;
-}
-
 async function setup(
   options: {
     connect?: ReturnType<typeof vi.fn>;
@@ -75,24 +64,22 @@ async function setup(
           topicsFor: vi.fn().mockReturnValue(of(new Map())),
           retainedTopicsFor: vi.fn().mockReturnValue(of(new Set())),
           messagesFor: vi.fn().mockReturnValue(of([])),
+          clear: vi.fn(),
         },
       },
       { provide: MqttEventsService, useValue: { events$ } },
-      {
-        provide: ActivatedRoute,
-        useValue: {
-          snapshot: { paramMap: convertToParamMap({ id: CONNECTION_ID }) },
-        },
-      },
     ],
   });
 
   const fixture = TestBed.createComponent(BrokerWorkspace);
+  fixture.componentRef.setInput("connectionId", CONNECTION_ID);
+  const workspaces = TestBed.inject(WorkspacesService);
+  workspaces.open(CONNECTION_ID);
   const router = TestBed.inject(Router);
   const navigate = vi.spyOn(router, "navigate").mockResolvedValue(true);
   fixture.detectChanges();
 
-  return { fixture, connect, disconnect, navigate, events$ };
+  return { fixture, connect, disconnect, navigate, events$, workspaces };
 }
 
 describe("BrokerWorkspace", () => {
@@ -109,14 +96,7 @@ describe("BrokerWorkspace", () => {
     expect(fixture.componentInstance).toBeTruthy();
   });
 
-  it("exposes the connection id from the route", async () => {
-    const { fixture } = await setup();
-    await fixture.whenStable();
-
-    expect(fixture.componentInstance.connectionId).toBe(CONNECTION_ID);
-  });
-
-  it("connects to the broker for the route's connection id on init", async () => {
+  it("connects to the broker it was given on init", async () => {
     const { fixture, connect } = await setup();
     await fixture.whenStable();
 
@@ -140,546 +120,6 @@ describe("BrokerWorkspace", () => {
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? "";
     expect(text).toContain("Broker Workspace");
-  });
-
-  it("keeps showing the connecting indicator after the connect command is accepted, until the broker confirms", async () => {
-    const { fixture, events$ } = await setup();
-    await fixture.whenStable();
-
-    // The connect() invoke call resolving only means the command was
-    // accepted, not that a session exists yet - status must wait for the
-    // Connected event.
-    expect(fixture.componentInstance.connecting()).toBe(true);
-
-    events$.next({ Connected: { connection_id: CONNECTION_ID } });
-    fixture.detectChanges();
-
-    expect(fixture.componentInstance.connecting()).toBe(false);
-    expect(fixture.componentInstance.connectError()).toBeNull();
-  });
-
-  it("shows an error when the initial connect command itself is rejected", async () => {
-    const connect = vi.fn().mockRejectedValue(new Error("broker unreachable"));
-
-    const { fixture } = await setup({ connect });
-    await fixture.whenStable();
-
-    expect(fixture.componentInstance.connecting()).toBe(false);
-    expect(fixture.componentInstance.connectError()).toBe(
-      "broker unreachable",
-    );
-  });
-
-  it("stops connecting and surfaces an error when the broker reports it disconnected", async () => {
-    const { fixture, events$ } = await setup();
-    await fixture.whenStable();
-
-    events$.next({ Disconnected: { connection_id: CONNECTION_ID } });
-    fixture.detectChanges();
-
-    expect(fixture.componentInstance.connecting()).toBe(false);
-    expect(fixture.componentInstance.connectError()).toBe(
-      "Disconnected from broker",
-    );
-  });
-
-  it("flips from connected back to an error if the broker drops the session later", async () => {
-    const { fixture, events$ } = await setup();
-    await fixture.whenStable();
-
-    events$.next({ Connected: { connection_id: CONNECTION_ID } });
-    fixture.detectChanges();
-    expect(fixture.componentInstance.connecting()).toBe(false);
-    expect(fixture.componentInstance.connectError()).toBeNull();
-
-    events$.next({ Disconnected: { connection_id: CONNECTION_ID } });
-    fixture.detectChanges();
-
-    expect(fixture.componentInstance.connectError()).toBe(
-      "Disconnected from broker",
-    );
-  });
-
-  it("computes connected as false while still connecting", async () => {
-    const { fixture } = await setup();
-    await fixture.whenStable();
-
-    expect(fixture.componentInstance.connected()).toBe(false);
-  });
-
-  it("computes connected as true once the Connected event arrives", async () => {
-    const { fixture, events$ } = await setup();
-    await fixture.whenStable();
-
-    events$.next({ Connected: { connection_id: CONNECTION_ID } });
-    fixture.detectChanges();
-
-    expect(fixture.componentInstance.connected()).toBe(true);
-  });
-
-  it("computes connected as false again if the broker reports Disconnected", async () => {
-    const { fixture, events$ } = await setup();
-    await fixture.whenStable();
-
-    events$.next({ Connected: { connection_id: CONNECTION_ID } });
-    fixture.detectChanges();
-    expect(fixture.componentInstance.connected()).toBe(true);
-
-    events$.next({ Disconnected: { connection_id: CONNECTION_ID } });
-    fixture.detectChanges();
-
-    expect(fixture.componentInstance.connected()).toBe(false);
-  });
-
-  it("ignores Connected/Disconnected events for other connections", async () => {
-    const { fixture, events$ } = await setup();
-    await fixture.whenStable();
-
-    events$.next({ Disconnected: { connection_id: OTHER_CONNECTION_ID } });
-    fixture.detectChanges();
-
-    expect(fixture.componentInstance.connecting()).toBe(true);
-    expect(fixture.componentInstance.connectError()).toBeNull();
-  });
-
-  it("shows the reconnect state instead of an error while the backend is retrying", async () => {
-    const { fixture, events$ } = await setup();
-    await fixture.whenStable();
-
-    events$.next({ Connected: { connection_id: CONNECTION_ID } });
-    fixture.detectChanges();
-
-    events$.next({
-      Reconnecting: {
-        connection_id: CONNECTION_ID,
-        attempt: 3,
-        max_attempts: 10,
-        delay_ms: 4000,
-      },
-    });
-    fixture.detectChanges();
-
-    expect(fixture.componentInstance.reconnecting()).toEqual({
-      attempt: 3,
-      maxAttempts: 10,
-    });
-    expect(fixture.componentInstance.connectError()).toBeNull();
-    expect(fixture.componentInstance.connecting()).toBe(false);
-  });
-
-  it("renders the reconnect banner with a spinner, the attempt count and a Stop button", async () => {
-    const { fixture, events$ } = await setup();
-    await fixture.whenStable();
-
-    events$.next({
-      Reconnecting: {
-        connection_id: CONNECTION_ID,
-        attempt: 3,
-        max_attempts: 10,
-        delay_ms: 4000,
-      },
-    });
-    fixture.detectChanges();
-
-    const element = fixture.nativeElement as HTMLElement;
-    const banner = element.querySelector(".reconnect-banner");
-    expect(banner).not.toBeNull();
-    expect(banner?.querySelector(".spinner")).not.toBeNull();
-    expect(banner?.textContent).toContain("Reconnecting… (attempt 3 of 10)");
-    expect(banner?.querySelector("button")?.textContent?.trim()).toBe("Stop");
-    // The red banner is the give-up state and must not be showing as well.
-    expect(element.querySelector(".connect-error-banner")).toBeNull();
-  });
-
-  it("counts reconnecting as not connected, so publishing stays disabled", async () => {
-    const { fixture, events$ } = await setup();
-    await fixture.whenStable();
-
-    events$.next({ Connected: { connection_id: CONNECTION_ID } });
-    fixture.detectChanges();
-    expect(fixture.componentInstance.connected()).toBe(true);
-
-    events$.next({
-      Reconnecting: {
-        connection_id: CONNECTION_ID,
-        attempt: 1,
-        max_attempts: 10,
-        delay_ms: 1000,
-      },
-    });
-    fixture.detectChanges();
-
-    expect(fixture.componentInstance.connected()).toBe(false);
-  });
-
-  it("clears the reconnect state when the session comes back", async () => {
-    const { fixture, events$ } = await setup();
-    await fixture.whenStable();
-
-    events$.next({
-      Reconnecting: {
-        connection_id: CONNECTION_ID,
-        attempt: 2,
-        max_attempts: 10,
-        delay_ms: 2000,
-      },
-    });
-    fixture.detectChanges();
-
-    events$.next({ Connected: { connection_id: CONNECTION_ID } });
-    fixture.detectChanges();
-
-    expect(fixture.componentInstance.reconnecting()).toBeNull();
-    expect(fixture.componentInstance.connected()).toBe(true);
-    expect(
-      (fixture.nativeElement as HTMLElement).querySelector(".reconnect-banner"),
-    ).toBeNull();
-  });
-
-  it("falls back to the error banner when the backend runs out of attempts", async () => {
-    const { fixture, events$ } = await setup();
-    await fixture.whenStable();
-
-    events$.next({
-      Reconnecting: {
-        connection_id: CONNECTION_ID,
-        attempt: 10,
-        max_attempts: 10,
-        delay_ms: 30000,
-      },
-    });
-    fixture.detectChanges();
-
-    // The backend only sends Disconnected once it has stopped retrying.
-    events$.next({ Disconnected: { connection_id: CONNECTION_ID } });
-    fixture.detectChanges();
-
-    expect(fixture.componentInstance.reconnecting()).toBeNull();
-    expect(fixture.componentInstance.connectError()).toBe(
-      "Disconnected from broker",
-    );
-    const element = fixture.nativeElement as HTMLElement;
-    expect(element.querySelector(".reconnect-banner")).toBeNull();
-    expect(element.querySelector(".connect-error-banner")).not.toBeNull();
-  });
-
-  it("ignores Reconnecting events for other connections", async () => {
-    const { fixture, events$ } = await setup();
-    await fixture.whenStable();
-
-    events$.next({
-      Reconnecting: {
-        connection_id: OTHER_CONNECTION_ID,
-        attempt: 1,
-        max_attempts: 10,
-        delay_ms: 1000,
-      },
-    });
-    fixture.detectChanges();
-
-    expect(fixture.componentInstance.reconnecting()).toBeNull();
-    expect(fixture.componentInstance.connecting()).toBe(true);
-  });
-
-  it("stops reconnecting on request without leaving the workspace", async () => {
-    const { fixture, events$, disconnect, navigate } = await setup();
-    await fixture.whenStable();
-
-    events$.next({
-      Reconnecting: {
-        connection_id: CONNECTION_ID,
-        attempt: 2,
-        max_attempts: 10,
-        delay_ms: 2000,
-      },
-    });
-    fixture.detectChanges();
-
-    await fixture.componentInstance.stopReconnecting();
-    fixture.detectChanges();
-
-    expect(disconnect).toHaveBeenCalledWith(CONNECTION_ID);
-    expect(navigate).not.toHaveBeenCalled();
-    expect(fixture.componentInstance.reconnecting()).toBeNull();
-    expect(fixture.componentInstance.connectError()).toBe(
-      "Disconnected from broker",
-    );
-  });
-
-  it("surfaces a failure to stop reconnecting rather than leaving the spinner running", async () => {
-    const disconnect = vi.fn().mockRejectedValue(new Error("stop failed"));
-    const { fixture, events$ } = await setup({ disconnect });
-    await fixture.whenStable();
-
-    events$.next({
-      Reconnecting: {
-        connection_id: CONNECTION_ID,
-        attempt: 2,
-        max_attempts: 10,
-        delay_ms: 2000,
-      },
-    });
-    fixture.detectChanges();
-
-    await fixture.componentInstance.stopReconnecting();
-
-    expect(fixture.componentInstance.reconnecting()).toBeNull();
-    expect(fixture.componentInstance.connectError()).toBe("stop failed");
-  });
-
-  it("clears the reconnect state when connect() is retried", async () => {
-    const { fixture, events$ } = await setup();
-    await fixture.whenStable();
-
-    events$.next({
-      Reconnecting: {
-        connection_id: CONNECTION_ID,
-        attempt: 4,
-        max_attempts: 10,
-        delay_ms: 8000,
-      },
-    });
-    fixture.detectChanges();
-
-    await fixture.componentInstance.connect();
-
-    expect(fixture.componentInstance.reconnecting()).toBeNull();
-    expect(fixture.componentInstance.connecting()).toBe(true);
-  });
-
-  it("clears a previous error and reconnects when connect() is retried", async () => {
-    const connect = vi
-      .fn()
-      .mockRejectedValueOnce(new Error("broker unreachable"))
-      .mockResolvedValueOnce(undefined);
-
-    const { fixture } = await setup({ connect });
-    await fixture.whenStable();
-    expect(fixture.componentInstance.connectError()).toBe(
-      "broker unreachable",
-    );
-
-    await fixture.componentInstance.connect();
-
-    expect(fixture.componentInstance.connectError()).toBeNull();
-    expect(fixture.componentInstance.connecting()).toBe(true);
-    expect(connect).toHaveBeenCalledTimes(2);
-  });
-
-  it("disconnects and navigates back to Connections", async () => {
-    const { fixture, disconnect, navigate } = await setup();
-    await fixture.whenStable();
-
-    await fixture.componentInstance.disconnect();
-
-    expect(disconnect).toHaveBeenCalledWith(CONNECTION_ID);
-    expect(navigate).toHaveBeenCalledWith(["/connections"]);
-  });
-
-  it("surfaces an error and does not navigate if disconnect fails", async () => {
-    const disconnect = vi.fn().mockRejectedValue(new Error("still busy"));
-    const { fixture, navigate } = await setup({ disconnect });
-    await fixture.whenStable();
-
-    await fixture.componentInstance.disconnect();
-
-    expect(fixture.componentInstance.connectError()).toBe("still busy");
-    expect(navigate).not.toHaveBeenCalled();
-  });
-
-  it("widens the sidebar as the column resizer is dragged right", async () => {
-    const { fixture } = await setup();
-    await fixture.whenStable();
-    const component = fixture.componentInstance;
-
-    const startWidth = component.sidebarWidth();
-    component.startResize("column", pointerEvent(200, 0));
-    component.onPointerMove(pointerEvent(240, 0));
-
-    expect(component.sidebarWidth()).toBe(startWidth + 40);
-  });
-
-  it("clamps the sidebar width to its minimum", async () => {
-    const { fixture } = await setup();
-    await fixture.whenStable();
-    const component = fixture.componentInstance;
-
-    component.startResize("column", pointerEvent(200, 0));
-    component.onPointerMove(pointerEvent(-5000, 0));
-
-    expect(component.sidebarWidth()).toBe(200);
-  });
-
-  it("clamps the sidebar width to its maximum", async () => {
-    const { fixture } = await setup();
-    await fixture.whenStable();
-    const component = fixture.componentInstance;
-
-    component.startResize("column", pointerEvent(200, 0));
-    component.onPointerMove(pointerEvent(5000, 0));
-
-    expect(component.sidebarWidth()).toBe(1200);
-  });
-
-  it("grows the publish panel when the row resizer is dragged up", async () => {
-    const { fixture } = await setup();
-    await fixture.whenStable();
-    const component = fixture.componentInstance;
-
-    const startHeight = component.publishHeight();
-    component.startResize("row", pointerEvent(0, 300));
-    component.onPointerMove(pointerEvent(0, 260));
-
-    expect(component.publishHeight()).toBe(startHeight + 40);
-  });
-
-  it("clamps the publish height to its minimum", async () => {
-    const { fixture } = await setup();
-    await fixture.whenStable();
-    const component = fixture.componentInstance;
-
-    component.startResize("row", pointerEvent(0, 300));
-    component.onPointerMove(pointerEvent(0, 5000));
-
-    expect(component.publishHeight()).toBe(200);
-  });
-
-  it("clamps the publish height to its maximum", async () => {
-    const { fixture } = await setup();
-    await fixture.whenStable();
-    const component = fixture.componentInstance;
-
-    component.startResize("row", pointerEvent(0, 300));
-    component.onPointerMove(pointerEvent(0, -5000));
-
-    expect(component.publishHeight()).toBe(560);
-  });
-
-  it("stops resizing after pointerup", async () => {
-    const { fixture } = await setup();
-    await fixture.whenStable();
-    const component = fixture.componentInstance;
-
-    const startWidth = component.sidebarWidth();
-    component.startResize("column", pointerEvent(200, 0));
-    component.onPointerUp();
-    component.onPointerMove(pointerEvent(240, 0));
-
-    expect(component.sidebarWidth()).toBe(startWidth);
-  });
-
-  it("scales the sidebar width proportionally when the window widens", async () => {
-    const { fixture } = await setup();
-    await fixture.whenStable();
-    const component = fixture.componentInstance;
-
-    const startWidth = component.sidebarWidth();
-    window.innerWidth = 2048; // double the default 1024
-    component.onWindowResize();
-
-    expect(component.sidebarWidth()).toBe(startWidth * 2);
-  });
-
-  it("clamps the sidebar width to its minimum when the window narrows", async () => {
-    const { fixture } = await setup();
-    await fixture.whenStable();
-    const component = fixture.componentInstance;
-
-    window.innerWidth = 512; // half the default 1024
-    component.onWindowResize();
-
-    expect(component.sidebarWidth()).toBe(200);
-  });
-
-  it("clamps the sidebar width to its maximum when the window widens a lot", async () => {
-    const { fixture } = await setup();
-    await fixture.whenStable();
-    const component = fixture.componentInstance;
-
-    window.innerWidth = 10240; // 10x the default 1024
-    component.onWindowResize();
-
-    expect(component.sidebarWidth()).toBe(1200);
-  });
-
-  it("scales the publish height proportionally when the window grows taller", async () => {
-    const { fixture } = await setup();
-    await fixture.whenStable();
-    const component = fixture.componentInstance;
-
-    const startHeight = component.publishHeight();
-    window.innerHeight = 1536; // double the default 768
-    component.onWindowResize();
-
-    expect(component.publishHeight()).toBe(startHeight * 2);
-  });
-
-  it("clamps the publish height to its minimum when the window gets shorter", async () => {
-    const { fixture } = await setup();
-    await fixture.whenStable();
-    const component = fixture.componentInstance;
-
-    window.innerHeight = 384; // half the default 768
-    component.onWindowResize();
-
-    expect(component.publishHeight()).toBe(200);
-  });
-
-  it("clamps the publish height to its maximum when the window gets much taller", async () => {
-    const { fixture } = await setup();
-    await fixture.whenStable();
-    const component = fixture.componentInstance;
-
-    window.innerHeight = 2304; // 3x the default 768
-    component.onWindowResize();
-
-    expect(component.publishHeight()).toBe(560);
-  });
-
-  it("does not resize the publish panel when only the width changes", async () => {
-    const { fixture } = await setup();
-    await fixture.whenStable();
-    const component = fixture.componentInstance;
-
-    const startHeight = component.publishHeight();
-    window.innerWidth = 2048;
-    component.onWindowResize();
-
-    expect(component.publishHeight()).toBe(startHeight);
-  });
-
-  it("does not keep growing across repeated resize events at the same size", async () => {
-    const { fixture } = await setup();
-    await fixture.whenStable();
-    const component = fixture.componentInstance;
-
-    const startWidth = component.sidebarWidth();
-    const startHeight = component.publishHeight();
-    component.onWindowResize();
-    component.onWindowResize();
-    component.onWindowResize();
-
-    expect(component.sidebarWidth()).toBe(startWidth);
-    expect(component.publishHeight()).toBe(startHeight);
-  });
-
-  it("returns to the original size after the window grows and then shrinks back", async () => {
-    const { fixture } = await setup();
-    await fixture.whenStable();
-    const component = fixture.componentInstance;
-
-    const startWidth = component.sidebarWidth();
-    const startHeight = component.publishHeight();
-
-    window.innerWidth = 2048;
-    window.innerHeight = 1536;
-    component.onWindowResize();
-    window.innerWidth = 1024;
-    window.innerHeight = 768;
-    component.onWindowResize();
-
-    expect(component.sidebarWidth()).toBe(startWidth);
-    expect(component.publishHeight()).toBe(startHeight);
   });
 
   it("loads a message resent from the stream into the publish panel", async () => {
@@ -738,147 +178,325 @@ describe("BrokerWorkspace", () => {
     expect(panel.form.controls.topic.value).toBe("sensors/zone-a");
   });
 
-  describe("the tool panel", () => {
-    it("starts collapsed, with both of its grid tracks at zero", async () => {
-      const { fixture } = await setup();
+  // The status rules themselves live in `core/status/connection-status.spec.ts`
+  // and the service's own spec; these run the real service end to end, to prove
+  // the header and the banners are reading it.
+  describe("connection status", () => {
+    const text = (fixture: ComponentFixture<BrokerWorkspace>) =>
+      (fixture.nativeElement as HTMLElement).textContent ?? "";
+
+    it("stays on Connecting until the broker confirms the session", async () => {
+      const { fixture, events$ } = await setup();
       await fixture.whenStable();
-      const component = fixture.componentInstance;
+      fixture.detectChanges();
+      expect(text(fixture)).toContain("Connecting…");
 
-      expect(component.toolPanelOpen()).toBe(false);
-      expect(component.gridTemplateColumns()).toBe("260px 6px 1fr 0 0");
-      expect(fixture.nativeElement.querySelector(".resizer-tool")).toBeNull();
-    });
-
-    it("takes a column of its own once opened", async () => {
-      const { fixture } = await setup();
-      await fixture.whenStable();
-      const component = fixture.componentInstance;
-
-      component.toggleToolPanel();
+      events$.next({ Connected: { connection_id: CONNECTION_ID } });
       fixture.detectChanges();
 
-      expect(component.gridTemplateColumns()).toBe("260px 6px 1fr 6px 360px");
+      expect(text(fixture)).toContain("Connected");
+      expect(fixture.componentInstance.connected()).toBe(true);
+    });
+
+    it("ignores events for other connections", async () => {
+      const { fixture, events$ } = await setup();
+      await fixture.whenStable();
+
+      events$.next({ Connected: { connection_id: OTHER_CONNECTION_ID } });
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.connected()).toBe(false);
+      expect(text(fixture)).toContain("Connecting…");
+    });
+
+    it("shows the retry count and a Stop button while the backend retries", async () => {
+      const { fixture, events$ } = await setup();
+      await fixture.whenStable();
+
+      events$.next({
+        Reconnecting: {
+          connection_id: CONNECTION_ID,
+          attempt: 3,
+          max_attempts: 10,
+          delay_ms: 4000,
+        },
+      });
+      fixture.detectChanges();
+
+      const banner = (fixture.nativeElement as HTMLElement).querySelector(
+        ".reconnect-banner",
+      );
+      expect(banner?.textContent).toContain("Reconnecting… (attempt 3 of 10)");
+      expect(banner?.querySelector("button")?.textContent?.trim()).toBe("Stop");
+      // Retrying is not connected: there is no session to publish over.
+      expect(fixture.componentInstance.connected()).toBe(false);
+    });
+
+    it("falls back to the error banner when the broker drops the session", async () => {
+      const { fixture, events$ } = await setup();
+      await fixture.whenStable();
+
+      events$.next({ Disconnected: { connection_id: CONNECTION_ID } });
+      fixture.detectChanges();
+
+      const element = fixture.nativeElement as HTMLElement;
+      expect(element.querySelector(".reconnect-banner")).toBeNull();
+      expect(element.querySelector(".connect-error-banner")?.textContent).toContain(
+        "Disconnected from broker",
+      );
+    });
+
+    it("disconnects, closes its tab and goes back to Connections", async () => {
+      const { fixture, disconnect, navigate, workspaces } = await setup();
+      await fixture.whenStable();
+
+      await fixture.componentInstance.disconnect();
+
+      expect(disconnect).toHaveBeenCalledWith(CONNECTION_ID);
+      expect(workspaces.openIds()).toEqual([]);
+      expect(navigate).toHaveBeenCalledWith(["/connections"]);
+    });
+
+    it("activates the neighbouring tab when one is left", async () => {
+      const { fixture, navigate, workspaces } = await setup();
+      await fixture.whenStable();
+      workspaces.open(OTHER_CONNECTION_ID);
+
+      await fixture.componentInstance.disconnect();
+
+      expect(workspaces.openIds()).toEqual([OTHER_CONNECTION_ID]);
+      expect(navigate).toHaveBeenCalledWith(["/broker", OTHER_CONNECTION_ID]);
+    });
+
+    it("stays put and surfaces the reason if disconnecting fails", async () => {
+      const disconnect = vi.fn().mockRejectedValue(new Error("still busy"));
+      const { fixture, navigate } = await setup({ disconnect });
+      await fixture.whenStable();
+
+      await fixture.componentInstance.disconnect();
+      fixture.detectChanges();
+
+      expect(navigate).not.toHaveBeenCalled();
+      expect(text(fixture)).toContain("still busy");
+      expect(fixture.componentInstance.connectionId()).toBe(CONNECTION_ID);
+    });
+  });
+
+  // The sizing rules themselves live in `layout/dock-layout.spec.ts`; these
+  // only prove each handle is wired to the dock it sits next to.
+  describe("the splitters", () => {
+    function splitter(
+      fixture: ComponentFixture<BrokerWorkspace>,
+      className: string,
+    ): Splitter {
+      const handle = fixture.debugElement
+        .queryAll(By.directive(Splitter))
+        .find((candidate) =>
+          (candidate.nativeElement as HTMLElement).classList.contains(
+            className,
+          ),
+        );
+      expect(handle).toBeDefined();
+      return handle?.componentInstance as Splitter;
+    }
+
+    it("widens the sidebar as its handle is dragged right", async () => {
+      const { fixture } = await setup();
+      await fixture.whenStable();
+      const handle = splitter(fixture, "resizer-col");
+
+      handle.dragStarted.emit();
+      handle.dragged.emit(40);
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.gridTemplateColumns()).toBe(
+        "300px 6px 1fr 0 0",
+      );
+    });
+
+    it("grows the publish dock as its handle is dragged up", async () => {
+      const { fixture } = await setup();
+      await fixture.whenStable();
+      const handle = splitter(fixture, "resizer-row");
+
+      handle.dragStarted.emit();
+      handle.dragged.emit(-40);
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.gridTemplateRows()).toBe(
+        "1fr 6px 300px",
+      );
+    });
+
+    it("shrinks the tools dock as its handle is dragged right", async () => {
+      const { fixture } = await setup();
+      await fixture.whenStable();
+      fixture.componentInstance.toggleDock("tools");
+      fixture.detectChanges();
+      const handle = splitter(fixture, "resizer-tool");
+
+      handle.dragStarted.emit();
+      handle.dragged.emit(40);
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.gridTemplateColumns()).toBe(
+        "260px 6px 1fr 6px 320px",
+      );
+    });
+
+    it("resolves each drag against the size that drag started from", async () => {
+      const { fixture } = await setup();
+      await fixture.whenStable();
+      const handle = splitter(fixture, "resizer-col");
+
+      handle.dragStarted.emit();
+      handle.dragged.emit(40);
+      handle.dragEnded.emit();
+      handle.dragStarted.emit();
+      handle.dragged.emit(40);
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.gridTemplateColumns()).toBe(
+        "340px 6px 1fr 0 0",
+      );
+    });
+
+    it("suppresses text selection only while a drag is in flight", async () => {
+      const { fixture } = await setup();
+      await fixture.whenStable();
+      const handle = splitter(fixture, "resizer-col");
+      const layout = () =>
+        (fixture.nativeElement as HTMLElement).querySelector(".layout");
+
+      handle.dragStarted.emit();
+      fixture.detectChanges();
+      expect(layout()?.classList.contains("resizing")).toBe(true);
+
+      handle.dragEnded.emit();
+      fixture.detectChanges();
+      expect(layout()?.classList.contains("resizing")).toBe(false);
+    });
+  });
+
+  describe("the dock toggles", () => {
+    function toggleButton(
+      fixture: ComponentFixture<BrokerWorkspace>,
+      label: string,
+    ): HTMLButtonElement {
+      return (fixture.nativeElement as HTMLElement).querySelector(
+        `.header-actions button[aria-label="${label}"]`,
+      ) as HTMLButtonElement;
+    }
+
+    it("opens with the side docks showing and the tools dock put away", async () => {
+      const { fixture } = await setup();
+      await fixture.whenStable();
+
+      expect(fixture.componentInstance.docksOpen()).toEqual({
+        subscriptions: true,
+        publish: true,
+        tools: false,
+      });
+      expect(toggleButton(fixture, "Subscriptions panel").getAttribute("aria-pressed")).toBe(
+        "true",
+      );
+      expect(toggleButton(fixture, "Tools panel").getAttribute("aria-pressed")).toBe(
+        "false",
+      );
+    });
+
+    it("collapses the subscriptions dock's tracks when its button is pressed", async () => {
+      const { fixture } = await setup();
+      await fixture.whenStable();
+
+      toggleButton(fixture, "Subscriptions panel").click();
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.gridTemplateColumns()).toBe(
+        "0 0 1fr 0 0",
+      );
+      expect(fixture.nativeElement.querySelector(".resizer-col")).toBeNull();
+    });
+
+    it("collapses the publish dock's rows when its button is pressed", async () => {
+      const { fixture } = await setup();
+      await fixture.whenStable();
+
+      toggleButton(fixture, "Publish panel").click();
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.gridTemplateRows()).toBe("1fr 0 0");
+      expect(fixture.nativeElement.querySelector(".resizer-row")).toBeNull();
+    });
+
+    it("gives the tools dock a column of its own when its button is pressed", async () => {
+      const { fixture } = await setup();
+      await fixture.whenStable();
+
+      toggleButton(fixture, "Tools panel").click();
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.gridTemplateColumns()).toBe(
+        "260px 6px 1fr 6px 360px",
+      );
       expect(fixture.nativeElement.querySelector(".resizer-tool")).toBeTruthy();
     });
 
-    it("shrinks as its resizer is dragged right", async () => {
+    it("toggles each dock independently of the others", async () => {
       const { fixture } = await setup();
       await fixture.whenStable();
-      const component = fixture.componentInstance;
-      component.toggleToolPanel();
 
-      const startWidth = component.toolPanelWidth();
-      component.startResize("tool", pointerEvent(600, 0));
-      component.onPointerMove(pointerEvent(640, 0));
-
-      expect(component.toolPanelWidth()).toBe(startWidth - 40);
-    });
-
-    it("clamps its width to the minimum", async () => {
-      const { fixture } = await setup();
-      await fixture.whenStable();
-      const component = fixture.componentInstance;
-      component.toggleToolPanel();
-
-      component.startResize("tool", pointerEvent(600, 0));
-      component.onPointerMove(pointerEvent(5000, 0));
-
-      expect(component.toolPanelWidth()).toBe(240);
-    });
-
-    it("clamps its width to the maximum when there is room for it", async () => {
-      const { fixture } = await setup();
-      await fixture.whenStable();
-      const component = fixture.componentInstance;
-      component.toggleToolPanel();
-      window.innerWidth = 2048;
-      component.onWindowResize();
-
-      component.startResize("tool", pointerEvent(600, 0));
-      component.onPointerMove(pointerEvent(-5000, 0));
-
-      expect(component.toolPanelWidth()).toBe(900);
-    });
-
-    it("gives way to the sidebar rather than letting the message stream vanish", async () => {
-      const { fixture } = await setup();
-      await fixture.whenStable();
-      const component = fixture.componentInstance;
-      component.toggleToolPanel();
-
-      // 1024 wide, 320 reserved for the stream: a 600px sidebar leaves 104,
-      // less than the tool panel's 240 minimum.
-      component.startResize("column", pointerEvent(0, 0));
-      component.onPointerMove(pointerEvent(340, 0));
-
-      expect(component.sidebarWidth()).toBe(600);
-      expect(component.toolPanelWidth()).toBe(240);
-    });
-
-    it("scales proportionally when the window widens", async () => {
-      const { fixture } = await setup();
-      await fixture.whenStable();
-      const component = fixture.componentInstance;
-      component.toggleToolPanel();
-
-      const startWidth = component.toolPanelWidth();
-      window.innerWidth = 2048;
-      component.onWindowResize();
-
-      expect(component.toolPanelWidth()).toBe(startWidth * 2);
-    });
-
-    it("stops resizing after pointerup", async () => {
-      const { fixture } = await setup();
-      await fixture.whenStable();
-      const component = fixture.componentInstance;
-      component.toggleToolPanel();
-
-      const startWidth = component.toolPanelWidth();
-      component.startResize("tool", pointerEvent(600, 0));
-      component.onPointerUp();
-      component.onPointerMove(pointerEvent(640, 0));
-
-      expect(component.toolPanelWidth()).toBe(startWidth);
-    });
-
-    it("restores the width it was dragged to when reopened", async () => {
-      const { fixture } = await setup();
-      await fixture.whenStable();
-      const component = fixture.componentInstance;
-      component.toggleToolPanel();
-      component.startResize("tool", pointerEvent(600, 0));
-      component.onPointerMove(pointerEvent(660, 0));
-      const draggedWidth = component.toolPanelWidth();
-
-      component.toggleToolPanel();
-      component.toggleToolPanel();
-
-      expect(component.toolPanelWidth()).toBe(draggedWidth);
-    });
-
-    it("opens and closes from the message stream's Tools control", async () => {
-      const { fixture } = await setup();
-      await fixture.whenStable();
-      const component = fixture.componentInstance;
-      const stream = fixture.debugElement.query(By.directive(MessageStream))
-        .componentInstance as MessageStream;
-
-      stream.toolPanelToggled.emit();
+      toggleButton(fixture, "Subscriptions panel").click();
       fixture.detectChanges();
-      expect(component.toolPanelOpen()).toBe(true);
-      expect(stream.toolPanelOpen()).toBe(true);
 
-      stream.toolPanelToggled.emit();
+      expect(fixture.componentInstance.docksOpen()).toEqual({
+        subscriptions: false,
+        publish: true,
+        tools: false,
+      });
+    });
+
+    it("restores the size a dock was dragged to when it is reopened", async () => {
+      const { fixture } = await setup();
+      await fixture.whenStable();
+      const handle = fixture.debugElement
+        .queryAll(By.directive(Splitter))
+        .find((candidate) =>
+          (candidate.nativeElement as HTMLElement).classList.contains(
+            "resizer-col",
+          ),
+        )?.componentInstance as Splitter;
+      handle.dragStarted.emit();
+      handle.dragged.emit(40);
       fixture.detectChanges();
-      expect(component.toolPanelOpen()).toBe(false);
+
+      toggleButton(fixture, "Subscriptions panel").click();
+      fixture.detectChanges();
+      toggleButton(fixture, "Subscriptions panel").click();
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.gridTemplateColumns()).toBe(
+        "300px 6px 1fr 0 0",
+      );
+    });
+  });
+
+  describe("the tool panel", () => {
+    it("stays mounted while its dock is hidden, so the charts keep filling", async () => {
+      const { fixture } = await setup();
+      await fixture.whenStable();
+
+      expect(fixture.componentInstance.docksOpen().tools).toBe(false);
+      expect(
+        fixture.debugElement.query(By.directive(ToolPanel)),
+      ).not.toBeNull();
     });
 
     it("freezes the charts with the message stream's pause", async () => {
       const { fixture } = await setup();
       await fixture.whenStable();
       const component = fixture.componentInstance;
-      component.toggleToolPanel();
+      component.toggleDock("tools");
       fixture.detectChanges();
 
       const stream = fixture.debugElement.query(By.directive(MessageStream))
@@ -896,62 +514,19 @@ describe("BrokerWorkspace", () => {
       expect(panel.paused()).toBe(false);
     });
 
-    describe("expanded over the message stream", () => {
-      it("gives the panel the whole row and hides the stream", async () => {
-        const { fixture } = await setup();
-        await fixture.whenStable();
-        const component = fixture.componentInstance;
-        component.toggleToolPanel();
+    it("goes to two columns of charts once dragged wide enough", async () => {
+      const { fixture } = await setup();
+      await fixture.whenStable();
+      const component = fixture.componentInstance;
+      component.toggleDock("tools");
+      fixture.detectChanges();
+      expect(component.toolsWide()).toBe(false);
 
-        component.toggleToolPanelExpanded();
-        fixture.detectChanges();
+      // 1024 wide leaves the dock 444 at most, so the window has to grow too.
+      window.innerWidth = 2048;
+      component.onWindowResize();
 
-        expect(component.gridTemplateColumns()).toBe("260px 6px 0 0 1fr");
-        expect(component.messagesHidden()).toBe(true);
-        expect(fixture.nativeElement.querySelector(".resizer-tool")).toBeNull();
-      });
-
-      it("leaves the sidebar and publish panel alone", async () => {
-        const { fixture } = await setup();
-        await fixture.whenStable();
-        const component = fixture.componentInstance;
-        const sidebar = component.sidebarWidth();
-        const publish = component.publishHeight();
-        component.toggleToolPanel();
-
-        component.toggleToolPanelExpanded();
-
-        expect(component.sidebarWidth()).toBe(sidebar);
-        expect(component.publishHeight()).toBe(publish);
-      });
-
-      it("goes back to the split view when shrunk", async () => {
-        const { fixture } = await setup();
-        await fixture.whenStable();
-        const component = fixture.componentInstance;
-        component.toggleToolPanel();
-        component.toggleToolPanelExpanded();
-
-        component.toggleToolPanelExpanded();
-        fixture.detectChanges();
-
-        expect(component.gridTemplateColumns()).toBe("260px 6px 1fr 6px 360px");
-        expect(component.messagesHidden()).toBe(false);
-      });
-
-      it("does not stay expanded across a close, so reopening is not a surprise", async () => {
-        const { fixture } = await setup();
-        await fixture.whenStable();
-        const component = fixture.componentInstance;
-        component.toggleToolPanel();
-        component.toggleToolPanelExpanded();
-
-        component.toggleToolPanel();
-        component.toggleToolPanel();
-
-        expect(component.toolPanelExpanded()).toBe(false);
-        expect(component.gridTemplateColumns()).toBe("260px 6px 1fr 6px 360px");
-      });
+      expect(component.toolsWide()).toBe(true);
     });
   });
 });

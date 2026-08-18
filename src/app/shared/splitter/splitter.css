@@ -1,0 +1,52 @@
+:host {
+  position: relative;
+  display: block;
+  background: transparent;
+  touch-action: none;
+  transition: background-color 0.12s;
+}
+
+:host(.vertical) {
+  cursor: col-resize;
+}
+
+:host(.horizontal) {
+  cursor: row-resize;
+}
+
+/* The grip: a short bar centred on the handle, so a 6px hit target still
+   reads as something you are meant to grab. */
+:host::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border-radius: 2px;
+  background: var(--color-text-tertiary);
+  opacity: 0.5;
+  transform: translate(-50%, -50%);
+  transition:
+    opacity 0.12s,
+    background-color 0.12s;
+}
+
+:host(.vertical)::after {
+  width: 3px;
+  height: 32px;
+}
+
+:host(.horizontal)::after {
+  width: 32px;
+  height: 3px;
+}
+
+:host(:hover),
+:host(.dragging) {
+  background: var(--color-border);
+}
+
+:host(:hover)::after,
+:host(.dragging)::after {
+  background: var(--color-text-secondary);
+  opacity: 1;
+}

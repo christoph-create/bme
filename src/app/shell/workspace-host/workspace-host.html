@@ -1,0 +1,9 @@
+@for (id of openIds(); track id) {
+  <app-broker-workspace
+    class="workspace"
+    [class.hidden]="activeId() !== id"
+    [attr.inert]="activeId() === id ? null : ''"
+    [connectionId]="id"
+    [active]="activeId() === id"
+  />
+}

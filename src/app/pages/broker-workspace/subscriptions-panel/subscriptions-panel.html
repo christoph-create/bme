@@ -6,6 +6,7 @@
 @if (adding()) {
   <form class="add-form" [formGroup]="form" (ngSubmit)="subscribe()">
     <input
+      #topicInput
       class="mono"
       formControlName="topic"
       placeholder="e.g. sensors/#"

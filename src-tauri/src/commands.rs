@@ -113,8 +113,16 @@ pub fn update_connection(
         .ok_or_else(|| format!("connection {id} not found"))
 }
 
+/// Drops any live session before deleting the row. Without this the broker
+/// stays connected with nothing left on screen owning it - and no id to
+/// disconnect it by.
 #[tauri::command]
-pub fn delete_connection(repo: State<SqliteConnectionsRepository>, id: Uuid) -> Result<(), String> {
+pub fn delete_connection(
+    repo: State<SqliteConnectionsRepository>,
+    manager: State<MqttManagerState>,
+    id: Uuid,
+) -> Result<(), String> {
+    manager.disconnect(id).map_err(|err| err.to_string())?;
     repo.delete(id).map_err(|err| err.to_string())
 }
 

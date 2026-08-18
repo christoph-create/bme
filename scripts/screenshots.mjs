@@ -16,6 +16,9 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const outputDir = join(repoRoot, "docs", "screenshots");
 
 const HOME_CONNECTION_ID = "11111111-1111-4111-8111-111111111111";
+/** The second broker the tab-bar shot opens; must match demo-data.ts. */
+const OFFICE_CONNECTION_ID = "33333333-3333-4333-8333-333333333333";
+const OFFICE_CONNECTION_NAME = "Office Sensors";
 /** Must match DEMO_SELECTED_TOPIC in src/demo/demo-data.ts. */
 const SELECTED_TOPIC = "home/livingroom/climate";
 
@@ -102,6 +105,29 @@ async function growPublishPanel(page, deltaPx) {
   await page.mouse.up();
 }
 
+/** Drags the tools dock's splitter left, widening the dock by `deltaPx`. */
+async function growToolPanel(page, deltaPx) {
+  const box = await page.locator(".resizer-tool").boundingBox();
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x - deltaPx, y, { steps: 10 });
+  await page.mouse.up();
+}
+
+/** Shows or hides one of the workspace's three docks, by the name its button
+ * carries: "Subscriptions panel", "Publish panel" or "Tools panel". */
+async function toggleDock(page, name) {
+  await page.locator(`.header-actions button[aria-label="${name}"]`).click();
+}
+
+/** The workspace currently on screen. Background tabs stay in the DOM, so any
+ * shot with more than one open has to say which workspace it means. */
+function activeWorkspace(page) {
+  return page.locator("app-broker-workspace:not(.hidden)");
+}
+
 const SHOTS = [
   {
     name: "connections",
@@ -135,17 +161,17 @@ const SHOTS = [
     async setup(page) {
       await openWorkspace(page);
       await loadTemplate(page, "Temperature reading");
-      await page.getByRole("button", { name: "Tools" }).click();
+      await toggleDock(page, "Tools panel");
       await page.getByRole("button", { name: /^\+ Add chart/ }).click();
-      // Two, so the expanded two-column layout comes out as one full row.
+      // Two, so the two-column layout comes out as one full row.
       const picker = page.locator(".picker-option");
       await picker.filter({ hasText: "temperature" }).click();
       await picker.filter({ hasText: "humidity" }).click();
       await page.getByRole("button", { name: "Done" }).click();
-      // Expanded, so the cards lay out two-up and fit whole in frame.
-      await page
-        .getByRole("button", { name: "Expand over the messages" })
-        .click();
+      // The cards only go two-up once the dock is wide, and hiding the
+      // subscriptions dock is what leaves room to drag it that far.
+      await toggleDock(page, "Subscriptions panel");
+      await growToolPanel(page, 260);
     },
   },
 
@@ -189,6 +215,32 @@ const SHOTS = [
       // Off, so the "Number of messages" field the setting is really about is
       // on screen rather than hidden behind the forever switch.
       await toggle("Keep going until stopped");
+    },
+  },
+
+  {
+    name: "broker-tabs",
+    async setup(page) {
+      await openWorkspace(page);
+      // Reached the way a user would: home button, then a second broker. Both
+      // stay connected, which is the whole point of the tab bar.
+      await page.locator(".home").click();
+      await page
+        .locator(".connection-row")
+        .filter({ hasText: OFFICE_CONNECTION_NAME })
+        .click();
+      const office = activeWorkspace(page);
+      await office.locator(".status-pill.connected").waitFor();
+      await page.evaluate(
+        (id) => window.__bmeDemo.playTimeline(id),
+        OFFICE_CONNECTION_ID,
+      );
+      await office.getByRole("button", { name: "Expand all" }).click();
+      await office
+        .locator(".tree-row.leaf")
+        .filter({ hasText: "climate" })
+        .click();
+      await page.waitForTimeout(CLOCK_TICK_MS);
     },
   },
 

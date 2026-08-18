@@ -1,4 +1,13 @@
-import { Component, OnInit, inject, input, signal } from "@angular/core";
+import {
+  Component,
+  ElementRef,
+  OnInit,
+  effect,
+  inject,
+  input,
+  signal,
+  viewChild,
+} from "@angular/core";
 import { FormBuilder, ReactiveFormsModule, Validators } from "@angular/forms";
 
 import { Subscription } from "../../../core/models/broker-connection.model";
@@ -31,6 +40,16 @@ export class SubscriptionsPanel implements OnInit {
   readonly form = this.formBuilder.nonNullable.group({
     topic: ["", Validators.required],
   });
+
+  private readonly topicInput =
+    viewChild<ElementRef<HTMLInputElement>>("topicInput");
+
+  constructor() {
+    // Keyed on the input appearing rather than on the click that asked for it:
+    // the field is inside an `@if`, so it does not exist yet at the moment
+    // `adding` flips.
+    effect(() => this.topicInput()?.nativeElement.focus());
+  }
 
   ngOnInit(): void {
     void this.refresh();

@@ -46,41 +46,22 @@ describe("ToolPanel", () => {
     );
   });
 
-  it("asks to be closed", async () => {
+  /** Hiding the dock is the header's job, and having two controls for it
+   * meant one of them was always the wrong one to reach for. */
+  it("leaves showing and hiding to the header's dock toggle", async () => {
     const { fixture } = await setup();
-    const closed = vi.fn();
-    fixture.componentInstance.closeRequested.subscribe(closed);
 
-    fixture.nativeElement.querySelector(".panel-close").click();
-
-    expect(closed).toHaveBeenCalledTimes(1);
+    expect(fixture.nativeElement.querySelector(".panel-actions")).toBeNull();
   });
 
-  it("asks to be expanded", async () => {
-    const { fixture } = await setup();
-    const toggled = vi.fn();
-    fixture.componentInstance.expandToggled.subscribe(toggled);
-
-    (
-      fixture.nativeElement.querySelector(
-        '.panel-button[aria-pressed]',
-      ) as HTMLButtonElement
-    ).click();
-
-    expect(toggled).toHaveBeenCalledTimes(1);
-  });
-
-  it("hands the expanded state down so the cards can go two-up", async () => {
+  it("hands the workspace's width verdict down so the cards can go two-up", async () => {
     const { fixture } = await setup();
 
-    fixture.componentRef.setInput("expanded", true);
+    fixture.componentRef.setInput("wide", true);
     fixture.detectChanges();
 
     const charts = fixture.debugElement.query(By.directive(ValueCharts))
       .componentInstance as ValueCharts;
     expect(charts.wide()).toBe(true);
-    expect(
-      fixture.nativeElement.querySelector('.panel-button[aria-pressed="true"]'),
-    ).toBeTruthy();
   });
 });

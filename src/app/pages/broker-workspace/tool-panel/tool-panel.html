@@ -17,29 +17,6 @@
   } @else {
     <span class="panel-title">{{ tools[0].label }}</span>
   }
-  <div class="panel-actions">
-    <button
-      type="button"
-      class="panel-button"
-      [class.active]="expanded()"
-      [attr.aria-pressed]="expanded()"
-      [attr.aria-label]="
-        expanded() ? 'Shrink back beside the messages' : 'Expand over the messages'
-      "
-      [title]="expanded() ? 'Shrink' : 'Expand over the message stream'"
-      (click)="expandToggled.emit()"
-    >
-      {{ expanded() ? "⤡" : "⤢" }}
-    </button>
-    <button
-      type="button"
-      class="panel-button panel-close"
-      aria-label="Close tool panel"
-      (click)="closeRequested.emit()"
-    >
-      ›
-    </button>
-  </div>
 </header>
 
 <div class="panel-body">
@@ -48,7 +25,7 @@
       <app-value-charts
         [connectionId]="connectionId()"
         [selectedTopic]="selectedTopic()"
-        [wide]="expanded()"
+        [wide]="wide()"
         [paused]="paused()"
       />
     }

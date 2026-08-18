@@ -6,7 +6,13 @@ import { BrokerConnection } from "../app/core/models/broker-connection.model";
 import { FavoriteMessage } from "../app/core/models/favorite-message.model";
 import { MqttEvent } from "../app/core/models/mqtt-event.model";
 import { installDemoBackend } from "./demo-backend";
-import { DEMO_CONNECTIONS, DEMO_TIMELINE, HOME_CONNECTION_ID } from "./demo-data";
+import {
+  DEMO_CONNECTIONS,
+  DEMO_TIMELINE,
+  DEMO_TIMELINES,
+  HOME_CONNECTION_ID,
+  OFFICE_CONNECTION_ID,
+} from "./demo-data";
 
 /** Lets the async `listen()` IPC round-trip finish before anything emits. */
 function flushMicrotasks(): Promise<void> {
@@ -64,6 +70,36 @@ describe("installDemoBackend", () => {
     expect("MessageReceived" in first && first.MessageReceived.topic).toBe(
       DEMO_TIMELINE[0].topic,
     );
+  });
+
+  /** A shot with two tabs open should not show the same stream twice. */
+  it("replays each connection's own timeline", async () => {
+    const { listen } = await import("@tauri-apps/api/event");
+    const topics: string[] = [];
+    await listen<MqttEvent>("mqtt-event", (event) => {
+      if ("MessageReceived" in event.payload) {
+        topics.push(event.payload.MessageReceived.topic);
+      }
+    });
+    await flushMicrotasks();
+
+    await window.__bmeDemo.playTimeline(OFFICE_CONNECTION_ID);
+
+    expect(topics).toEqual(
+      DEMO_TIMELINES[OFFICE_CONNECTION_ID].map((message) => message.topic),
+    );
+    expect(topics).not.toEqual(DEMO_TIMELINE.map((message) => message.topic));
+  });
+
+  it("falls back to the home timeline for a connection with none of its own", async () => {
+    const { listen } = await import("@tauri-apps/api/event");
+    const received: MqttEvent[] = [];
+    await listen<MqttEvent>("mqtt-event", (event) => received.push(event.payload));
+    await flushMicrotasks();
+
+    await window.__bmeDemo.playTimeline("no-timeline-of-its-own");
+
+    expect(received).toHaveLength(DEMO_TIMELINE.length);
   });
 
   it("rejects a command it does not implement, rather than resolving to undefined", async () => {

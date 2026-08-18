@@ -1,0 +1,26 @@
+:host {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Never connected, or disconnected on purpose - no session, nothing wrong. */
+:host(.idle) {
+  background: var(--color-text-quaternary);
+}
+
+:host(.connected) {
+  background: var(--color-success);
+}
+
+/* Connecting and reconnecting share a colour deliberately: from outside, both
+   are "no session yet, ask again in a moment". */
+:host(.pending) {
+  background: var(--color-warning);
+}
+
+:host(.error) {
+  background: var(--color-danger);
+}

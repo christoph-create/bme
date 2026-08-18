@@ -212,6 +212,7 @@ mod tests {
                 commands::update_connection,
                 commands::list_connections,
                 commands::get_connection,
+                commands::delete_connection,
                 commands::connect_broker,
                 commands::subscribe_topic,
                 commands::unsubscribe_topic,
@@ -396,6 +397,46 @@ mod tests {
         let all = invoke(&webview, "list_connections", serde_json::json!({}));
         assert_eq!(all.as_array().unwrap().len(), 1);
         assert_eq!(all[0]["id"], created["id"]);
+    }
+
+    /// Deleting reaches into the MQTT manager to drop any live session, so it
+    /// takes managed state the other CRUD commands don't - which only the real
+    /// IPC path proves is wired up.
+    #[test]
+    fn delete_connection_drops_the_row_over_ipc() {
+        let app = build_test_app();
+        let webview = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+
+        let created = invoke(
+            &webview,
+            "create_connection",
+            serde_json::json!({
+                "newConnection": {
+                    "name": "Local",
+                    "host": "localhost",
+                    "port": 1883,
+                    "client_id": "bme-smoke-test",
+                    "username": null,
+                    "password": null,
+                    "use_tls": false,
+                    "keep_alive_secs": 30,
+                    "auto_reconnect": true,
+                    "max_reconnect_attempts": 10,
+                    "subscriptions": []
+                }
+            }),
+        );
+
+        invoke(
+            &webview,
+            "delete_connection",
+            serde_json::json!({ "id": created["id"] }),
+        );
+
+        let all = invoke(&webview, "list_connections", serde_json::json!({}));
+        assert!(all.as_array().unwrap().is_empty());
     }
 
     #[test]

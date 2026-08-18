@@ -29,7 +29,10 @@
         (keydown.space)="openBroker(connection.id)"
       >
         <div class="connection-info">
-          <div class="connection-name">{{ connection.name }}</div>
+          <div class="connection-name">
+            <app-status-dot [status]="statusOf(connection.id)" />
+            {{ connection.name }}
+          </div>
           <div class="connection-host">
             {{ connection.host }}:{{ connection.port }}
           </div>

@@ -1,10 +1,13 @@
 import { signal } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
 import { provideRouter } from "@angular/router";
+import { Subject } from "rxjs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { BrokerConnection } from "../../core/models/broker-connection.model";
+import { MqttEvent } from "../../core/models/mqtt-event.model";
 import { ConnectionsService } from "../../core/services/connections.service";
+import { MqttEventsService } from "../../core/services/mqtt-events.service";
 import { UpdateAnnouncement } from "../../core/services/update-announcement";
 import { UpdateNotifierService } from "../../core/services/update-notifier.service";
 import { Connections } from "./connections";
@@ -52,6 +55,7 @@ async function setup(
     list: vi.fn().mockResolvedValue(connections),
     delete: vi.fn().mockResolvedValue(undefined),
   };
+  const events$ = new Subject<MqttEvent>();
 
   TestBed.configureTestingModule({
     imports: [Connections],
@@ -59,6 +63,9 @@ async function setup(
       provideRouter([]),
       { provide: ConnectionsService, useValue: fake },
       { provide: UpdateNotifierService, useValue: notifier },
+      // The status dots pull in ConnectionStatusService, which would otherwise
+      // reach for the Tauri bridge to listen for events.
+      { provide: MqttEventsService, useValue: { events$ } },
     ],
   });
 

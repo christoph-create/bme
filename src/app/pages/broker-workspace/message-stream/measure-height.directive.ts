@@ -5,6 +5,11 @@ import { Directive, ElementRef, OnDestroy, OnInit, inject, output } from "@angul
  * changes. Used to correct a virtualized list's estimated row heights to
  * real measurements once a row actually renders.
  *
+ * A height of zero is never reported: it means the element is hidden - a
+ * background tab, say - not that it has shrunk. Taking it would collapse the
+ * list's total height, which in turn discards the scroll position the tab is
+ * meant to come back to.
+ *
  * No-ops in environments without `ResizeObserver` (e.g. the jsdom test
  * environment) - callers just keep using their estimated height.
  */
@@ -20,7 +25,10 @@ export class MeasureHeight implements OnInit, OnDestroy {
       return;
     }
     this.observer = new ResizeObserver(() => {
-      this.heightChange.emit(this.elementRef.nativeElement.offsetHeight);
+      const height = this.elementRef.nativeElement.offsetHeight;
+      if (height > 0) {
+        this.heightChange.emit(height);
+      }
     });
     this.observer.observe(this.elementRef.nativeElement);
   }

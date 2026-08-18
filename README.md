@@ -25,15 +25,21 @@ It's built with [Tauri](https://tauri.app) (a Rust backend, SQLite for local sto
 ## Screenshots
 
 <p align="center">
-  <img src="docs/screenshots/broker-workspace.png" width="820" alt="Broker Workspace: connected to a broker, subscriptions and a live topic tree on the left, message history and a publish panel on the right">
+  <img src="docs/screenshots/broker-workspace.png" width="820" alt="Broker Workspace: connected to a broker, subscriptions and a live topic tree in the left dock, message history above the publish panel in the middle, and three dock-toggle buttons beside Disconnect in the header">
   <br>
-  <em>Broker Workspace — subscriptions, a live topic tree, message history, and publish, all in one screen.</em>
+  <em>Broker Workspace — subscriptions, a live topic tree, message history, and publish, all in one screen. Each dock hides from its own button in the header.</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/broker-tabs.png" width="820" alt="Two broker workspaces open at once, shown as tabs above the workspace header: Home Assistant and Office Sensors, each with a green connected dot, with Office Sensors active">
+  <br>
+  <em>Broker tabs — keep several brokers connected at once and switch between them. Each tab keeps its own history, layout and publish draft.</em>
 </p>
 
 <table align="center">
   <tr>
     <td align="center" width="50%">
-      <img src="docs/screenshots/connections.png" width="380" alt="Connections list showing five saved broker connections, with a Manage Templates button in the header and the app version plus a Check for updates button in the footer">
+      <img src="docs/screenshots/connections.png" width="380" alt="Connections list showing five saved broker connections, each with a status dot, plus a Manage Templates button in the header and the app version and a Check for updates button in the footer">
       <br><em>Saved connections</em>
     </td>
     <td align="center" width="50%">
@@ -56,7 +62,7 @@ It's built with [Tauri](https://tauri.app) (a Rust backend, SQLite for local sto
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/value-charts.png" width="820" alt="Charts panel expanded over the message stream, plotting temperature and humidity from the selected topic's payloads as two line charts with their current values and timestamped x-axes">
+  <img src="docs/screenshots/value-charts.png" width="820" alt="Charts dock widened beside the message stream, plotting temperature and humidity from the selected topic's payloads as two line charts with their current values and timestamped x-axes">
   <br>
   <em>Charts — plot any numeric value in a topic's payload and watch it move.</em>
 </p>
@@ -79,11 +85,13 @@ It's built with [Tauri](https://tauri.app) (a Rust backend, SQLite for local sto
 1. **Add a broker** — `+ New Connection`, fill in host/port (and TLS or credentials if the broker needs them), then **Save & Connect** (or **Test Connection** first to sanity-check it).
 2. **Subscribe** to a topic filter from the sidebar — subscriptions persist and are replayed automatically next time you connect.
 3. **Browse** the live topic tree as messages arrive; click any topic to see its full session history (payload, QoS, retained flag, time received).
-4. **Publish** a message from the panel on the right — topic is pre-filled from whatever you've selected in the tree, payload as JSON or raw text, pick a QoS, hit Publish.
+4. **Publish** a message from the panel below the message stream — topic is pre-filled from whatever you've selected in the tree, payload as JSON or raw text, pick a QoS, hit Publish.
 5. **Save frequently-used payloads as templates** — from the publish panel, "Save as Template" (broker-independent, optionally grouped into a collection) or "Load Template" to pull one back in. Manage the full set — edit any field, delete, or reorganize collections — from **Manage Templates** on the Connections page.
 6. **Share templates and collections** — from the Templates page, **Export** a single template or a whole collection (or **Export All** for everything) as copy-pasteable JSON, and **Import** to bring one back in. It's an open, versioned format, not a bme-specific blob — see [`spec/`](spec/README.md) for the full definition.
 7. **Simulate a device** — put `{{name}}` variables in the topic or payload and they expand to a fresh value on every send: a counter, a random integer or decimal in a range, a UUID, a timestamp, or a fixed string. Define them with **Edit Vars** on the publish panel, and hit **Show preview** to see exactly what the next message will carry. Turn on **Repeat** behind the ⚙ to fire the draft every N milliseconds — a fixed number of times or until you hit Stop — and one template becomes a plausible data stream instead of 500 identical messages. Counters restart when a repeat run starts and advance on every single Publish; each counter has its own **Reset** button in the variables dialog.
-8. **Chart a value** — click **Tools** above the message stream to open the charts panel, then add any numeric field from the selected topic's payloads. Each one plots as it arrives; **Pause** freezes the stream and the charts together so you can read them.
+8. **Chart a value** — open the Tools dock from the icon buttons in the workspace header, then add any numeric field from the selected topic's payloads. Each one plots as it arrives; **Pause** freezes the stream and the charts together so you can read them.
+9. **Get the space back** — those three header buttons show and hide the workspace's three docks (subscriptions on the left, publish along the bottom, tools on the right) independently, and every divider between them can be dragged.
+10. **Work on several brokers at once** — opening another broker adds a tab above the header instead of replacing what you had. Each tab keeps its own history, panel layout and publish draft, and a repeating publish keeps running while you're looking at another one. **Disconnect** ends the session and closes the tab.
 
 ## Download
 

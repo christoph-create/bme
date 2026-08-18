@@ -33,6 +33,7 @@ import {
   DEMO_CONNECTIONS,
   DEMO_TEMPLATES,
   DEMO_TIMELINE,
+  DEMO_TIMELINES,
   DEMO_VARIABLES,
 } from "./demo-data";
 
@@ -61,8 +62,9 @@ const DEFAULT_SETTLE_MS = 9_000;
 interface DemoApi {
   /** Marks the connection connected, as a real broker handshake would. */
   connect(connectionId: string): Promise<void>;
-  /** Replays `DEMO_TIMELINE` into the message store, advancing the demo clock
-   * by each message's `gapMs` so the relative timestamps come out stable. */
+  /** Replays this connection's timeline into the message store, advancing the
+   * demo clock by each message's `gapMs` so the relative timestamps come out
+   * stable. See `DEMO_TIMELINES`. */
   playTimeline(connectionId: string, settleMs?: number): Promise<void>;
   advanceClock(ms: number): void;
 }
@@ -380,7 +382,8 @@ export function installDemoBackend(): void {
       connectionId: string,
       settleMs = DEFAULT_SETTLE_MS,
     ): Promise<void> {
-      for (const message of DEMO_TIMELINE) {
+      const timeline = DEMO_TIMELINES[connectionId] ?? DEMO_TIMELINE;
+      for (const message of timeline) {
         advanceDemoClock(message.gapMs);
         await emitMqtt({
           MessageReceived: {

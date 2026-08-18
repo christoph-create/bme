@@ -77,6 +77,17 @@ describe("SubscriptionsPanel", () => {
     expect(text).toContain("Q1");
   });
 
+  /** Opening the form is always a prelude to typing a topic into it. */
+  it("puts the cursor in the topic field as soon as the form opens", async () => {
+    const { fixture } = await setup(sampleConnection());
+    const element = fixture.nativeElement as HTMLElement;
+
+    element.querySelector<HTMLElement>(".add-link")?.click();
+    fixture.detectChanges();
+
+    expect(document.activeElement).toBe(element.querySelector("input.mono"));
+  });
+
   it("subscribes to a new topic and adds it to the list", async () => {
     const { fixture, mqttService } = await setup(sampleConnection());
     const created = {

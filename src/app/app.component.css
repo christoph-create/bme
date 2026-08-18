@@ -1,0 +1,18 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.shell-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The routed page and the workspaces share this box; only one of them ever has
+   anything in it at a time. */
+.shell-body > * {
+  min-height: 0;
+}

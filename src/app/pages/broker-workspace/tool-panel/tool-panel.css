@@ -1,9 +1,13 @@
+/* The same background as the sidebar, the message stream and the publish
+   panel. This dock used to be the one raised surface in the workspace, which
+   left the chart cards sitting on a background a single RGB step away from
+   their own - so they read as a flat wall rather than as cards. */
 :host {
   display: flex;
   flex-direction: column;
   min-height: 0;
   height: 100%;
-  background: var(--color-surface-elevated);
+  background: var(--color-bg);
 }
 
 .panel-header {
@@ -11,15 +15,17 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 8px 10px 8px 12px;
-  border-bottom: 1px solid var(--color-border-faint);
+  padding: 10px 12px 8px;
   flex-shrink: 0;
 }
 
+/* The app's section label, as used by SUBSCRIPTIONS, TOPICS and PUBLISH. */
 .panel-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--color-text);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text-quaternary);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
 }
 
 /* Matches the publish panel's format switcher - this is the app's tab strip,
@@ -54,39 +60,6 @@
 
 .segment:not(.selected):hover {
   background: var(--color-surface-hover);
-}
-
-.panel-actions {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  flex-shrink: 0;
-}
-
-.panel-button {
-  background: none;
-  border: none;
-  color: var(--color-text-tertiary);
-  font-size: 13px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 4px 6px;
-  border-radius: var(--radius-sm);
-  flex-shrink: 0;
-}
-
-.panel-button:hover {
-  color: var(--color-text);
-  background: var(--color-surface-hover);
-}
-
-.panel-button.active {
-  color: var(--color-accent);
-}
-
-.panel-close {
-  font-size: 16px;
-  padding: 2px 6px;
 }
 
 .panel-body {

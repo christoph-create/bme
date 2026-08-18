@@ -19,7 +19,7 @@ export const DEMO_APP_VERSION = "0.7.0";
 
 export const HOME_CONNECTION_ID = "11111111-1111-4111-8111-111111111111";
 const PRODUCTION_CONNECTION_ID = "22222222-2222-4222-8222-222222222222";
-const OFFICE_CONNECTION_ID = "33333333-3333-4333-8333-333333333333";
+export const OFFICE_CONNECTION_ID = "33333333-3333-4333-8333-333333333333";
 const STAGING_CONNECTION_ID = "55555555-5555-4555-8555-555555555555";
 const LOCAL_CONNECTION_ID = "66666666-6666-4666-8666-666666666666";
 
@@ -86,7 +86,16 @@ export const DEMO_CONNECTIONS: readonly BrokerConnection[] = [
     keep_alive_secs: 60,
     auto_reconnect: false,
     max_reconnect_attempts: 10,
-    subscriptions: [],
+    // The second broker with traffic of its own, so a shot of the tab bar has
+    // two live workspaces rather than one live and one empty.
+    subscriptions: [
+      {
+        id: "44444444-4444-4444-8444-444444444443",
+        connection_id: OFFICE_CONNECTION_ID,
+        topic: "office/#",
+        qos: "AtLeastOnce",
+      },
+    ],
   },
   {
     id: STAGING_CONNECTION_ID,
@@ -336,6 +345,38 @@ export const DEMO_TIMELINE: readonly DemoMessage[] = [
     6_100,
   ),
 ];
+
+/** The office broker's traffic. Shorter and visibly different from the home
+ * timeline, so a shot with both tabs open doesn't show the same stream twice. */
+const OFFICE_TIMELINE: readonly DemoMessage[] = [
+  {
+    topic: "office/meeting-room/occupancy",
+    payload: '{"occupied": false, "seats": 8}',
+    qos: "AtLeastOnce",
+    retain: true,
+    gapMs: 0,
+  },
+  reading("office/desk-4/climate", '{"temperature": 22.8, "co2": 612}', 3_400),
+  reading("office/printer/status", '{"online": true, "toner": 34}', 2_700, "AtMostOnce"),
+  reading("office/desk-4/climate", '{"temperature": 23.1, "co2": 648}', 4_900),
+  reading(
+    "office/meeting-room/occupancy",
+    '{"occupied": true, "seats": 8}',
+    3_100,
+  ),
+  reading("office/desk-4/climate", '{"temperature": 23.0, "co2": 671}', 5_300),
+];
+
+/**
+ * Which traffic `__bmeDemo.playTimeline()` replays, per connection.
+ *
+ * A connection with no entry here plays the home timeline, so shots that only
+ * care about "some traffic" keep working without being listed.
+ */
+export const DEMO_TIMELINES: Readonly<Record<string, readonly DemoMessage[]>> = {
+  [HOME_CONNECTION_ID]: DEMO_TIMELINE,
+  [OFFICE_CONNECTION_ID]: OFFICE_TIMELINE,
+};
 
 /** Templates the capture script loads into the publish panel. The payload
  * editor is a CodeMirror instance, so driving it through the app's own "Load

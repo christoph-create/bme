@@ -1,4 +1,13 @@
-<router-outlet />
+@if (workspaces.hasOpenWorkspaces()) {
+  <app-workspace-tabs />
+}
+
+<div class="shell-body">
+  <!-- Outside the router outlet on purpose: switching tabs must not destroy a
+       workspace. The `/broker/:id` route only says which one is showing. -->
+  <app-workspace-host />
+  <router-outlet />
+</div>
 
 @if (notifier.available(); as release) {
   <app-update-dialog
