@@ -18,8 +18,10 @@ const SPEC: ChartSpec = {
 };
 
 function message(text: string, receivedAt: number): StoredMessage {
+  const payload = Array.from(new TextEncoder().encode(text));
   return {
-    payload: Array.from(new TextEncoder().encode(text)),
+    payload,
+    payloadLen: payload.length,
     qos: "AtMostOnce",
     retain: false,
     receivedAt,

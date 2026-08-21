@@ -11,8 +11,10 @@ const CONNECTION_ID = "11111111-1111-1111-1111-111111111111";
 const TOPIC = "sensors/kitchen";
 
 function message(text: string, receivedAt = 1000): StoredMessage {
+  const payload = Array.from(new TextEncoder().encode(text));
   return {
-    payload: Array.from(new TextEncoder().encode(text)),
+    payload,
+    payloadLen: payload.length,
     qos: "AtMostOnce",
     retain: false,
     receivedAt,

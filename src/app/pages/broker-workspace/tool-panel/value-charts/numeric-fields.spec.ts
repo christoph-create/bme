@@ -21,6 +21,12 @@ describe("parsePayload", () => {
     expect(parsePayload([])).toBeUndefined();
   });
 
+  /** A cut-off payload can still parse as a plain number, which would plot a
+   * real-looking point from a message we only have part of. */
+  it("returns undefined for a payload that arrived truncated", () => {
+    expect(parsePayload(encode("23.5"), 4_000_000)).toBeUndefined();
+  });
+
   it("returns undefined for a whitespace-only payload rather than zero", () => {
     expect(parsePayload(encode("   "))).toBeUndefined();
   });

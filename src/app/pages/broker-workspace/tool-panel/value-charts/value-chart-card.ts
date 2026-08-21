@@ -185,7 +185,7 @@ export class ValueChartCard {
     }
     // Boxed so a payload that parses to `undefined` is still a cache hit
     // rather than being re-parsed on every emission.
-    const value = parsePayload(message.payload);
+    const value = parsePayload(message.payload, message.payloadLen);
     this.parsed.set(message, { value });
     return value;
   }

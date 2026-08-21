@@ -80,7 +80,8 @@ h1 {
   background: var(--color-warning-tint);
 }
 
-.reconnect-banner {
+.reconnect-banner,
+.warning-banner {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -98,7 +99,8 @@ h1 {
   gap: 8px;
 }
 
-.reconnect-banner button {
+.reconnect-banner button,
+.warning-banner button {
   background: none;
   border: 1px solid var(--color-warning);
   color: var(--color-warning);
@@ -110,7 +112,8 @@ h1 {
   flex-shrink: 0;
 }
 
-.reconnect-banner button:hover {
+.reconnect-banner button:hover,
+.warning-banner button:hover {
   background: var(--color-warning);
   color: var(--color-accent-ink);
 }

@@ -173,6 +173,17 @@
   border-radius: 4px;
 }
 
+.truncated-badge {
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-warning);
+  background: var(--color-warning-tint);
+  padding: 1px 6px;
+  border-radius: 4px;
+  cursor: help;
+}
+
 .payload {
   font-size: 12.5px;
   font-family: var(--font-mono);

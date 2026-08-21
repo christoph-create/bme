@@ -25,7 +25,7 @@ import { MessageStoreService } from "../../../core/services/message-store.servic
 import { MqttService } from "../../../core/services/mqtt.service";
 import { ConfirmDialog } from "../../../shared/confirm-dialog/confirm-dialog";
 import { FormattedPayload } from "../../../shared/formatted-payload/formatted-payload";
-import { formatMessageBody } from "../format/payload-text";
+import { formatMessageBody, formatTruncationNote } from "../format/payload-text";
 import { formatTimeAgo } from "../format/time-ago";
 import { MeasureHeight } from "./measure-height.directive";
 import { messageToDraft } from "./message-to-draft";
@@ -55,8 +55,11 @@ interface MessageView {
   readonly timeAgo: string;
   readonly qos: 0 | 1 | 2;
   readonly body: string;
-  /** Null when the payload isn't editable as text (binary or empty), which
-   * is also what disables the card's Resend control. */
+  /** Set when the message was too large to cross to the UI whole, so the card
+   * can say so rather than passing off a quarter of it as the message. */
+  readonly truncatedNote: string | null;
+  /** Null when the payload isn't editable as text (binary, empty or
+   * truncated), which is also what disables the card's Resend control. */
   readonly draft: MessageDraft | null;
 }
 
@@ -138,7 +141,11 @@ export class MessageStream {
       message,
       timeAgo: formatTimeAgo(now - message.receivedAt),
       qos: qosNumber(message.qos),
-      body: formatMessageBody(message.payload),
+      body: formatMessageBody(message.payload, message.payloadLen),
+      truncatedNote: formatTruncationNote(
+        message.payloadLen,
+        message.payload.length,
+      ),
       draft:
         topic === null
           ? null

@@ -4,8 +4,10 @@ import { StoredMessage } from "../../../../core/models/stored-message.model";
 import { buildSamples } from "./sample-series";
 
 function message(overrides: Partial<StoredMessage> = {}): StoredMessage {
+  const payload = overrides.payload ?? [];
   return {
-    payload: [],
+    payload,
+    payloadLen: payload.length,
     qos: "AtMostOnce",
     retain: false,
     receivedAt: 1000,

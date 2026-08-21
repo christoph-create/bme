@@ -51,6 +51,13 @@ Four things worth knowing before you touch this:
    a broker that never answered fails fast instead. Because the session is
    clean, the task re-issues its whole `SubscriptionSet` on every ConnAck;
    `connect_broker` deliberately does *not* replay subscriptions itself.
+   A packet over `MAX_PACKET_BYTES` (16 MiB) drops the socket the same way,
+   but `mqtt::oversize` classifies it apart: it emits a non-fatal `Warning`
+   with the real size, retries on its own budget-free schedule so a huge
+   retained message cannot take a working broker offline, and leaves `attempt`
+   untouched so it never eats the budget a real network fault needs. With
+   auto-reconnect off it disconnects like any other drop, but fills in
+   `Disconnected { reason }` so the UI can say what actually happened.
 4. **Connecting an id that is already connected replaces the session, it does
    not add one.** Two tasks for one id would deliver every message twice, and
    whichever exited first would unregister the other — which is why the

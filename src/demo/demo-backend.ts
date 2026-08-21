@@ -271,6 +271,7 @@ export function installDemoBackend(): void {
             connection_id: arg<string>(args, "connectionId"),
             topic: arg<string>(args, "topic"),
             payload: arg<number[]>(args, "payload"),
+            payload_len: arg<number[]>(args, "payload").length,
             qos: arg<QoS>(args, "qos"),
             retain: arg<boolean>(args, "retain"),
           },
@@ -385,11 +386,13 @@ export function installDemoBackend(): void {
       const timeline = DEMO_TIMELINES[connectionId] ?? DEMO_TIMELINE;
       for (const message of timeline) {
         advanceDemoClock(message.gapMs);
+        const payload = encodePayload(message.payload);
         await emitMqtt({
           MessageReceived: {
             connection_id: connectionId,
             topic: message.topic,
-            payload: encodePayload(message.payload),
+            payload,
+            payload_len: payload.length,
             qos: message.qos,
             retain: message.retain,
           },

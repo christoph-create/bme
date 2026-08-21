@@ -31,10 +31,12 @@ function setup(maxMessagesPerTopic?: number): {
 function messageReceived(
   overrides: Partial<MqttMessageReceived> = {},
 ): MqttMessageReceived {
+  const payload = overrides.payload ?? [1, 2, 3];
   return {
     connection_id: CONNECTION_A,
     topic: "sensors/temp",
-    payload: [1, 2, 3],
+    payload,
+    payload_len: payload.length,
     qos: "AtLeastOnce",
     retain: false,
     ...overrides,
@@ -61,11 +63,32 @@ describe("MessageStoreService", () => {
     expect(messages).toEqual([
       {
         payload: [1, 2, 3],
+        payloadLen: 3,
         qos: "AtLeastOnce",
         retain: false,
         receivedAt: expect.any(Number),
       },
     ]);
+  });
+
+  /** Payloads over 256 KiB reach the UI truncated, so the stored message has
+   * to remember what the broker actually sent - the stream says so on the
+   * card, and Resend refuses to republish a shortened copy. */
+  it("keeps the real length of a message that arrived truncated", async () => {
+    const { events$, store } = setup();
+
+    events$.next({
+      MessageReceived: messageReceived({
+        payload: [1, 2, 3],
+        payload_len: 4_000_000,
+      }),
+    });
+
+    const messages = await firstValueFrom(
+      store.messagesFor(CONNECTION_A, "sensors/temp"),
+    );
+    expect(messages[0].payloadLen).toBe(4_000_000);
+    expect(messages[0].payload).toEqual([1, 2, 3]);
   });
 
   it("accumulates multiple messages on the same topic in arrival order", async () => {
@@ -321,6 +344,25 @@ describe("MessageStoreService", () => {
         store.retainedTopicsFor(CONNECTION_A),
       );
       expect([...retained]).toEqual([]);
+    });
+
+    /** The clear is read off the wire length, so a large retained message that
+     * arrived truncated must not be mistaken for one that was cleared. */
+    it("keeps the mark when a truncated retained message arrives", async () => {
+      const { events$, store } = setup();
+
+      events$.next({
+        MessageReceived: messageReceived({
+          retain: true,
+          payload: [1, 2, 3],
+          payload_len: 4_000_000,
+        }),
+      });
+
+      const retained = await firstValueFrom(
+        store.retainedTopicsFor(CONNECTION_A),
+      );
+      expect([...retained]).toEqual(["sensors/temp"]);
     });
 
     it("keeps marks per connection", async () => {

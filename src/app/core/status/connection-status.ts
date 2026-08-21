@@ -47,8 +47,18 @@ export function reduceStatus(
   if ("Disconnected" in event) {
     // Also the "gave up retrying" path - the backend only sends this once the
     // attempt budget is spent, so falling back to the plain error state with
-    // its Retry button is exactly right.
-    return { kind: "disconnected", error: DISCONNECTED_BY_BROKER };
+    // its Retry button is exactly right. It supplies a `reason` when it knows
+    // something more useful than that, e.g. a packet too large to receive.
+    return {
+      kind: "disconnected",
+      error: event.Disconnected.reason ?? DISCONNECTED_BY_BROKER,
+    };
+  }
+  if ("Warning" in event) {
+    // Spelled out rather than left to the fallthrough: a warning means the
+    // session recovered, and folding it into the error state would show a
+    // working connection as broken.
+    return current;
   }
   // MessageReceived says nothing about the connection that a Connected event
   // has not already said.
@@ -61,6 +71,7 @@ export function connectionIdOf(event: MqttEvent): string {
   if ("Connected" in event) return event.Connected.connection_id;
   if ("Disconnected" in event) return event.Disconnected.connection_id;
   if ("Reconnecting" in event) return event.Reconnecting.connection_id;
+  if ("Warning" in event) return event.Warning.connection_id;
   return event.MessageReceived.connection_id;
 }
 

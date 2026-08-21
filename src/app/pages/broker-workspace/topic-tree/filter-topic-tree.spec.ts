@@ -10,8 +10,10 @@ import {
 import { filterTopicTree } from "./filter-topic-tree";
 
 function message(overrides: Partial<StoredMessage> = {}): StoredMessage {
+  const payload = overrides.payload ?? [1, 2, 3];
   return {
-    payload: [1, 2, 3],
+    payload,
+    payloadLen: payload.length,
     qos: "AtMostOnce",
     retain: false,
     receivedAt: Date.now(),

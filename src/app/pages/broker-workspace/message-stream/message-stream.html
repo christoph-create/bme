@@ -84,6 +84,9 @@
             @if (pv.view.message.retain) {
               <span class="retain-badge">Retained</span>
             }
+            @if (pv.view.truncatedNote; as note) {
+              <span class="truncated-badge" [title]="note">Truncated</span>
+            }
             <div class="card-actions">
               <span
                 class="card-action"
@@ -93,9 +96,11 @@
                 role="button"
                 [attr.tabindex]="pv.view.draft === null ? -1 : 0"
                 [title]="
-                  pv.view.draft === null
-                    ? 'This payload cannot be edited as text'
-                    : 'Load into the publish panel'
+                  pv.view.truncatedNote !== null
+                    ? 'This message is too large to have arrived whole'
+                    : pv.view.draft === null
+                      ? 'This payload cannot be edited as text'
+                      : 'Load into the publish panel'
                 "
               >
                 Resend
