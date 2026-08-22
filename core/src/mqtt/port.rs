@@ -18,6 +18,12 @@ pub enum MqttError {
     UnknownConnection(Uuid),
     #[error("Message too large to publish: {bytes} bytes is over the {max} byte packet limit")]
     PayloadTooLarge { bytes: usize, max: usize },
+    /// A connection that cannot be set up at all, as opposed to one that
+    /// fails on the wire: an unreadable certificate file, a client cert
+    /// without its key. Known before a packet is sent, so it comes back from
+    /// `connect` rather than arriving later as a `Disconnected` event.
+    #[error("{0}")]
+    Config(String),
     #[error("mqtt error: {0}")]
     Other(String),
 }

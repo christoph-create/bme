@@ -33,6 +33,70 @@ impl From<QoS> for i64 {
     }
 }
 
+/// How the client reaches the broker. This replaced a plain TLS on/off
+/// flag: TLS is a property of the transport rather than a switch alongside
+/// it, and the WebSocket schemes carry a URL path a bool had nowhere to put.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum BrokerScheme {
+    Mqtt,
+    Mqtts,
+    Ws,
+    Wss,
+}
+
+impl BrokerScheme {
+    pub fn is_tls(self) -> bool {
+        matches!(self, BrokerScheme::Mqtts | BrokerScheme::Wss)
+    }
+
+    pub fn is_websocket(self) -> bool {
+        matches!(self, BrokerScheme::Ws | BrokerScheme::Wss)
+    }
+
+    /// What the port field starts at for a freshly picked scheme. 8083/8084 are
+    /// the WebSocket listeners Mosquitto's and EMQX's own docs use; managed
+    /// brokers vary (HiveMQ Cloud is 8884), so this is a starting point the
+    /// user is expected to overwrite, not a rule.
+    pub fn default_port(self) -> u16 {
+        match self {
+            BrokerScheme::Mqtt => 1883,
+            BrokerScheme::Mqtts => 8883,
+            BrokerScheme::Ws => 8083,
+            BrokerScheme::Wss => 8084,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            BrokerScheme::Mqtt => "mqtt",
+            BrokerScheme::Mqtts => "mqtts",
+            BrokerScheme::Ws => "ws",
+            BrokerScheme::Wss => "wss",
+        }
+    }
+}
+
+impl TryFrom<&str> for BrokerScheme {
+    type Error = String;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "mqtt" => Ok(BrokerScheme::Mqtt),
+            "mqtts" => Ok(BrokerScheme::Mqtts),
+            "ws" => Ok(BrokerScheme::Ws),
+            "wss" => Ok(BrokerScheme::Wss),
+            other => Err(format!("invalid BrokerScheme value: {other}")),
+        }
+    }
+}
+
+impl From<BrokerScheme> for String {
+    fn from(scheme: BrokerScheme) -> Self {
+        scheme.as_str().to_string()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Subscription {
     pub id: Uuid,
@@ -50,7 +114,23 @@ pub struct BrokerConnection {
     pub client_id: String,
     pub username: Option<String>,
     pub password: Option<String>,
-    pub use_tls: bool,
+    pub scheme: BrokerScheme,
+    /// The URL path of a WebSocket endpoint, `ws`/`wss` only. Empty or unset
+    /// means `/mqtt`, which is what nearly every broker serves it on.
+    pub ws_path: Option<String>,
+    /// Paths to PEM files on disk, read fresh on every connect so a renewed
+    /// certificate needs no re-import. `ca_cert_path` is added *on top of* the
+    /// system trust store rather than replacing it; the client pair is mutual
+    /// TLS and only takes effect when both halves are set.
+    pub ca_cert_path: Option<String>,
+    pub client_cert_path: Option<String>,
+    pub client_key_path: Option<String>,
+    /// Comma-separated ALPN protocols, so a second one needs no migration.
+    /// AWS IoT is the reason this exists: it wants `x-amzn-mqtt-ca`.
+    pub alpn: Option<String>,
+    /// Accept any server certificate. A dev escape hatch for self-signed
+    /// brokers, and the one setting here that trades away security.
+    pub skip_cert_verification: bool,
     pub keep_alive_secs: u16,
     /// Whether a dropped session should be re-established on its own, and how
     /// many times to try before giving up. See `crate::mqtt::reconnect`.
@@ -73,7 +153,13 @@ pub struct NewBrokerConnection {
     pub client_id: String,
     pub username: Option<String>,
     pub password: Option<String>,
-    pub use_tls: bool,
+    pub scheme: BrokerScheme,
+    pub ws_path: Option<String>,
+    pub ca_cert_path: Option<String>,
+    pub client_cert_path: Option<String>,
+    pub client_key_path: Option<String>,
+    pub alpn: Option<String>,
+    pub skip_cert_verification: bool,
     pub keep_alive_secs: u16,
     pub auto_reconnect: bool,
     pub max_reconnect_attempts: u32,
@@ -88,7 +174,13 @@ pub struct UpdateBrokerConnection {
     pub client_id: String,
     pub username: Option<String>,
     pub password: Option<String>,
-    pub use_tls: bool,
+    pub scheme: BrokerScheme,
+    pub ws_path: Option<String>,
+    pub ca_cert_path: Option<String>,
+    pub client_cert_path: Option<String>,
+    pub client_key_path: Option<String>,
+    pub alpn: Option<String>,
+    pub skip_cert_verification: bool,
     pub keep_alive_secs: u16,
     pub auto_reconnect: bool,
     pub max_reconnect_attempts: u32,
@@ -283,6 +375,51 @@ mod tests {
     #[test]
     fn qos_rejects_invalid_values() {
         assert!(QoS::try_from(3).is_err());
+    }
+
+    #[test]
+    fn broker_scheme_roundtrips_through_str() {
+        for scheme in [
+            BrokerScheme::Mqtt,
+            BrokerScheme::Mqtts,
+            BrokerScheme::Ws,
+            BrokerScheme::Wss,
+        ] {
+            let as_str: String = scheme.into();
+            assert_eq!(BrokerScheme::try_from(as_str.as_str()), Ok(scheme));
+        }
+    }
+
+    #[test]
+    fn broker_scheme_rejects_invalid_values() {
+        assert!(BrokerScheme::try_from("tcp").is_err());
+    }
+
+    /// The scheme is the SQLite column, the IPC field *and* the first segment
+    /// of the URL shown in the UI, so the exact strings are pinned here.
+    #[test]
+    fn broker_scheme_serializes_as_lowercase_json() {
+        assert_eq!(
+            serde_json::to_string(&BrokerScheme::Mqtt).unwrap(),
+            "\"mqtt\""
+        );
+        assert_eq!(
+            serde_json::to_string(&BrokerScheme::Mqtts).unwrap(),
+            "\"mqtts\""
+        );
+        assert_eq!(serde_json::to_string(&BrokerScheme::Ws).unwrap(), "\"ws\"");
+        assert_eq!(
+            serde_json::to_string(&BrokerScheme::Wss).unwrap(),
+            "\"wss\""
+        );
+    }
+
+    #[test]
+    fn only_the_tls_schemes_are_tls_and_only_the_ws_schemes_are_websockets() {
+        assert!(!BrokerScheme::Mqtt.is_tls() && !BrokerScheme::Mqtt.is_websocket());
+        assert!(BrokerScheme::Mqtts.is_tls() && !BrokerScheme::Mqtts.is_websocket());
+        assert!(!BrokerScheme::Ws.is_tls() && BrokerScheme::Ws.is_websocket());
+        assert!(BrokerScheme::Wss.is_tls() && BrokerScheme::Wss.is_websocket());
     }
 
     #[test]

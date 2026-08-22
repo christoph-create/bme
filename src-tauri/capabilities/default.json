@@ -7,6 +7,7 @@
     "core:default",
     "opener:default",
     "log:default",
+    "dialog:allow-open",
     "allow-greet",
     "allow-open-log-dir",
     "allow-get-app-version",

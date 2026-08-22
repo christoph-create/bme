@@ -1,15 +1,17 @@
 use std::time::Duration;
 
-use rumqttc::{AsyncClient, Event, EventLoop, MqttOptions, Packet, Transport};
+use rumqttc::{AsyncClient, Event, EventLoop, MqttOptions, Packet};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use crate::models::{BrokerConnection, QoS};
 use crate::mqtt::connection_registry::ConnectionRegistry;
+use crate::mqtt::failure::connect_failure_reason;
 use crate::mqtt::oversize::{oversize_delay, oversize_reason, MAX_PACKET_BYTES};
 use crate::mqtt::port::{MqttError, MqttEvent, MqttPort, MAX_IPC_PAYLOAD_BYTES};
 use crate::mqtt::reconnect::ReconnectPolicy;
 use crate::mqtt::subscription_set::SubscriptionSet;
+use crate::mqtt::transport::{broker_addr, transport_for};
 
 impl From<QoS> for rumqttc::QoS {
     fn from(qos: QoS) -> Self {
@@ -128,8 +130,13 @@ impl MqttPort for RumqttcAdapter {
             let _ = superseded.send(Command::Disconnect { announce: false });
         }
 
+        // Built before anything is registered or spawned: an unusable
+        // certificate is knowable now, and reporting it as a return value beats
+        // reporting it as a disconnect the caller has to wait for.
+        let transport = transport_for(broker).map_err(|err| MqttError::Config(err.to_string()))?;
+
         let mut options =
-            MqttOptions::new(broker.client_id.clone(), broker.host.clone(), broker.port);
+            MqttOptions::new(broker.client_id.clone(), broker_addr(broker), broker.port);
         options.set_keep_alive(Duration::from_secs(broker.keep_alive_secs as u64));
         options.set_max_packet_size(MAX_PACKET_BYTES, MAX_PACKET_BYTES);
         // Stated rather than inherited from rumqttc's default: the whole
@@ -140,9 +147,7 @@ impl MqttPort for RumqttcAdapter {
         if let (Some(username), Some(password)) = (&broker.username, &broker.password) {
             options.set_credentials(username.clone(), password.clone());
         }
-        if broker.use_tls {
-            options.set_transport(Transport::tls_with_default_config());
-        }
+        options.set_transport(transport);
 
         let (client, eventloop) = AsyncClient::new(options, 64);
         let (command_tx, command_rx) = mpsc::unbounded_channel();
@@ -365,7 +370,10 @@ async fn run_connection(
                             else {
                                 log::warn!("mqtt connection {connection_id}: disconnected due to eventloop error");
                                 connections.remove_if_current(connection_id, generation);
-                                let _ = events_tx.send(MqttEvent::Disconnected { connection_id, reason: None });
+                                let _ = events_tx.send(MqttEvent::Disconnected {
+                                    connection_id,
+                                    reason: connect_failure_reason(&err),
+                                });
                                 return;
                             };
 
@@ -514,6 +522,7 @@ enum BackoffOutcome {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::BrokerScheme;
     use tokio::time::timeout;
 
     fn sample_broker(host: &str, port: u16) -> BrokerConnection {
@@ -525,7 +534,13 @@ mod tests {
             client_id: format!("bme-test-{}", Uuid::new_v4()),
             username: None,
             password: None,
-            use_tls: false,
+            scheme: BrokerScheme::Mqtt,
+            ws_path: None,
+            ca_cert_path: None,
+            client_cert_path: None,
+            client_key_path: None,
+            alpn: None,
+            skip_cert_verification: false,
             keep_alive_secs: 5,
             auto_reconnect: false,
             max_reconnect_attempts: 0,
@@ -803,6 +818,93 @@ mod tests {
         });
 
         adapter.disconnect(broker.id).unwrap();
+    }
+
+    /// The WebSocket path end to end, against test.mosquitto.org's TLS
+    /// WebSocket listener. Worth running by hand after any change to
+    /// `transport::broker_addr`, since the URL assembly is the part rumqttc
+    /// gives no compile-time help with.
+    ///
+    /// Requires network access. For a local equivalent, give Mosquitto a
+    /// `listener 8083` / `protocol websockets` block and point this at
+    /// ws://localhost:8083/mqtt.
+    /// Run explicitly with: cargo test -p bme-core -- --ignored websocket
+    #[test]
+    #[ignore]
+    fn connects_over_a_secure_websocket_to_a_real_broker() {
+        let (events_tx, mut events_rx) = mpsc::unbounded_channel();
+        let adapter = RumqttcAdapter::new(events_tx);
+        let mut broker = sample_broker("test.mosquitto.org", 8081);
+        broker.scheme = BrokerScheme::Wss;
+        broker.ws_path = Some("/mqtt".to_string());
+        let topic = format!("bme/tests/{}", broker.id);
+
+        adapter.connect(broker.id, &broker).unwrap();
+
+        adapter.runtime.block_on(async {
+            wait_for(&mut events_rx, |event| {
+                matches!(event, MqttEvent::Connected { .. })
+            })
+            .await;
+        });
+
+        adapter
+            .subscribe(broker.id, &topic, QoS::AtLeastOnce)
+            .unwrap();
+        adapter
+            .publish(
+                broker.id,
+                &topic,
+                b"hello over websockets".to_vec(),
+                QoS::AtLeastOnce,
+                false,
+            )
+            .unwrap();
+
+        adapter.runtime.block_on(async {
+            let received = wait_for(
+                &mut events_rx,
+                |event| matches!(event, MqttEvent::MessageReceived { topic: t, .. } if t == &topic),
+            )
+            .await;
+            match received {
+                MqttEvent::MessageReceived { payload, .. } => {
+                    assert_eq!(payload, b"hello over websockets");
+                }
+                _ => unreachable!(),
+            }
+        });
+
+        adapter.disconnect(broker.id).unwrap();
+    }
+
+    /// Pointing a WebSocket connection at a listener that speaks plain MQTT is
+    /// the mistake the reason text exists for: it used to surface as a bare
+    /// "Disconnected from broker".
+    ///
+    /// Run explicitly with: cargo test -p bme-core -- --ignored websocket
+    #[test]
+    #[ignore]
+    fn a_websocket_pointed_at_a_plain_mqtt_port_explains_itself() {
+        let (events_tx, mut events_rx) = mpsc::unbounded_channel();
+        let adapter = RumqttcAdapter::new(events_tx);
+        let mut broker = sample_broker("test.mosquitto.org", 1883);
+        broker.scheme = BrokerScheme::Ws;
+
+        adapter.connect(broker.id, &broker).unwrap();
+
+        adapter.runtime.block_on(async {
+            let event = wait_for(&mut events_rx, |event| {
+                matches!(event, MqttEvent::Disconnected { .. })
+            })
+            .await;
+            match event {
+                MqttEvent::Disconnected { reason, .. } => {
+                    assert!(reason.is_some(), "the failure should be explained");
+                }
+                _ => unreachable!(),
+            }
+        });
     }
 
     /// The regression this whole limit exists for: rumqttc defaults to a 10 KiB

@@ -43,7 +43,7 @@ It's built with [Tauri](https://tauri.app) (a Rust backend, SQLite for local sto
       <br><em>Saved connections</em>
     </td>
     <td align="center" width="50%">
-      <img src="docs/screenshots/new-connection.png" width="380" alt="New Connection form with name, host, port, client ID, keep-alive, TLS, automatic reconnect and authentication options">
+      <img src="docs/screenshots/new-connection.png" width="380" alt="New Connection form with a scheme selector, host, port and WebSocket path making up the endpoint, connection settings on the left and CA and client certificate pickers, ALPN and a skip-verification toggle on the right">
       <br><em>Adding a broker</em>
     </td>
   </tr>
@@ -82,7 +82,7 @@ It's built with [Tauri](https://tauri.app) (a Rust backend, SQLite for local sto
 
 ### How to use it
 
-1. **Add a broker** — `+ New Connection`, fill in host/port (and TLS or credentials if the broker needs them), then **Save & Connect** (or **Test Connection** first to sanity-check it).
+1. **Add a broker** — `+ New Connection`, pick a scheme (`mqtt://`, `mqtts://`, `ws://`, `wss://`) and fill in host/port — plus the WebSocket path, credentials or certificates if the broker needs them — then **Save & Connect** (or **Test Connection** first to sanity-check it).
 2. **Subscribe** to a topic filter from the sidebar — subscriptions persist and are replayed automatically next time you connect.
 3. **Browse** the live topic tree as messages arrive; click any topic to see its full session history (payload, QoS, retained flag, time received).
 4. **Publish** a message from the panel below the message stream — topic is pre-filled from whatever you've selected in the tree, payload as JSON or raw text, pick a QoS, hit Publish.
@@ -115,8 +115,8 @@ rather ask than be told.
 
 Rough order of what's next, no promises on timing:
 
-- [ ] Client certificate support for brokers that require mutual TLS
 - [ ] In-app auto-update — today bme only *tells* you a release exists
+- [ ] MQTT 5.0 — user properties, response topics, and real reason codes
 
 Have an opinion on priority, or something else you'd want? Open an issue.
 

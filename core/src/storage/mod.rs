@@ -10,7 +10,7 @@ use rusqlite::types::{FromSql, FromSqlError, FromSqlResult, ToSql, ToSqlOutput, 
 use rusqlite::Connection;
 use rusqlite_migration::{Migrations, M};
 
-use crate::models::{MessageFormat, QoS};
+use crate::models::{BrokerScheme, MessageFormat, QoS};
 
 #[derive(Debug, thiserror::Error)]
 pub enum StorageError {
@@ -70,6 +70,22 @@ impl FromSql for MessageFormat {
     }
 }
 
+// Same TEXT treatment as MessageFormat: "mqtt"/"mqtts"/"ws"/"wss" reads as
+// itself in the sqlite file, and it is the same string the IPC layer and the
+// URL in the UI use.
+impl ToSql for BrokerScheme {
+    fn to_sql(&self) -> rusqlite::Result<ToSqlOutput<'_>> {
+        Ok(ToSqlOutput::from(String::from(*self)))
+    }
+}
+
+impl FromSql for BrokerScheme {
+    fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
+        let raw = value.as_str()?;
+        BrokerScheme::try_from(raw).map_err(|_| FromSqlError::InvalidType)
+    }
+}
+
 static MIGRATIONS: LazyLock<Migrations<'static>> = LazyLock::new(|| {
     Migrations::new(vec![
         M::up(include_str!("migrations/0001_broker_connections.sql")),
@@ -88,6 +104,7 @@ static MIGRATIONS: LazyLock<Migrations<'static>> = LazyLock::new(|| {
         M::up(include_str!("migrations/0008_reconnect_settings.sql")),
         M::up(include_str!("migrations/0009_app_settings.sql")),
         M::up(include_str!("migrations/0010_payload_variables.sql")),
+        M::up(include_str!("migrations/0011_websocket_and_tls.sql")),
     ])
 });
 
@@ -101,6 +118,29 @@ pub fn open_in_memory() -> Connection {
         .to_latest(&mut conn)
         .expect("failed to run migrations");
     conn
+}
+
+/// Opens an in-memory database migrated only as far as `version`, so a
+/// migration can be exercised against rows that were written before it ran -
+/// the only way to test a backfill without hand-rolling the old schema.
+#[cfg(test)]
+pub(crate) fn open_in_memory_at_version(version: usize) -> Connection {
+    let mut conn = Connection::open_in_memory().expect("failed to open in-memory sqlite db");
+    conn.pragma_update(None, "foreign_keys", true)
+        .expect("failed to enable foreign key enforcement");
+    MIGRATIONS
+        .to_version(&mut conn, version)
+        .expect("failed to run migrations");
+    conn
+}
+
+/// Companion to `open_in_memory_at_version`: brings a partially migrated
+/// database the rest of the way.
+#[cfg(test)]
+pub(crate) fn migrate_to_latest(conn: &mut Connection) {
+    MIGRATIONS
+        .to_latest(conn)
+        .expect("failed to run migrations");
 }
 
 /// Opens (creating if necessary) a file-backed database at `path` with all

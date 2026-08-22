@@ -1,0 +1,191 @@
+/* Split out of connection-form.css purely for size: one file was over the 4kB
+   anyComponentStyle budget in angular.json, the same reason
+   publish-settings.css exists. This half holds the endpoint bar and the
+   certificates column. */
+
+.section-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-3);
+}
+
+.endpoint {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-faint);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4) var(--space-5) var(--space-5);
+}
+
+.endpoint-url {
+  font-size: 12.5px;
+  color: var(--color-accent-on-tint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.section-hint {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--color-text-tertiary);
+}
+
+/* Each certificate is a label, the file it points at, and the button that
+   changes it - laid out on one line so three of them read as a list. */
+.cert-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  background: var(--color-input-bg);
+  border: 1px solid var(--color-input-border);
+  border-radius: var(--radius-input);
+  padding: 6px 6px 6px 12px;
+}
+
+.cert-row label {
+  margin-bottom: 0;
+  flex: 0 0 auto;
+  width: 116px;
+  color: var(--color-text);
+  font-weight: 500;
+  font-size: 13px;
+}
+
+/* The path is editable rather than read-only text: a path pasted from a
+   terminal is often faster than walking a file dialog to it. */
+.cert-path {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  background: transparent;
+  border: none;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  padding: 0;
+}
+
+.cert-path:focus {
+  outline: none;
+  color: var(--color-text);
+}
+
+/* .btn-clear is only rendered once there is a path to remove, so it never
+   reads as an action available on an empty row. */
+.btn-browse,
+.btn-clear {
+  flex: 0 0 auto;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-browse {
+  background: var(--color-surface-hover);
+  border: 1px solid var(--color-input-border);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  padding: 6px 12px;
+}
+
+.btn-browse:hover {
+  color: var(--color-text);
+}
+
+.btn-clear {
+  width: 24px;
+  height: 26px;
+  background: transparent;
+  border: none;
+  color: var(--color-text-quaternary);
+  font-size: 15px;
+  line-height: 1;
+}
+
+.btn-clear:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-danger);
+}
+
+/* The whole banner is the label: the hit target is the panel, not an 18px
+   circle. */
+.danger-panel {
+  margin-bottom: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  background: var(--color-danger-tint);
+  border: 1px solid transparent;
+  border-radius: var(--radius-input);
+  padding: 10px 12px;
+}
+
+/* Outlined only once it is actually on, so the panel reads as a warning about
+   a setting rather than as an error the form is already in. */
+.danger-panel.armed {
+  border-color: var(--color-danger);
+}
+
+.danger-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.danger-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-danger);
+}
+
+.danger-hint {
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--color-text-tertiary);
+}
+
+/* "Requires authentication" checkbox */
+.checkbox {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.checkbox input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.checkbox-box {
+  position: absolute;
+  inset: 0;
+  border-radius: 4px;
+  border: 1px solid var(--color-input-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.checkbox-check {
+  color: var(--color-accent-ink);
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0;
+}
+
+.checkbox input:checked + .checkbox-box {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.checkbox input:checked + .checkbox-box .checkbox-check {
+  opacity: 1;
+}

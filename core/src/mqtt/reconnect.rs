@@ -54,6 +54,7 @@ impl ReconnectPolicy {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::BrokerScheme;
 
     fn policy(max_attempts: u32) -> ReconnectPolicy {
         ReconnectPolicy {
@@ -126,7 +127,13 @@ mod tests {
             client_id: "bme-dev".to_string(),
             username: None,
             password: None,
-            use_tls: false,
+            scheme: BrokerScheme::Mqtt,
+            ws_path: None,
+            ca_cert_path: None,
+            client_cert_path: None,
+            client_key_path: None,
+            alpn: None,
+            skip_cert_verification: false,
             keep_alive_secs: 30,
             auto_reconnect: true,
             max_reconnect_attempts: 3,

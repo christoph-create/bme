@@ -141,9 +141,19 @@ const SHOTS = [
     name: "new-connection",
     async setup(page) {
       await page.goto("/connections/new");
-      await page.getByLabel("Name").fill("Greenhouse");
-      await page.getByLabel("Host").fill("greenhouse.local");
+      await page.getByLabel("Name").fill("AWS IoT \u2014 eu-central-1");
+      // An encrypted WebSocket endpoint on purpose: the path field and the
+      // whole certificates column only exist for those schemes, and they are
+      // the half of this form worth showing.
+      await page.getByLabel("Scheme").selectOption("wss");
+      await page
+        .getByLabel("Host")
+        .fill("a1b2c3.iot.eu-central-1.amazonaws.com");
+      await page.getByLabel("Port").fill("8884");
       await page.getByLabel("Client ID").fill("bme-desktop");
+      await page.getByLabel("CA certificate").fill("AmazonRootCA1.pem");
+      await page.getByLabel("Client certificate").fill("device-01-cert.pem");
+      await page.getByLabel("ALPN").fill("x-amzn-mqtt-ca");
       await blurFocus(page);
     },
   },

@@ -88,6 +88,8 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_opener::init())
+        // Only used for picking certificate files on the connection form.
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let app_data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&app_data_dir)?;
@@ -384,7 +386,13 @@ mod tests {
                     "client_id": "bme-smoke-test",
                     "username": null,
                     "password": null,
-                    "use_tls": false,
+                    "scheme": "mqtt",
+                    "ws_path": null,
+                    "ca_cert_path": null,
+                    "client_cert_path": null,
+                    "client_key_path": null,
+                    "alpn": null,
+                    "skip_cert_verification": false,
                     "keep_alive_secs": 30,
                     "auto_reconnect": true,
                     "max_reconnect_attempts": 10,
@@ -420,7 +428,13 @@ mod tests {
                     "client_id": "bme-smoke-test",
                     "username": null,
                     "password": null,
-                    "use_tls": false,
+                    "scheme": "mqtt",
+                    "ws_path": null,
+                    "ca_cert_path": null,
+                    "client_cert_path": null,
+                    "client_key_path": null,
+                    "alpn": null,
+                    "skip_cert_verification": false,
                     "keep_alive_secs": 30,
                     "auto_reconnect": true,
                     "max_reconnect_attempts": 10,
@@ -457,7 +471,13 @@ mod tests {
                     "client_id": "bme-update-test",
                     "username": null,
                     "password": null,
-                    "use_tls": false,
+                    "scheme": "mqtt",
+                    "ws_path": null,
+                    "ca_cert_path": null,
+                    "client_cert_path": null,
+                    "client_key_path": null,
+                    "alpn": null,
+                    "skip_cert_verification": false,
                     "keep_alive_secs": 30,
                     "auto_reconnect": true,
                     "max_reconnect_attempts": 10,
@@ -479,7 +499,13 @@ mod tests {
                     "client_id": "bme-update-test",
                     "username": null,
                     "password": null,
-                    "use_tls": true,
+                    "scheme": "mqtts",
+                    "ws_path": null,
+                    "ca_cert_path": null,
+                    "client_cert_path": null,
+                    "client_key_path": null,
+                    "alpn": null,
+                    "skip_cert_verification": false,
                     "keep_alive_secs": 45,
                     "auto_reconnect": false,
                     "max_reconnect_attempts": 3,
@@ -491,6 +517,61 @@ mod tests {
 
         let all = invoke(&webview, "list_connections", serde_json::json!({}));
         assert_eq!(all[0]["name"], "Renamed");
+    }
+
+    /// The transport and certificate settings cross the boundary as a
+    /// hand-maintained TypeScript mirror, so the exact field names and the
+    /// scheme's wire string are what this is really pinning.
+    #[test]
+    fn websocket_and_tls_settings_round_trip_over_ipc() {
+        let app = build_test_app();
+        let webview = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+
+        let created = invoke(
+            &webview,
+            "create_connection",
+            serde_json::json!({
+                "newConnection": {
+                    "name": "HiveMQ Cloud",
+                    "host": "broker.hivemq.cloud",
+                    "port": 8884,
+                    "client_id": "bme-ws-test",
+                    "username": null,
+                    "password": null,
+                    "scheme": "wss",
+                    "ws_path": "/mqtt",
+                    "ca_cert_path": "/certs/AmazonRootCA1.pem",
+                    "client_cert_path": "/certs/device-cert.pem",
+                    "client_key_path": "/certs/device-key.pem",
+                    "alpn": "x-amzn-mqtt-ca",
+                    "skip_cert_verification": true,
+                    "keep_alive_secs": 60,
+                    "auto_reconnect": true,
+                    "max_reconnect_attempts": 10,
+                    "subscriptions": []
+                }
+            }),
+        );
+
+        assert_eq!(created["scheme"], "wss");
+        assert_eq!(created["ws_path"], "/mqtt");
+        assert_eq!(created["alpn"], "x-amzn-mqtt-ca");
+        assert_eq!(created["skip_cert_verification"], true);
+
+        let fetched = invoke(
+            &webview,
+            "get_connection",
+            serde_json::json!({ "id": created["id"].clone() }),
+        );
+        assert_eq!(fetched["scheme"], "wss");
+        assert_eq!(fetched["ws_path"], "/mqtt");
+        assert_eq!(fetched["ca_cert_path"], "/certs/AmazonRootCA1.pem");
+        assert_eq!(fetched["client_cert_path"], "/certs/device-cert.pem");
+        assert_eq!(fetched["client_key_path"], "/certs/device-key.pem");
+        assert_eq!(fetched["alpn"], "x-amzn-mqtt-ca");
+        assert_eq!(fetched["skip_cert_verification"], true);
     }
 
     /// The reconnect settings are only useful if they survive the IPC round
@@ -513,7 +594,13 @@ mod tests {
                     "client_id": "bme-reconnect-test",
                     "username": null,
                     "password": null,
-                    "use_tls": false,
+                    "scheme": "mqtt",
+                    "ws_path": null,
+                    "ca_cert_path": null,
+                    "client_cert_path": null,
+                    "client_key_path": null,
+                    "alpn": null,
+                    "skip_cert_verification": false,
                     "keep_alive_secs": 30,
                     "auto_reconnect": false,
                     "max_reconnect_attempts": 25,
@@ -845,7 +932,13 @@ mod tests {
                     "client_id": "bme-subscribe-test",
                     "username": null,
                     "password": null,
-                    "use_tls": false,
+                    "scheme": "mqtt",
+                    "ws_path": null,
+                    "ca_cert_path": null,
+                    "client_cert_path": null,
+                    "client_key_path": null,
+                    "alpn": null,
+                    "skip_cert_verification": false,
                     "keep_alive_secs": 30,
                     "auto_reconnect": true,
                     "max_reconnect_attempts": 10,
@@ -892,7 +985,13 @@ mod tests {
                     "client_id": "bme-test-connection",
                     "username": null,
                     "password": null,
-                    "use_tls": false,
+                    "scheme": "mqtt",
+                    "ws_path": null,
+                    "ca_cert_path": null,
+                    "client_cert_path": null,
+                    "client_key_path": null,
+                    "alpn": null,
+                    "skip_cert_verification": false,
                     "keep_alive_secs": 30,
                     "auto_reconnect": true,
                     "max_reconnect_attempts": 10,
@@ -924,7 +1023,13 @@ mod tests {
                     "client_id": "bme-offline-test",
                     "username": null,
                     "password": null,
-                    "use_tls": false,
+                    "scheme": "mqtt",
+                    "ws_path": null,
+                    "ca_cert_path": null,
+                    "client_cert_path": null,
+                    "client_key_path": null,
+                    "alpn": null,
+                    "skip_cert_verification": false,
                     "keep_alive_secs": 30,
                     "auto_reconnect": true,
                     "max_reconnect_attempts": 10,

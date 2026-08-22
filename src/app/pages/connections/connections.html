@@ -5,69 +5,69 @@
   </div>
   <div class="header-actions">
     <a class="btn-secondary" routerLink="/templates">Manage Templates</a>
-    <button class="btn-primary" [routerLink]="['/connections/new']">+ New Connection</button>
+    <button class="btn-primary" [routerLink]="['/connections/new']">
+      + New Connection
+    </button>
   </div>
 </header>
 
 @if (loading()) {
-  <p class="status-text">Loading connections…</p>
+<p class="status-text">Loading connections…</p>
 } @else if (error()) {
-  <p class="status-text error">{{ error() }}</p>
+<p class="status-text error">{{ error() }}</p>
 } @else if (connections().length === 0) {
-  <div class="empty-state">
-    <p>No connections yet.</p>
-  </div>
+<div class="empty-state">
+  <p>No connections yet.</p>
+</div>
 } @else {
-  <ul class="connection-list">
-    @for (connection of connections(); track connection.id) {
-      <li
-        class="connection-row"
-        role="button"
-        tabindex="0"
-        (click)="openBroker(connection.id)"
-        (keydown.enter)="openBroker(connection.id)"
-        (keydown.space)="openBroker(connection.id)"
+<ul class="connection-list">
+  @for (connection of connections(); track connection.id) {
+  <li
+    class="connection-row"
+    role="button"
+    tabindex="0"
+    (click)="openBroker(connection.id)"
+    (keydown.enter)="openBroker(connection.id)"
+    (keydown.space)="openBroker(connection.id)"
+  >
+    <div class="connection-info">
+      <div class="connection-name">
+        <app-status-dot [status]="statusOf(connection.id)" />
+        {{ connection.name }}
+      </div>
+      <div class="connection-host">{{ endpointOf(connection) }}</div>
+    </div>
+    <div class="menu-wrapper">
+      <button
+        type="button"
+        class="menu-trigger"
+        (click)="toggleMenu(connection.id, $event)"
       >
-        <div class="connection-info">
-          <div class="connection-name">
-            <app-status-dot [status]="statusOf(connection.id)" />
-            {{ connection.name }}
-          </div>
-          <div class="connection-host">
-            {{ connection.host }}:{{ connection.port }}
-          </div>
-        </div>
-        <div class="menu-wrapper">
-          <button
-            type="button"
-            class="menu-trigger"
-            (click)="toggleMenu(connection.id, $event)"
-          >
-            ⋯
-          </button>
-          @if (openMenuId() === connection.id) {
-            <div class="menu">
-                <button
-                class="menu-item"
-                [routerLink]="['/connections', connection.id, 'edit']"
-                (click)="$event.stopPropagation()"
-              >
-                Edit connection
-              </button>
-              <button
-                type="button"
-                class="menu-item menu-item-danger"
-                (click)="deleteConnection(connection.id, $event)"
-              >
-                Delete
-              </button>
-            </div>
-          }
-        </div>
-        <span class="chevron">›</span>
-      </li>
-    }
-  </ul>
+        ⋯
+      </button>
+      @if (openMenuId() === connection.id) {
+      <div class="menu">
+        <button
+          class="menu-item"
+          [routerLink]="['/connections', connection.id, 'edit']"
+          (click)="$event.stopPropagation()"
+        >
+          Edit connection
+        </button>
+        <button
+          type="button"
+          class="menu-item menu-item-danger"
+          (click)="deleteConnection(connection.id, $event)"
+        >
+          Delete
+        </button>
+      </div>
+      }
+    </div>
+    <span class="chevron">›</span>
+  </li>
+  }
+</ul>
 }
 
 <footer class="page-footer">
@@ -83,9 +83,8 @@
     {{ checkingUpdate() ? "Checking…" : "Check for updates" }}
   </button>
   @if (updateStatus(); as status) {
-    <span class="footer-status">{{ status }}</span>
-  }
-  @if (notifier.currentVersion(); as version) {
-    <span class="footer-version">v{{ version }}</span>
+  <span class="footer-status">{{ status }}</span>
+  } @if (notifier.currentVersion(); as version) {
+  <span class="footer-version">v{{ version }}</span>
   }
 </footer>

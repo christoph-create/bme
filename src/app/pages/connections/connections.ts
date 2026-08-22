@@ -2,6 +2,7 @@ import { Component, HostListener, inject, signal } from "@angular/core";
 import { Router, RouterLink } from "@angular/router";
 import { invoke } from "@tauri-apps/api/core";
 
+import { brokerUrl } from "../../core/connection/broker-url";
 import { BrokerConnection } from "../../core/models/broker-connection.model";
 import { ConnectionStatusService } from "../../core/services/connection-status.service";
 import { ConnectionsService } from "../../core/services/connections.service";
@@ -25,6 +26,15 @@ export class Connections {
   /** Brokers stay connected after you leave their workspace, so this list is
    * the only place that says which ones still are. */
   readonly statusOf = this.status.statusOf.bind(this.status);
+
+  /** The full endpoint, so a WebSocket broker is recognisable from the list. */
+  readonly endpointOf = (connection: BrokerConnection): string =>
+    brokerUrl(
+      connection.scheme,
+      connection.host,
+      connection.port,
+      connection.ws_path,
+    );
 
   readonly connections = signal<BrokerConnection[]>([]);
   readonly loading = signal(true);

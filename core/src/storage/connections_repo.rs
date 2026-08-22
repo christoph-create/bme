@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension, Row};
 use uuid::Uuid;
 
 use crate::models::{
@@ -39,15 +39,70 @@ impl SqliteConnectionsRepository {
     }
 }
 
+/// The column list every read shares. Kept in one place because it appears in
+/// two queries and has to stay in step with `row_to_connection`.
+const CONNECTION_COLUMNS: &str = "id, name, host, port, client_id, username, password, scheme, \
+     ws_path, ca_cert_path, client_cert_path, client_key_path, alpn, skip_cert_verification, \
+     keep_alive_secs, auto_reconnect, max_reconnect_attempts";
+
+/// Reads by column *name* rather than position. The table is seventeen columns
+/// wide now, and positional indices made every added column a renumbering
+/// exercise across four separate queries. Subscriptions are left empty; they
+/// come from their own table.
+fn row_to_connection(row: &Row) -> rusqlite::Result<BrokerConnection> {
+    Ok(BrokerConnection {
+        id: row.get("id")?,
+        name: row.get("name")?,
+        host: row.get("host")?,
+        port: row.get("port")?,
+        client_id: row.get("client_id")?,
+        username: row.get("username")?,
+        password: row.get("password")?,
+        scheme: row.get("scheme")?,
+        ws_path: row.get("ws_path")?,
+        ca_cert_path: row.get("ca_cert_path")?,
+        client_cert_path: row.get("client_cert_path")?,
+        client_key_path: row.get("client_key_path")?,
+        alpn: row.get("alpn")?,
+        skip_cert_verification: row.get("skip_cert_verification")?,
+        keep_alive_secs: row.get("keep_alive_secs")?,
+        auto_reconnect: row.get("auto_reconnect")?,
+        max_reconnect_attempts: row.get("max_reconnect_attempts")?,
+        subscriptions: Vec::new(),
+    })
+}
+
+/// Every path that returns a connection - including the two write paths - goes
+/// through here rather than re-assembling the struct from what it was handed.
+/// A column that stores differently to how it was passed in then shows up
+/// immediately instead of on the next read.
+fn read_connection(conn: &Connection, id: Uuid) -> Result<Option<BrokerConnection>, StorageError> {
+    let connection = conn
+        .query_row(
+            &format!("SELECT {CONNECTION_COLUMNS} FROM broker_connections WHERE id = ?1"),
+            params![id],
+            row_to_connection,
+        )
+        .optional()?;
+
+    let Some(mut connection) = connection else {
+        return Ok(None);
+    };
+    connection.subscriptions = load_subscriptions(conn, id)?;
+    Ok(Some(connection))
+}
+
 impl ConnectionsRepository for SqliteConnectionsRepository {
     fn create(&self, new: NewBrokerConnection) -> Result<BrokerConnection, StorageError> {
         let conn = self.conn.lock().unwrap();
         let id = Uuid::new_v4();
         conn.execute(
             "INSERT INTO broker_connections
-                (id, name, host, port, client_id, username, password, use_tls, keep_alive_secs,
-                 auto_reconnect, max_reconnect_attempts)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+                (id, name, host, port, client_id, username, password, scheme, ws_path,
+                 ca_cert_path, client_cert_path, client_key_path, alpn,
+                 skip_cert_verification, keep_alive_secs, auto_reconnect,
+                 max_reconnect_attempts)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
             params![
                 id,
                 new.name,
@@ -56,149 +111,43 @@ impl ConnectionsRepository for SqliteConnectionsRepository {
                 new.client_id,
                 new.username,
                 new.password,
-                new.use_tls,
+                new.scheme,
+                new.ws_path,
+                new.ca_cert_path,
+                new.client_cert_path,
+                new.client_key_path,
+                new.alpn,
+                new.skip_cert_verification,
                 new.keep_alive_secs,
                 new.auto_reconnect,
                 new.max_reconnect_attempts,
             ],
         )?;
 
-        let subscriptions = new
-            .subscriptions
-            .into_iter()
-            .map(|sub| insert_subscription(&conn, id, sub))
-            .collect::<Result<Vec<_>, _>>()?;
+        for subscription in new.subscriptions {
+            insert_subscription(&conn, id, subscription)?;
+        }
 
-        Ok(BrokerConnection {
-            id,
-            name: new.name,
-            host: new.host,
-            port: new.port,
-            client_id: new.client_id,
-            username: new.username,
-            password: new.password,
-            use_tls: new.use_tls,
-            keep_alive_secs: new.keep_alive_secs,
-            auto_reconnect: new.auto_reconnect,
-            max_reconnect_attempts: new.max_reconnect_attempts,
-            subscriptions,
-        })
+        read_connection(&conn, id)?
+            .ok_or(StorageError::Database(rusqlite::Error::QueryReturnedNoRows))
     }
 
     fn get(&self, id: Uuid) -> Result<Option<BrokerConnection>, StorageError> {
         let conn = self.conn.lock().unwrap();
-        let row = conn
-            .query_row(
-                "SELECT name, host, port, client_id, username, password, use_tls, keep_alive_secs,
-                        auto_reconnect, max_reconnect_attempts
-                 FROM broker_connections WHERE id = ?1",
-                params![id],
-                |row| {
-                    Ok((
-                        row.get::<_, String>(0)?,
-                        row.get::<_, String>(1)?,
-                        row.get::<_, u16>(2)?,
-                        row.get::<_, String>(3)?,
-                        row.get::<_, Option<String>>(4)?,
-                        row.get::<_, Option<String>>(5)?,
-                        row.get::<_, bool>(6)?,
-                        row.get::<_, u16>(7)?,
-                        row.get::<_, bool>(8)?,
-                        row.get::<_, u32>(9)?,
-                    ))
-                },
-            )
-            .optional()?;
-
-        let Some((
-            name,
-            host,
-            port,
-            client_id,
-            username,
-            password,
-            use_tls,
-            keep_alive_secs,
-            auto_reconnect,
-            max_reconnect_attempts,
-        )) = row
-        else {
-            return Ok(None);
-        };
-
-        let subscriptions = load_subscriptions(&conn, id)?;
-
-        Ok(Some(BrokerConnection {
-            id,
-            name,
-            host,
-            port,
-            client_id,
-            username,
-            password,
-            use_tls,
-            keep_alive_secs,
-            auto_reconnect,
-            max_reconnect_attempts,
-            subscriptions,
-        }))
+        read_connection(&conn, id)
     }
 
     fn list(&self) -> Result<Vec<BrokerConnection>, StorageError> {
         let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare(
-            "SELECT id, name, host, port, client_id, username, password, use_tls, keep_alive_secs,
-                    auto_reconnect, max_reconnect_attempts
-             FROM broker_connections ORDER BY name",
-        )?;
-        let rows = stmt
-            .query_map([], |row| {
-                Ok((
-                    row.get::<_, Uuid>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, String>(2)?,
-                    row.get::<_, u16>(3)?,
-                    row.get::<_, String>(4)?,
-                    row.get::<_, Option<String>>(5)?,
-                    row.get::<_, Option<String>>(6)?,
-                    row.get::<_, bool>(7)?,
-                    row.get::<_, u16>(8)?,
-                    row.get::<_, bool>(9)?,
-                    row.get::<_, u32>(10)?,
-                ))
-            })?
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {CONNECTION_COLUMNS} FROM broker_connections ORDER BY name"
+        ))?;
+        let mut connections = stmt
+            .query_map([], row_to_connection)?
             .collect::<Result<Vec<_>, _>>()?;
 
-        let mut connections = Vec::with_capacity(rows.len());
-        for (
-            id,
-            name,
-            host,
-            port,
-            client_id,
-            username,
-            password,
-            use_tls,
-            keep_alive_secs,
-            auto_reconnect,
-            max_reconnect_attempts,
-        ) in rows
-        {
-            let subscriptions = load_subscriptions(&conn, id)?;
-            connections.push(BrokerConnection {
-                id,
-                name,
-                host,
-                port,
-                client_id,
-                username,
-                password,
-                use_tls,
-                keep_alive_secs,
-                auto_reconnect,
-                max_reconnect_attempts,
-                subscriptions,
-            });
+        for connection in &mut connections {
+            connection.subscriptions = load_subscriptions(&conn, connection.id)?;
         }
         Ok(connections)
     }
@@ -212,9 +161,11 @@ impl ConnectionsRepository for SqliteConnectionsRepository {
         let rows_changed = conn.execute(
             "UPDATE broker_connections
              SET name = ?1, host = ?2, port = ?3, client_id = ?4, username = ?5,
-                 password = ?6, use_tls = ?7, keep_alive_secs = ?8,
-                 auto_reconnect = ?9, max_reconnect_attempts = ?10
-             WHERE id = ?11",
+                 password = ?6, scheme = ?7, ws_path = ?8, ca_cert_path = ?9,
+                 client_cert_path = ?10, client_key_path = ?11, alpn = ?12,
+                 skip_cert_verification = ?13, keep_alive_secs = ?14,
+                 auto_reconnect = ?15, max_reconnect_attempts = ?16
+             WHERE id = ?17",
             params![
                 update.name,
                 update.host,
@@ -222,7 +173,13 @@ impl ConnectionsRepository for SqliteConnectionsRepository {
                 update.client_id,
                 update.username,
                 update.password,
-                update.use_tls,
+                update.scheme,
+                update.ws_path,
+                update.ca_cert_path,
+                update.client_cert_path,
+                update.client_key_path,
+                update.alpn,
+                update.skip_cert_verification,
                 update.keep_alive_secs,
                 update.auto_reconnect,
                 update.max_reconnect_attempts,
@@ -234,22 +191,7 @@ impl ConnectionsRepository for SqliteConnectionsRepository {
             return Ok(None);
         }
 
-        let subscriptions = load_subscriptions(&conn, id)?;
-
-        Ok(Some(BrokerConnection {
-            id,
-            name: update.name,
-            host: update.host,
-            port: update.port,
-            client_id: update.client_id,
-            username: update.username,
-            password: update.password,
-            use_tls: update.use_tls,
-            keep_alive_secs: update.keep_alive_secs,
-            auto_reconnect: update.auto_reconnect,
-            max_reconnect_attempts: update.max_reconnect_attempts,
-            subscriptions,
-        }))
+        read_connection(&conn, id)
     }
 
     fn delete(&self, id: Uuid) -> Result<(), StorageError> {
@@ -318,8 +260,8 @@ fn load_subscriptions(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::QoS;
-    use crate::storage::open_in_memory;
+    use crate::models::{BrokerScheme, QoS};
+    use crate::storage::{migrate_to_latest, open_in_memory, open_in_memory_at_version};
 
     fn repo() -> SqliteConnectionsRepository {
         SqliteConnectionsRepository::new(Arc::new(Mutex::new(open_in_memory())))
@@ -333,7 +275,13 @@ mod tests {
             client_id: "bme-dev".to_string(),
             username: None,
             password: None,
-            use_tls: false,
+            scheme: BrokerScheme::Mqtt,
+            ws_path: None,
+            ca_cert_path: None,
+            client_cert_path: None,
+            client_key_path: None,
+            alpn: None,
+            skip_cert_verification: false,
             keep_alive_secs: 30,
             auto_reconnect: true,
             max_reconnect_attempts: 10,
@@ -383,8 +331,8 @@ mod tests {
             .unwrap()
             .execute(
                 "INSERT INTO broker_connections
-                    (id, name, host, port, client_id, username, password, use_tls, keep_alive_secs)
-                 VALUES (?1, 'Legacy', 'legacy.local', 1883, 'bme-legacy', NULL, NULL, 0, 60)",
+                    (id, name, host, port, client_id, username, password, keep_alive_secs)
+                 VALUES (?1, 'Legacy', 'legacy.local', 1883, 'bme-legacy', NULL, NULL, 60)",
                 params![id],
             )
             .unwrap();
@@ -393,6 +341,83 @@ mod tests {
 
         assert!(fetched.auto_reconnect);
         assert_eq!(fetched.max_reconnect_attempts, 10);
+        assert_eq!(fetched.scheme, BrokerScheme::Mqtt);
+        assert!(!fetched.skip_cert_verification);
+    }
+
+    /// The scheme column is a rewrite of the old `use_tls` flag rather than an
+    /// addition, so migration 0011 has to carry existing rows across: a saved
+    /// TLS connection must still point at the same broker afterwards. Runs the
+    /// migrations only as far as 0010 so there are genuinely pre-scheme rows
+    /// to carry.
+    #[test]
+    fn tls_flags_written_before_the_scheme_column_existed_become_schemes() {
+        let mut conn = open_in_memory_at_version(10);
+        let plain = Uuid::new_v4();
+        let secured = Uuid::new_v4();
+        for (id, use_tls) in [(plain, 0), (secured, 1)] {
+            conn.execute(
+                "INSERT INTO broker_connections
+                    (id, name, host, port, client_id, username, password, use_tls,
+                     keep_alive_secs, auto_reconnect, max_reconnect_attempts)
+                 VALUES (?1, ?2, 'legacy.local', 1883, 'bme-legacy', NULL, NULL, ?3, 60, 1, 10)",
+                params![id, id.to_string(), use_tls],
+            )
+            .unwrap();
+        }
+
+        migrate_to_latest(&mut conn);
+        let repo = SqliteConnectionsRepository::new(Arc::new(Mutex::new(conn)));
+
+        assert_eq!(
+            repo.get(plain)
+                .unwrap()
+                .expect("connection to exist")
+                .scheme,
+            BrokerScheme::Mqtt
+        );
+        assert_eq!(
+            repo.get(secured)
+                .unwrap()
+                .expect("connection to exist")
+                .scheme,
+            BrokerScheme::Mqtts
+        );
+    }
+
+    #[test]
+    fn create_then_get_round_trips_the_websocket_and_tls_settings() {
+        let repo = repo();
+        let mut new = sample_connection();
+        new.scheme = BrokerScheme::Wss;
+        new.port = 8884;
+        new.ws_path = Some("/mqtt".to_string());
+        new.ca_cert_path = Some("/certs/AmazonRootCA1.pem".to_string());
+        new.client_cert_path = Some("/certs/device-01-cert.pem".to_string());
+        new.client_key_path = Some("/certs/device-01-key.pem".to_string());
+        new.alpn = Some("x-amzn-mqtt-ca".to_string());
+        new.skip_cert_verification = true;
+
+        let created = repo.create(new).unwrap();
+        let fetched = repo.get(created.id).unwrap().expect("connection to exist");
+
+        assert_eq!(fetched, created);
+        assert_eq!(fetched.scheme, BrokerScheme::Wss);
+        assert_eq!(fetched.ws_path.as_deref(), Some("/mqtt"));
+        assert_eq!(
+            fetched.ca_cert_path.as_deref(),
+            Some("/certs/AmazonRootCA1.pem")
+        );
+        assert_eq!(
+            fetched.client_cert_path.as_deref(),
+            Some("/certs/device-01-cert.pem")
+        );
+        assert_eq!(
+            fetched.client_key_path.as_deref(),
+            Some("/certs/device-01-key.pem")
+        );
+        assert_eq!(fetched.alpn.as_deref(), Some("x-amzn-mqtt-ca"));
+        assert!(fetched.skip_cert_verification);
     }
 
     #[test]
@@ -431,7 +456,13 @@ mod tests {
                     client_id: "bme-renamed".to_string(),
                     username: Some("alice".to_string()),
                     password: Some("hunter2".to_string()),
-                    use_tls: true,
+                    scheme: BrokerScheme::Wss,
+                    ws_path: Some("/mqtt".to_string()),
+                    ca_cert_path: Some("/certs/ca.pem".to_string()),
+                    client_cert_path: None,
+                    client_key_path: None,
+                    alpn: Some("mqtt".to_string()),
+                    skip_cert_verification: true,
                     keep_alive_secs: 45,
                     auto_reconnect: false,
                     max_reconnect_attempts: 3,
@@ -447,7 +478,11 @@ mod tests {
         assert_eq!(updated.client_id, "bme-renamed");
         assert_eq!(updated.username.as_deref(), Some("alice"));
         assert_eq!(updated.password.as_deref(), Some("hunter2"));
-        assert!(updated.use_tls);
+        assert_eq!(updated.scheme, BrokerScheme::Wss);
+        assert_eq!(updated.ws_path.as_deref(), Some("/mqtt"));
+        assert_eq!(updated.ca_cert_path.as_deref(), Some("/certs/ca.pem"));
+        assert_eq!(updated.alpn.as_deref(), Some("mqtt"));
+        assert!(updated.skip_cert_verification);
         assert_eq!(updated.keep_alive_secs, 45);
         assert!(!updated.auto_reconnect);
         assert_eq!(updated.max_reconnect_attempts, 3);
@@ -471,7 +506,13 @@ mod tests {
                     client_id: "bme-ghost".to_string(),
                     username: None,
                     password: None,
-                    use_tls: false,
+                    scheme: BrokerScheme::Mqtt,
+                    ws_path: None,
+                    ca_cert_path: None,
+                    client_cert_path: None,
+                    client_key_path: None,
+                    alpn: None,
+                    skip_cert_verification: false,
                     keep_alive_secs: 30,
                     auto_reconnect: true,
                     max_reconnect_attempts: 10,
