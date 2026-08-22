@@ -50,5 +50,5 @@ rustls = { version = "0.23", default-features = false, features = [
 # features here are exactly `logging, ring, tls12`, so the no-cmake build
 # guarantee above still holds.
 rumqttc-rustls = { package = "rustls", version = "0.22" }
-rustls-native-certs = "0.7"
+rustls-native-certs = "0.8"
 rustls-pemfile = "2"
