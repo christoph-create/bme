@@ -32,7 +32,7 @@ tokio = { version = "1", features = ["sync"] }
 tauri-plugin-log = { version = "2.9.0", features = ["colored"] }
 log = "0.4.33"
 chrono = "0.4.45"
-colored = "2.1"
+colored = "3.1"
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))'.dependencies]
 webkit2gtk = "2.0"
