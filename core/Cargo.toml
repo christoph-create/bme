@@ -1,8 +1,12 @@
 [package]
 name = "bme-core"
 version = "0.8.0"
+description = "Domain logic for bme: MQTT connection management, SQLite storage, and message templates"
+authors = ["christoph-create <60292060+christoph-create@users.noreply.github.com>"]
 edition = "2021"
 license = "GPL-3.0-or-later"
+repository = "https://github.com/christoph-create/bme"
+readme = "../README.md"
 
 [dependencies]
 rusqlite = { version = "0.32", features = ["bundled", "uuid", "chrono"] }

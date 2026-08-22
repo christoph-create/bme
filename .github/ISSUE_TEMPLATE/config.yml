@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question, idea, or general feedback
+    url: https://github.com/christoph-create/bme/discussions
+    about: Anything that isn't a bug report or a concrete feature request — ask here.
+  - name: Downloads and install instructions
+    url: https://github.com/christoph-create/bme/releases
+    about: Latest builds for Linux and Windows, plus what changed in each version.
+  - name: Reporting a security vulnerability
+    url: https://github.com/christoph-create/bme/security/policy
+    about: Please report security issues privately rather than in a public issue.

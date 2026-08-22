@@ -1,7 +1,27 @@
 {
   "name": "bme",
   "version": "0.8.0",
+  "description": "A fast, native desktop MQTT client for developing and debugging against MQTT brokers",
   "license": "GPL-3.0-or-later",
+  "author": "christoph-create",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/christoph-create/bme.git"
+  },
+  "homepage": "https://github.com/christoph-create/bme",
+  "bugs": {
+    "url": "https://github.com/christoph-create/bme/issues"
+  },
+  "keywords": [
+    "mqtt",
+    "mqtt-client",
+    "mqtt-explorer",
+    "tauri",
+    "angular",
+    "desktop",
+    "iot"
+  ],
+  "private": true,
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
@@ -12,7 +32,6 @@
     "test": "ng test",
     "screenshots": "scripts/screenshots.sh"
   },
-  "private": true,
   "dependencies": {
     "@angular/common": "^22.0.1",
     "@angular/compiler": "^22.0.1",

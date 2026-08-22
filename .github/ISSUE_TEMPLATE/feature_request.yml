@@ -1,0 +1,48 @@
+name: Feature request
+description: Suggest something bme should be able to do
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ideas are genuinely welcome. bme is built in free time, so not
+        everything can happen — but knowing what people actually reach for is
+        what shapes the roadmap.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What's the problem?
+      description: >
+        Describe the situation you're in, not just the feature you want. Knowing
+        what you're actually trying to do often surfaces a better solution than
+        the one either of us thought of first.
+      placeholder: |
+        When I'm debugging X, I have to ... every time, because ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: What would you like bme to do?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Anything you've tried instead?
+      description: Workarounds you use today, or how another MQTT tool handles this.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I checked the [Roadmap](https://github.com/christoph-create/bme#roadmap) and this isn't already planned
+          required: true
+        - label: I searched existing issues for the same idea
+          required: true

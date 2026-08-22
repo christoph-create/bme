@@ -3,7 +3,7 @@
 #   package.json, package-lock.json, src-tauri/tauri.conf.json,
 #   src-tauri/Cargo.toml, core/Cargo.toml, and Cargo.lock.
 #
-# CI (.forgejo/workflows/ci.yml) checks that a pushed `vX.Y.Z` tag matches
+# CI (.github/workflows/ci.yml) checks that a pushed `vX.Y.Z` tag matches
 # src-tauri/Cargo.toml, so that file is the source CI trusts; this script
 # just keeps the others from drifting out of sync with it.
 set -euo pipefail

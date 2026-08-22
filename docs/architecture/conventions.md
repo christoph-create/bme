@@ -16,8 +16,8 @@ npm run build
 ```
 
 CI (`.github/workflows/ci.yml`) runs exactly these, in the order
-lint → test → build, on every PR. Clippy is `-D warnings`; a warning is a
-failed build.
+lint → test → build, on every PR and on every push to `master`. Clippy is
+`-D warnings`; a warning is a failed build.
 
 ## Testing
 

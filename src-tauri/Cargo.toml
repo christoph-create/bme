@@ -1,17 +1,19 @@
 [package]
 name = "bme"
 version = "0.8.0"
-description = "Better MQTT Explorer"
-authors = ["you"]
+description = "Better MQTT Explorer - a fast, native desktop client for developing against MQTT brokers"
+authors = ["christoph-create <60292060+christoph-create@users.noreply.github.com>"]
 edition = "2021"
 license = "GPL-3.0-or-later"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+repository = "https://github.com/christoph-create/bme"
+homepage = "https://github.com/christoph-create/bme"
+readme = "../README.md"
+keywords = ["mqtt", "mqtt-client", "tauri", "iot", "desktop"]
+categories = ["network-programming"]
 
 [lib]
-# The `_lib` suffix may seem redundant but it is necessary
-# to make the lib name unique and wouldn't conflict with the bin name.
-# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+# The `_lib` suffix keeps the lib name from colliding with the bin name,
+# which is only an issue on Windows: https://github.com/rust-lang/cargo/issues/8519
 name = "bme_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 

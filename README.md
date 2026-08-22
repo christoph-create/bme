@@ -22,6 +22,14 @@ Connect, subscribe, watch messages roll in on a live topic tree, and publish tes
 
 It's built with [Tauri](https://tauri.app) (a Rust backend, SQLite for local storage, no external database or server) and [Angular](https://angular.dev) for the UI.
 
+- **Several brokers at once** — each in its own tab, with its own history, layout and publish draft.
+- **Live topic tree** — watch the hierarchy build itself as messages arrive, and click any topic for its full session history.
+- **Every transport** — `mqtt://`, `mqtts://`, `ws://` and `wss://`, with client certificates, custom CAs and ALPN.
+- **Message templates** — save any payload, group it into collections, and share it through an [open, versioned exchange format](spec/README.md) that isn't bme-specific.
+- **Simulate a device** — `{{variables}}` expand to a fresh counter, random number, UUID or timestamp on every send, and repeat publishing turns one template into a plausible data stream.
+- **Charts** — plot any numeric field in a topic's payload and watch it move.
+- **Yours, locally** — connections live in a SQLite file on your machine. No account, no cloud, no telemetry; the only request bme makes on its own is a once-a-day update check.
+
 ## Screenshots
 
 <p align="center">
@@ -95,14 +103,27 @@ It's built with [Tauri](https://tauri.app) (a Rust backend, SQLite for local sto
 
 ## Download
 
-Linux builds (AppImage, `.deb`, `.rpm`) and Windows builds (portable `.exe`,
-NSIS installer, `.msi`) are published on every tagged release:
-
 **→ [github.com/christoph-create/bme/releases](https://github.com/christoph-create/bme/releases)**
+
+Every tagged release publishes builds for **x86_64 Linux** and **x64 Windows**.
+There is no macOS build and no ARM build yet — on those platforms you'd need to
+[build from source](#development).
+
+| Platform | Artifact | Install |
+| --- | --- | --- |
+| Linux | `bme_<version>_amd64.AppImage` | `chmod +x bme_*.AppImage && ./bme_*.AppImage` |
+| Linux | `bme_<version>_amd64.deb` | `sudo dpkg -i bme_*.deb` |
+| Linux | `bme-<version>-1.x86_64.rpm` | `sudo rpm -i bme-*.rpm` |
+| Windows | `bme_<version>_x64-setup.exe` | Run the installer |
+| Windows | `bme_<version>_x64_en-US.msi` | Run the installer |
+| Windows | `bme-<version>-windows-portable.exe` | Run it — nothing to install |
 
 The Windows builds are unsigned, so Windows will show a SmartScreen warning
 ("Windows protected your PC") on first run — click "More info" → "Run
-anyway" to proceed. No macOS build yet.
+anyway" to proceed.
+
+There's no `CHANGELOG.md` in the repo on purpose — what changed in each version
+is written up on the [release itself](https://github.com/christoph-create/bme/releases).
 
 bme checks GitHub for a newer release when it starts, at most once a day, and
 tells you if there is one — with a "Skip this version" button if you'd rather
@@ -145,6 +166,12 @@ npm run screenshots
 
 CI runs the same checks on every push via GitHub Actions (`.github/workflows/ci.yml`); pushing a `v*` tag additionally builds and publishes a release.
 
+Bug reports, ideas and pull requests are all welcome — see
+[CONTRIBUTING.md](CONTRIBUTING.md) for how to get set up and what to run before
+opening a PR, and the [Code of Conduct](CODE_OF_CONDUCT.md) for the ground
+rules. Found a security problem? Please report it privately, following
+[SECURITY.md](SECURITY.md), rather than in a public issue.
+
 ## License
 
 GPL-3.0-or-later — see [LICENSE](LICENSE).
@@ -156,3 +183,9 @@ GPL-3.0-or-later — see [LICENSE](LICENSE).
 This project is heavily inspired by the [MQTT Explorer](https://mqtt-explorer.com/) by Thomas Nordquist. I used it almost daily at work and it's the reason I even think about MQTT traffic the way I do — the topic tree, the whole workflow. bme exists because I wanted something newer under the hood, with a few quality-of-life features I kept wishing for, not because MQTT Explorer did anything wrong.
 
 I build this in my free time as a side project, not as a funded or full-time effort — so releases come in bursts, not on a schedule. If you run into a bug or have feedback, please [open an issue on GitHub](https://github.com/christoph-create/bme/issues); I read and appreciate every one.
+
+If bme saves you some time and you feel like saying thanks, you can
+[buy me a coffee](https://buymeacoffee.com/chrissi.710). Entirely optional —
+bme is free software either way, and always will be.
+
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-FFDD00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/chrissi.710)

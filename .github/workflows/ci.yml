@@ -2,6 +2,8 @@ name: CI
 
 on:
   push:
+    branches:
+      - master
     tags:
       - "v*"
   pull_request:
@@ -67,6 +69,11 @@ jobs:
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 
       - run: cargo test --workspace --locked
+
+      - run: npm ci
+      # vitest under jsdom - no browser and no display needed. --no-watch is
+      # explicit rather than relying on the CLI's CI detection.
+      - run: npm run test -- --no-watch
 
   build:
     runs-on: ubuntu-latest

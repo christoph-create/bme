@@ -26,6 +26,13 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "publisher": "christoph-create",
+    "homepage": "https://github.com/christoph-create/bme",
+    "copyright": "Copyright © 2026 christoph-create",
+    "license": "GPL-3.0-or-later",
+    "category": "DeveloperTool",
+    "shortDescription": "Better MQTT Explorer",
+    "longDescription": "A fast, native desktop client for developing against MQTT brokers. Keep several broker connections on hand, watch messages arrive on a live topic tree, dig into a topic's history, and publish test messages from saved templates.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

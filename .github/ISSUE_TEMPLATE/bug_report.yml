@@ -1,0 +1,106 @@
+name: Bug report
+description: Something in bme doesn't work the way it should
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. The connection-related fields
+        below matter more than they look — with TLS, WebSocket and client
+        certificates in the mix, "it won't connect" is impossible to reproduce
+        without knowing which combination you're on.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, and what did bme do instead of what you expected?
+      placeholder: |
+        I clicked X, and instead of Y it did Z.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: If you can get it to happen reliably, the exact sequence helps a lot.
+      placeholder: |
+        1. Add a connection to ...
+        2. Subscribe to ...
+        3. Publish ...
+        4. See error
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: bme version
+      description: Shown in the footer of the connections screen.
+      placeholder: "0.8.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: How did you install it?
+      options:
+        - Linux — AppImage
+        - Linux — .deb
+        - Linux — .rpm
+        - Windows — installer (.exe / NSIS)
+        - Windows — .msi
+        - Windows — portable .exe
+        - Built from source
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: "Ubuntu 24.04 / Windows 11 23H2 / Fedora 41"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: transport
+    attributes:
+      label: Which transport is the connection using?
+      description: Leave as "not connection-related" if the bug has nothing to do with connecting.
+      options:
+        - Not connection-related
+        - "mqtt:// (plain TCP)"
+        - "mqtts:// (TLS)"
+        - "ws:// (WebSocket)"
+        - "wss:// (WebSocket over TLS)"
+    validations:
+      required: true
+
+  - type: input
+    id: broker
+    attributes:
+      label: Broker and version
+      description: If the bug involves a broker at all.
+      placeholder: "Mosquitto 2.0.18 / HiveMQ / EMQX / AWS IoT Core"
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or error messages
+      description: Anything bme showed you, or relevant broker-side logs. This is rendered as code, so no backticks needed.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Screenshots are very welcome — drag them straight in.
+    validations:
+      required: false
