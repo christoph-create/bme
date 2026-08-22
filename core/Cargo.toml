@@ -1,6 +1,6 @@
 [package]
 name = "bme-core"
-version = "0.8.0"
+version = "0.9.0"
 description = "Domain logic for bme: MQTT connection management, SQLite storage, and message templates"
 authors = ["christoph-create <60292060+christoph-create@users.noreply.github.com>"]
 edition = "2021"
