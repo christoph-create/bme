@@ -1,10 +1,7 @@
 @if (format() === "json") {
   <div class="toolbar">
-    @if (hasVariables()) {
-      <span
-        class="format-action disabled"
-        title="Formatting is unavailable while the payload contains variables"
-      >
+    @if (!canFormat()) {
+      <span class="format-action disabled" [title]="formatUnavailableReason()">
         Format
       </span>
     } @else {

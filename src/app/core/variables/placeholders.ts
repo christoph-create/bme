@@ -23,8 +23,14 @@ export interface PlaceholderRef {
  *
  * Surrounding whitespace is tolerated so `{{ uuid }}` works, since that's what
  * people type.
+ *
+ * Exported because the two JSON tokenizers - `JsonFormatService.tokenize` and
+ * the editor's stream mode - both need to recognise a placeholder as a single
+ * token, and the grammar should be defined in exactly one place. Both derive
+ * their own anchored/combined regexes from `.source` rather than reusing this
+ * object, which carries `g` and therefore a shared `lastIndex`.
  */
-const PLACEHOLDER_PATTERN = /\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g;
+export const PLACEHOLDER_PATTERN = /\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g;
 
 /** True when `name` is usable as a placeholder name at all - what the
  * variables editor validates against, so a saved variable is always

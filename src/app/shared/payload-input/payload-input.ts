@@ -13,20 +13,28 @@ import {
 } from "@angular/core";
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from "@angular/forms";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
-import { json } from "@codemirror/lang-json";
-import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
+import {
+  HighlightStyle,
+  indentOnInput,
+  syntaxHighlighting,
+} from "@codemirror/language";
 import { Annotation, Compartment, EditorState } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 
 import { MessageFormat } from "../../core/models/message-format.model";
 import { VariableValueKind } from "../../core/models/payload-variable.model";
-import { JsonFormatService } from "../../core/services/json-format.service";
 import {
-  hasPlaceholders,
-  unknownPlaceholderNames,
-} from "../../core/variables/placeholders";
+  JsonFormatResult,
+  JsonFormatService,
+} from "../../core/services/json-format.service";
+import { formatPreservingPlaceholders } from "../../core/variables/mask-placeholders";
+import { unknownPlaceholderNames } from "../../core/variables/placeholders";
 import { probeExpand } from "../../core/variables/probe-expand";
+import {
+  jsonWithPlaceholders,
+  placeholderTag,
+} from "./json-placeholder-mode";
 
 /** Tags a dispatched transaction as a programmatic sync (from `writeValue`
  * or `formatPayload`) rather than a user edit, so the update listener below
@@ -46,9 +54,11 @@ const jsonHighlightStyle = HighlightStyle.define([
   { tag: tags.number, color: "var(--color-json-number)" },
   { tag: tags.bool, color: "var(--color-json-boolean)" },
   { tag: tags.null, color: "var(--color-json-null)" },
+  { tag: tags.punctuation, color: "var(--color-json-punctuation)" },
   {
-    tag: [tags.punctuation, tags.separator, tags.brace, tags.squareBracket],
-    color: "var(--color-json-punctuation)",
+    tag: placeholderTag,
+    color: "var(--color-json-placeholder)",
+    fontStyle: "italic",
   },
 ]);
 
@@ -169,9 +179,47 @@ export class PayloadInput implements ControlValueAccessor {
       : `${result.error} — there are no variables named ${names}`;
   });
 
-  /** True when the value contains `{{placeholder}}` syntax, which is what
-   * makes pretty-printing unavailable - see `formatPayload`. */
-  readonly hasVariables = computed(() => hasPlaceholders(this.value()));
+  /** The pretty-printed form of the current value, or the reason there isn't
+   * one; `null` when formatting doesn't apply at all. Shared by the Format
+   * button's state and its click handler, so the two can't disagree about
+   * whether formatting will work. */
+  private readonly formatted = computed<JsonFormatResult | null>(() => {
+    if (this.format() !== "json" || this.value().trim() === "") {
+      return null;
+    }
+    return formatPreservingPlaceholders(this.value(), (text) =>
+      this.jsonFormat.format(text),
+    );
+  });
+
+  /** Format is offered exactly when clicking it will work.
+   *
+   * Both halves are needed. Validity alone would offer it for `{"a": 1{{n}}}`,
+   * which expands to valid JSON but has no maskable form, so the click would
+   * silently do nothing. The round trip alone would offer it for
+   * `{ {{k}}: 1 }`, which masks and restores fine but which the error line
+   * above is simultaneously calling invalid - and Format must never
+   * contradict that. */
+  readonly canFormat = computed(
+    () => this.formatError() === null && (this.formatted()?.ok ?? false),
+  );
+
+  /** Why Format is greyed out, for its tooltip. Distinguishes "fix your JSON
+   * first" from the rarer cases where the payload is fine but formatting it
+   * would not round-trip. */
+  readonly formatUnavailableReason = computed(() => {
+    if (this.canFormat()) {
+      return null;
+    }
+    if (this.value().trim() === "") {
+      return "Nothing to format yet";
+    }
+    if (this.formatError() !== null) {
+      return "Formatting is unavailable while the payload isn't valid JSON";
+    }
+    const result = this.formatted();
+    return result !== null && !result.ok ? result.error : null;
+  });
 
   private onChange: (value: string) => void = noop;
   private onTouched: () => void = noop;
@@ -233,17 +281,13 @@ export class PayloadInput implements ControlValueAccessor {
     this.onTouched();
   }
 
-  /** Pretty-prints the current payload, in place. A no-op for invalid JSON
-   * - the live error above already reports why - and for a payload containing
-   * variables, where round-tripping through JSON.parse would have to
-   * reconstruct the placeholders afterwards. The button is disabled in that
-   * case; this is the guard behind it. */
+  /** Pretty-prints the current payload, in place, keeping any
+   * `{{placeholders}}` exactly as written - see `mask-placeholders.ts`. A
+   * no-op unless `canFormat` says the round trip works; the button is
+   * disabled in that case, and this is the guard behind it. */
   formatPayload(): void {
-    if (this.hasVariables()) {
-      return;
-    }
-    const result = this.jsonFormat.format(this.value());
-    if (!result.ok) {
+    const result = this.formatted();
+    if (!this.canFormat() || !result?.ok) {
       return;
     }
     this.value.set(result.value);
@@ -269,7 +313,8 @@ export class PayloadInput implements ControlValueAccessor {
     const state = EditorState.create({
       doc: this.value(),
       extensions: [
-        json(),
+        jsonWithPlaceholders,
+        indentOnInput(),
         syntaxHighlighting(jsonHighlightStyle),
         history(),
         keymap.of([...defaultKeymap, ...historyKeymap]),
