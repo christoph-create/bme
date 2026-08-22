@@ -17,7 +17,7 @@ thiserror = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
-rumqttc = { version = "0.24", features = ["websocket"] }
+rumqttc = { version = "0.25", features = ["websocket"] }
 log = "0.4"
 # TLS backend is a stated choice, not a default. `rustls-no-provider` (rather
 # than reqwest's `rustls`) is what keeps the crypto provider ours: the `rustls`
