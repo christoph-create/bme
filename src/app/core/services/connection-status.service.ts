@@ -28,11 +28,22 @@ export class ConnectionStatusService {
     new Map(),
   );
 
+  /** The last thing that went wrong on a connection that survived it - kept
+   * apart from `state` because it is orthogonal to `kind`: an oversize message
+   * is worth reporting while the connection is up and working. */
+  private readonly warnings = signal<ReadonlyMap<string, string>>(new Map());
+
   constructor() {
     const events = inject(MqttEventsService);
     const destroyRef = inject(DestroyRef);
 
     const subscription = events.events$.subscribe((event) => {
+      if ("Warning" in event) {
+        this.setWarning(event.Warning.connection_id, event.Warning.message);
+        // Returns rather than falling through to `update`: a warning leaves the
+        // status alone by definition, so there is nothing to reduce.
+        return;
+      }
       this.update(connectionIdOf(event), (current) =>
         reduceStatus(current, event),
       );
@@ -56,7 +67,31 @@ export class ConnectionStatusService {
     return this.state().get(connectionId) ?? UNKNOWN;
   }
 
+  /** A reactive read of one connection's warning, as `statusFor` is of its
+   * status: creates a computed per call, so hold the result. */
+  warningFor(connectionId: string): Signal<string | null> {
+    return computed(() => this.warningOf(connectionId));
+  }
+
+  warningOf(connectionId: string): string | null {
+    return this.warnings().get(connectionId) ?? null;
+  }
+
+  dismissWarning(connectionId: string): void {
+    this.warnings.update((current) => {
+      if (!current.has(connectionId)) return current;
+      const next = new Map(current);
+      next.delete(connectionId);
+      return next;
+    });
+  }
+
   async connect(connectionId: string): Promise<void> {
+    // Pressing Connect or Retry starts a fresh story. Deliberately not cleared
+    // on the Connected event instead: an oversize message drops and re-makes
+    // the session, so a Connected lands moments after every warning and would
+    // wipe it before it could be read.
+    this.dismissWarning(connectionId);
     this.set(connectionId, { kind: "connecting" });
     try {
       await this.connectionsService.connect(connectionId);
@@ -96,12 +131,21 @@ export class ConnectionStatusService {
   /** Drops a connection the app no longer knows about, so a deleted broker
    * does not leave a status behind for an id that will never be seen again. */
   forget(connectionId: string): void {
+    this.dismissWarning(connectionId);
     this.state.update((current) => {
       if (!current.has(connectionId)) return current;
       const next = new Map(current);
       next.delete(connectionId);
       return next;
     });
+  }
+
+  private setWarning(connectionId: string, warning: string): void {
+    this.warnings.update((current) =>
+      current.get(connectionId) === warning
+        ? current
+        : new Map(current).set(connectionId, warning),
+    );
   }
 
   private set(connectionId: string, status: ConnectionStatus): void {

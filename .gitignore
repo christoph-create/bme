@@ -51,3 +51,8 @@ Thumbs.db
 
 # Scratch planning docs, not for the repo
 /docs/plans
+
+# Graphify's knowledge graph, rebuilt from source in seconds. Unlike
+# docs/screenshots it is not byte-stable between runs, so a diff of it carries
+# no signal - and it holds a machine-local cache besides.
+/graphify-out

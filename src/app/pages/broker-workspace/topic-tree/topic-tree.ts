@@ -208,8 +208,8 @@ export class TopicTree implements OnInit {
     return formatTimeAgo(this.now() - receivedAt);
   }
 
-  payloadPreview(payload: readonly number[]): string {
-    return formatPayloadPreview(payload);
+  payloadPreview(payload: readonly number[], payloadLen: number): string {
+    return formatPayloadPreview(payload, payloadLen);
   }
 
   /** Adds any folder paths in `nextNodes` that weren't already present in

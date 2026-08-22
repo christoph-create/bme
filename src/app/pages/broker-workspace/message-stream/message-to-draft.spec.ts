@@ -4,8 +4,10 @@ import { StoredMessage } from "../../../core/models/stored-message.model";
 import { messageToDraft } from "./message-to-draft";
 
 function message(overrides: Partial<StoredMessage> = {}): StoredMessage {
+  const payload = overrides.payload ?? Array.from(new TextEncoder().encode("hello"));
   return {
-    payload: Array.from(new TextEncoder().encode("hello")),
+    payload,
+    payloadLen: payload.length,
     qos: "AtMostOnce",
     retain: false,
     receivedAt: Date.now(),
@@ -99,5 +101,16 @@ describe("messageToDraft", () => {
 
     expect(draft?.payload).toBe("温度 21°C");
     expect(draft?.format).toBe("raw");
+  });
+
+  /** Only the first 256 KiB of an oversize message crosses from the backend,
+   * and resending that would republish a silently shortened message. */
+  it("returns null for a message that arrived truncated", () => {
+    const truncated = message({
+      payload: encode("{\"a\": 1"),
+      payloadLen: 4_000_000,
+    });
+
+    expect(messageToDraft("a", truncated, isJson)).toBeNull();
   });
 });

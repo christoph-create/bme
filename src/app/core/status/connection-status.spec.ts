@@ -5,6 +5,7 @@ import {
   ConnectionStatus,
   DISCONNECTED_BY_BROKER,
   isConnected,
+  connectionIdOf,
   reduceStatus,
   statusTone,
 } from "./connection-status";
@@ -76,6 +77,7 @@ describe("reduceStatus", () => {
         connection_id: ID,
         topic: "a/b",
         payload: [1],
+        payload_len: 1,
         qos: "AtMostOnce",
         retain: false,
       },
@@ -115,5 +117,43 @@ describe("statusTone", () => {
    * must not look like something went wrong. */
   it("reads a clean disconnect as idle rather than as a fault", () => {
     expect(statusTone({ kind: "disconnected", error: null })).toBe("idle");
+  });
+});
+
+describe("warnings and disconnect reasons", () => {
+  /** An oversize message drops the session but the connection re-establishes
+   * itself, so the status has to be left exactly as it was. */
+  it("leaves the status untouched for a warning", () => {
+    const connected = reduceStatus(CONNECTING, CONNECTED);
+
+    const next = reduceStatus(connected, {
+      Warning: { connection_id: ID, message: "A 3.8 MB message was dropped" },
+    });
+
+    expect(next).toBe(connected);
+  });
+
+  it("shows the backend's reason instead of the generic disconnect text", () => {
+    const next = reduceStatus(CONNECTING, {
+      Disconnected: { connection_id: ID, reason: "A 50.0 MB message" },
+    });
+
+    expect(next).toEqual({ kind: "disconnected", error: "A 50.0 MB message" });
+  });
+
+  it("falls back to the generic text when there is no reason", () => {
+    expect(reduceStatus(CONNECTING, DISCONNECTED)).toEqual({
+      kind: "disconnected",
+      error: DISCONNECTED_BY_BROKER,
+    });
+  });
+
+  /** Without its own branch this would read the id off `MessageReceived` and
+   * come back undefined, filing the warning under a connection that does not
+   * exist. */
+  it("knows which connection a warning is about", () => {
+    expect(
+      connectionIdOf({ Warning: { connection_id: ID, message: "…" } }),
+    ).toBe(ID);
   });
 });

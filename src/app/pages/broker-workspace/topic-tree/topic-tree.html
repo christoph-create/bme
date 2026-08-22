@@ -122,7 +122,7 @@
       </div>
       <div class="row-detail">
         <span class="preview" [class.flash]="isFlashing(node.path)">{{
-          payloadPreview(node.lastMessage.payload)
+          payloadPreview(node.lastMessage.payload, node.lastMessage.payloadLen)
         }}</span>
         <span class="time">{{ timeAgo(node.lastMessage.receivedAt) }}</span>
       </div>

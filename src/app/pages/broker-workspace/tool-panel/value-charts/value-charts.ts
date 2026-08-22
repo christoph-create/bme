@@ -160,7 +160,10 @@ export class ValueCharts {
     if (cached !== undefined) {
       return cached;
     }
-    const fields = findNumericFields(parsePayload(message.payload), fallbackLabel);
+    const fields = findNumericFields(
+      parsePayload(message.payload, message.payloadLen),
+      fallbackLabel,
+    );
     this.fieldsByMessage.set(message, fields);
     return fields;
   }

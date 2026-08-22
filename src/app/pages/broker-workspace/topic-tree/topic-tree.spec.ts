@@ -9,8 +9,10 @@ import { TopicTree } from "./topic-tree";
 const CONNECTION_ID = "11111111-1111-1111-1111-111111111111";
 
 function message(overrides: Partial<StoredMessage> = {}): StoredMessage {
+  const payload = overrides.payload ?? [1, 2, 3];
   return {
-    payload: [1, 2, 3],
+    payload,
+    payloadLen: payload.length,
     qos: "AtMostOnce",
     retain: false,
     receivedAt: Date.now() - 12_000,

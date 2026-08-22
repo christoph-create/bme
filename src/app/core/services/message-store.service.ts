@@ -1,6 +1,7 @@
 import { Injectable, InjectionToken, inject } from "@angular/core";
 import { BehaviorSubject, Observable, distinctUntilChanged, map } from "rxjs";
 
+import { MqttMessageReceived } from "../models/mqtt-event.model";
 import { StoredMessage } from "../models/stored-message.model";
 import { LoggerService } from "./logger.service";
 import { MqttEventsService } from "./mqtt-events.service";
@@ -128,20 +129,16 @@ export class MessageStoreService {
     this.state$.next(updatedState);
   }
 
-  private append(message: {
-    connection_id: string;
-    topic: string;
-    payload: number[];
-    qos: StoredMessage["qos"];
-    retain: boolean;
-  }): void {
+  private append(message: MqttMessageReceived): void {
     if (message.retain) {
       // A zero-length retained message is how MQTT deletes a retained value,
-      // so an arriving one means the topic no longer holds anything.
+      // so an arriving one means the topic no longer holds anything. Read off
+      // the *wire* length rather than what survived the IPC cap, which is what
+      // tells a cleared topic apart from a message that arrived truncated.
       this.updateRetained(
         message.connection_id,
         message.topic,
-        message.payload.length > 0,
+        message.payload_len > 0,
       );
     }
 
@@ -153,6 +150,7 @@ export class MessageStoreService {
       ...topicHistory,
       {
         payload: message.payload,
+        payloadLen: message.payload_len,
         qos: message.qos,
         retain: message.retain,
         receivedAt: Date.now(),
@@ -166,7 +164,7 @@ export class MessageStoreService {
     updatedState.set(message.connection_id, updatedConnectionHistory);
 
     this.logger.debug(
-      `message store: connection=${message.connection_id} topic=${message.topic} payload_len=${message.payload.length} topic_count=${updatedTopicHistory.length}`,
+      `message store: connection=${message.connection_id} topic=${message.topic} payload_len=${message.payload_len} received_bytes=${message.payload.length} topic_count=${updatedTopicHistory.length}`,
     );
 
     this.state$.next(updatedState);

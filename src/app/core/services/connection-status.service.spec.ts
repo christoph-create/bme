@@ -159,6 +159,7 @@ describe("ConnectionStatusService", () => {
         connection_id: ID,
         topic: "a/b",
         payload: [1],
+        payload_len: 1,
         qos: "AtMostOnce",
         retain: false,
       },
@@ -174,5 +175,67 @@ describe("ConnectionStatusService", () => {
     service.forget(ID);
 
     expect(service.statusOf(ID)).toEqual({ kind: "disconnected", error: null });
+  });
+
+  describe("warnings", () => {
+    const WARNING = "A 3.8 MB message was dropped";
+
+    it("records a warning without disturbing the status", () => {
+      const { service, events$ } = setup();
+      events$.next({ Connected: { connection_id: ID } });
+      const before = service.statusOf(ID);
+
+      events$.next({ Warning: { connection_id: ID, message: WARNING } });
+
+      expect(service.warningOf(ID)).toBe(WARNING);
+      expect(service.statusOf(ID)).toBe(before);
+    });
+
+    it("keeps warnings apart per connection", () => {
+      const { service, events$ } = setup();
+
+      events$.next({ Warning: { connection_id: ID, message: WARNING } });
+
+      expect(service.warningOf(OTHER_ID)).toBeNull();
+    });
+
+    /** The oversize case re-establishes the session moments after warning, so
+     * clearing on Connected would wipe the message before it could be read -
+     * only an explicit action clears it. */
+    it("survives the reconnect that follows it", () => {
+      const { service, events$ } = setup();
+
+      events$.next({ Warning: { connection_id: ID, message: WARNING } });
+      events$.next({ Connected: { connection_id: ID } });
+
+      expect(service.warningOf(ID)).toBe(WARNING);
+    });
+
+    it("is cleared by dismissing it", () => {
+      const { service, events$ } = setup();
+      events$.next({ Warning: { connection_id: ID, message: WARNING } });
+
+      service.dismissWarning(ID);
+
+      expect(service.warningOf(ID)).toBeNull();
+    });
+
+    it("is cleared by connecting again, which starts a fresh story", async () => {
+      const { service, events$ } = setup();
+      events$.next({ Warning: { connection_id: ID, message: WARNING } });
+
+      await service.connect(ID);
+
+      expect(service.warningOf(ID)).toBeNull();
+    });
+
+    it("is dropped along with a forgotten connection", () => {
+      const { service, events$ } = setup();
+      events$.next({ Warning: { connection_id: ID, message: WARNING } });
+
+      service.forget(ID);
+
+      expect(service.warningOf(ID)).toBeNull();
+    });
   });
 });

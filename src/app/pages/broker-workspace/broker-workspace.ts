@@ -65,6 +65,12 @@ export class BrokerWorkspace implements OnInit {
     this.status.statusOf(this.connectionId()),
   );
   readonly connected = computed(() => isConnected(this.connectionStatus()));
+  /** Something that went wrong which the connection recovered from - an
+   * oversize message, typically. Separate from the status because it stays
+   * worth showing while the broker is connected and working. */
+  readonly connectionWarning = computed(() =>
+    this.status.warningOf(this.connectionId()),
+  );
   readonly reconnectLabel = reconnectLabel;
   readonly selectedTopic = signal<string | null>(null);
   /** Fetched once when the tab opens, and shared with the tab bar. */
@@ -166,6 +172,10 @@ export class BrokerWorkspace implements OnInit {
 
   connect(): Promise<void> {
     return this.status.connect(this.connectionId());
+  }
+
+  dismissWarning(): void {
+    this.status.dismissWarning(this.connectionId());
   }
 
   /**

@@ -4,7 +4,7 @@ import { decodePayload, looksBinary } from "../format/payload-text";
 
 /**
  * Turns a received message into a publish-panel draft, or `null` when its
- * payload can't be edited as text.
+ * payload can't be edited as text or isn't all here.
  *
  * Note this decodes the payload itself rather than reusing what the stream
  * already rendered: `formatMessageBody` yields the sentinels `"(empty)"` and
@@ -20,6 +20,12 @@ export function messageToDraft(
   isJson: (text: string) => boolean,
 ): MessageDraft | null {
   if (message.payload.length === 0) {
+    return null;
+  }
+
+  // Only part of an oversize message crossed from the backend, and resending
+  // that would republish a silently shortened message under the same topic.
+  if (message.payloadLen > message.payload.length) {
     return null;
   }
 

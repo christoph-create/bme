@@ -51,6 +51,15 @@
   }
 }
 
+<!-- Outside the status block on purpose: a warning is something the session
+     survived, so it has to be able to show while the connection is up. -->
+@if (connectionWarning(); as warning) {
+  <div class="warning-banner" role="status">
+    <span>{{ warning }}</span>
+    <button type="button" (click)="dismissWarning()">Dismiss</button>
+  </div>
+}
+
 <div
   class="layout"
   [class.resizing]="resizing() !== null"

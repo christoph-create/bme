@@ -6,7 +6,8 @@ use uuid::Uuid;
 
 use crate::models::{BrokerConnection, QoS};
 use crate::mqtt::connection_registry::ConnectionRegistry;
-use crate::mqtt::port::{MqttError, MqttEvent, MqttPort};
+use crate::mqtt::oversize::{oversize_delay, oversize_reason, MAX_PACKET_BYTES};
+use crate::mqtt::port::{MqttError, MqttEvent, MqttPort, MAX_IPC_PAYLOAD_BYTES};
 use crate::mqtt::reconnect::ReconnectPolicy;
 use crate::mqtt::subscription_set::SubscriptionSet;
 
@@ -54,6 +55,32 @@ enum Command {
 }
 
 type Connections = ConnectionRegistry<mpsc::UnboundedSender<Command>>;
+
+/// How large the PUBLISH packet carrying `payload_len` bytes to `topic` will be
+/// once rumqttc frames it.
+///
+/// Mirrors `Publish::size()`, except that the packet id is counted for every
+/// QoS above 0. rumqttc checks the size before assigning the id and so
+/// under-counts by two bytes there; erring the other way keeps this guard from
+/// ever waving through a packet the event loop would then reject - which would
+/// cost the whole session rather than just the one message.
+fn publish_packet_bytes(topic: &str, payload_len: usize, qos: rumqttc::QoS) -> usize {
+    let remaining = 2
+        + topic.len()
+        + payload_len
+        + if qos == rumqttc::QoS::AtMostOnce {
+            0
+        } else {
+            2
+        };
+    let length_bytes = match remaining {
+        0..=127 => 1,
+        128..=16_383 => 2,
+        16_384..=2_097_151 => 3,
+        _ => 4,
+    };
+    1 + length_bytes + remaining
+}
 
 /// Drives real MQTT connections with `rumqttc`. Each connected broker gets
 /// its own background task, spawned on an owned tokio runtime, that owns
@@ -104,6 +131,12 @@ impl MqttPort for RumqttcAdapter {
         let mut options =
             MqttOptions::new(broker.client_id.clone(), broker.host.clone(), broker.port);
         options.set_keep_alive(Duration::from_secs(broker.keep_alive_secs as u64));
+        options.set_max_packet_size(MAX_PACKET_BYTES, MAX_PACKET_BYTES);
+        // Stated rather than inherited from rumqttc's default: the whole
+        // resubscribe-after-ConnAck design below only makes sense because the
+        // broker has forgotten the session, so the assumption belongs in the
+        // code that depends on it.
+        options.set_clean_session(true);
         if let (Some(username), Some(password)) = (&broker.username, &broker.password) {
             options.set_credentials(username.clone(), password.clone());
         }
@@ -141,12 +174,24 @@ impl MqttPort for RumqttcAdapter {
         qos: QoS,
         retain: bool,
     ) -> Result<(), MqttError> {
+        let qos = qos.into();
+        // Rejected here, where the caller still gets to see the error, instead
+        // of in the event loop - which enforces the same limit by dropping the
+        // session, taking every other topic down with it.
+        let bytes = publish_packet_bytes(topic, payload.len(), qos);
+        if bytes > MAX_PACKET_BYTES {
+            return Err(MqttError::PayloadTooLarge {
+                bytes,
+                max: MAX_PACKET_BYTES,
+            });
+        }
+
         self.send_command(
             connection_id,
             Command::Publish {
                 topic: topic.to_string(),
                 payload,
-                qos: qos.into(),
+                qos,
                 retain,
             },
         )
@@ -204,6 +249,9 @@ async fn run_connection(
     // been established.
     let mut has_connected = false;
     let mut attempt = 0u32;
+    // Tracked apart from `attempt` because an oversize packet is not a broken
+    // connection and must never spend the reconnect budget - see the Err arm.
+    let mut oversize_streak = 0u32;
 
     loop {
         // Set by the poll arm below, acted on after the select! block: the
@@ -221,6 +269,12 @@ async fn run_connection(
                         // drop starts its backoff from one second again rather
                         // than from wherever the previous one left off.
                         attempt = 0;
+                        // `oversize_streak` deliberately survives this. A ConnAck
+                        // proves the socket came back, not that the stream got
+                        // past the packet that broke it: a retained oversize
+                        // message is redelivered *after* every ConnAck, so
+                        // resetting here would collapse the delay back to one
+                        // second and hammer the broker in a tight loop.
                         // We connect with a clean session, so the broker has no
                         // memory of what we were subscribed to - not even on the
                         // very first ConnAck, which is why `connect_broker`
@@ -232,50 +286,103 @@ async fn run_connection(
                         let _ = events_tx.send(MqttEvent::Connected { connection_id });
                     }
                     Ok(Event::Incoming(Packet::Publish(publish))) => {
+                        // A message got through, so whatever the last oversize
+                        // packet was, the stream is past it.
+                        oversize_streak = 0;
                         log::debug!(
-                            "mqtt connection {connection_id}: message received topic={} payload_len={} qos={:?} retain={}",
+                            "mqtt connection {connection_id}: message received topic={} payload_len={} truncated_for_ipc={} qos={:?} retain={}",
                             publish.topic,
                             publish.payload.len(),
+                            publish.payload.len() > MAX_IPC_PAYLOAD_BYTES,
                             publish.qos,
                             publish.retain,
                         );
-                        let _ = events_tx.send(MqttEvent::MessageReceived {
+                        let _ = events_tx.send(MqttEvent::message_received(
                             connection_id,
-                            topic: publish.topic,
-                            payload: publish.payload.to_vec(),
-                            qos: publish.qos.into(),
-                            retain: publish.retain,
-                        });
+                            publish.topic,
+                            &publish.payload,
+                            publish.qos.into(),
+                            publish.retain,
+                        ));
                     }
                     Ok(_) => {}
                     Err(err) => {
                         log::error!("mqtt connection {connection_id}: eventloop.poll() failed: {err} ({err:?})");
-                        attempt += 1;
 
                         // rumqttc's event loop is built to be polled *through* a
                         // disconnect: it drops the socket, resets its state and
                         // re-establishes the session on the next poll. So all a
                         // retry takes is waiting, then looping.
-                        let Some(delay) = policy.delay_for(attempt).filter(|_| has_connected) else {
-                            log::warn!("mqtt connection {connection_id}: disconnected due to eventloop error");
-                            connections.remove_if_current(connection_id, generation);
-                            let _ = events_tx.send(MqttEvent::Disconnected { connection_id });
-                            return;
-                        };
+                        if let Some(reason) = oversize_reason(&err) {
+                            // A message the broker is holding is not a broken
+                            // connection. Counting these against the reconnect
+                            // budget would take a working broker offline over
+                            // one payload the user may not even care about, so
+                            // they get their own track with no budget at all -
+                            // everything else on the connection keeps flowing
+                            // between the recoveries.
+                            let _ = events_tx.send(MqttEvent::Warning {
+                                connection_id,
+                                message: reason.clone(),
+                            });
 
-                        log::info!(
-                            "mqtt connection {connection_id}: reconnect attempt {attempt}/{} in {:?}",
-                            policy.max_attempts,
-                            delay,
-                        );
-                        let _ = events_tx.send(MqttEvent::Reconnecting {
-                            connection_id,
-                            attempt,
-                            max_attempts: policy.max_attempts,
-                            delay_ms: delay.as_millis() as u64,
-                        });
+                            // Except that "keep trying" cannot override the
+                            // user's own setting: with auto-reconnect off, this
+                            // ends the session like any other drop - but finally
+                            // says why.
+                            if !policy.enabled || !has_connected {
+                                log::warn!("mqtt connection {connection_id}: disconnected due to an oversize packet");
+                                connections.remove_if_current(connection_id, generation);
+                                let _ = events_tx.send(MqttEvent::Disconnected {
+                                    connection_id,
+                                    reason: Some(reason),
+                                });
+                                return;
+                            }
 
-                        pending_backoff = Some(delay);
+                            oversize_streak += 1;
+                            let delay = oversize_delay(oversize_streak);
+                            log::info!(
+                                "mqtt connection {connection_id}: oversize packet #{oversize_streak}, reconnecting in {delay:?}"
+                            );
+                            // `attempt` is deliberately left alone: a run of
+                            // these must not creep up on the budget a real
+                            // network fault will need. `max_attempts: 0` is what
+                            // makes the banner read a plain "Reconnecting…",
+                            // since there is no budget to count against.
+                            let _ = events_tx.send(MqttEvent::Reconnecting {
+                                connection_id,
+                                attempt: oversize_streak,
+                                max_attempts: 0,
+                                delay_ms: delay.as_millis() as u64,
+                            });
+
+                            pending_backoff = Some(delay);
+                        } else {
+                            attempt += 1;
+
+                            let Some(delay) = policy.delay_for(attempt).filter(|_| has_connected)
+                            else {
+                                log::warn!("mqtt connection {connection_id}: disconnected due to eventloop error");
+                                connections.remove_if_current(connection_id, generation);
+                                let _ = events_tx.send(MqttEvent::Disconnected { connection_id, reason: None });
+                                return;
+                            };
+
+                            log::info!(
+                                "mqtt connection {connection_id}: reconnect attempt {attempt}/{} in {:?}",
+                                policy.max_attempts,
+                                delay,
+                            );
+                            let _ = events_tx.send(MqttEvent::Reconnecting {
+                                connection_id,
+                                attempt,
+                                max_attempts: policy.max_attempts,
+                                delay_ms: delay.as_millis() as u64,
+                            });
+
+                            pending_backoff = Some(delay);
+                        }
                     }
                 }
             }
@@ -317,7 +424,10 @@ async fn run_connection(
                 );
                 connections.remove_if_current(connection_id, generation);
                 if announce {
-                    let _ = events_tx.send(MqttEvent::Disconnected { connection_id });
+                    let _ = events_tx.send(MqttEvent::Disconnected {
+                        connection_id,
+                        reason: None,
+                    });
                 }
                 return;
             }
@@ -341,7 +451,10 @@ async fn shutdown(
     let _ = client.disconnect().await;
     connections.remove_if_current(connection_id, generation);
     if announce {
-        let _ = events_tx.send(MqttEvent::Disconnected { connection_id });
+        let _ = events_tx.send(MqttEvent::Disconnected {
+            connection_id,
+            reason: None,
+        });
     }
 }
 
@@ -582,6 +695,49 @@ mod tests {
         assert!(!adapter.connections.contains(broker.id));
     }
 
+    #[test]
+    fn a_publish_packet_is_the_header_plus_the_topic_plus_the_payload() {
+        // 1 fixed header + 1 length byte + 2 topic-length + 4 topic + 3 payload.
+        assert_eq!(
+            publish_packet_bytes("temp", 3, rumqttc::QoS::AtMostOnce),
+            11
+        );
+        // Above QoS 0 the packet id is counted, unlike in rumqttc's own check.
+        assert_eq!(
+            publish_packet_bytes("temp", 3, rumqttc::QoS::AtLeastOnce),
+            13
+        );
+        // The remaining length is a varint, so it grows a byte of its own.
+        assert_eq!(
+            publish_packet_bytes("t", 200, rumqttc::QoS::AtMostOnce),
+            206
+        );
+    }
+
+    /// Letting an oversize publish reach the event loop would drop the whole
+    /// session, so the guard has to reject it while the caller is still there
+    /// to be told - and leave the connection alone.
+    #[test]
+    fn publishing_more_than_the_packet_limit_is_refused_without_touching_the_session() {
+        let (events_tx, _events_rx) = mpsc::unbounded_channel();
+        let adapter = RumqttcAdapter::new(events_tx);
+        let broker = sample_broker("localhost", 1883);
+        adapter.connect(broker.id, &broker).unwrap();
+
+        let too_big = vec![0u8; MAX_PACKET_BYTES];
+        let result = adapter.publish(broker.id, "t", too_big, QoS::AtMostOnce, false);
+
+        assert!(
+            matches!(result, Err(MqttError::PayloadTooLarge { max, .. }) if max == MAX_PACKET_BYTES),
+            "{result:?}"
+        );
+        assert!(adapter.connections.contains(broker.id));
+        assert_eq!(
+            adapter.publish(broker.id, "t", b"small".to_vec(), QoS::AtMostOnce, false),
+            Ok(())
+        );
+    }
+
     /// The command channel exists before `connect` returns, so a publish issued
     /// straight afterwards is not rejected as an unknown connection.
     #[test]
@@ -644,6 +800,77 @@ mod tests {
                 }
                 _ => unreachable!(),
             }
+        });
+
+        adapter.disconnect(broker.id).unwrap();
+    }
+
+    /// The regression this whole limit exists for: rumqttc defaults to a 10 KiB
+    /// packet limit, so an ordinary large message used to be a framing error
+    /// that dropped the session and - if it was retained - was redelivered on
+    /// every reconnect, flapping forever.
+    ///
+    /// Needs a local broker: `docker run --rm -p 1883:1883 eclipse-mosquitto`.
+    /// Run explicitly with: cargo test -p bme-core -- --ignored oversize
+    #[test]
+    #[ignore]
+    fn a_message_far_over_the_old_limit_arrives_without_dropping_the_session() {
+        let (events_tx, mut events_rx) = mpsc::unbounded_channel();
+        let adapter = RumqttcAdapter::new(events_tx);
+        let broker = sample_broker("localhost", 1883);
+        let topic = format!("bme/tests/{}", broker.id);
+
+        adapter.connect(broker.id, &broker).unwrap();
+        adapter.runtime.block_on(async {
+            wait_for(&mut events_rx, |event| {
+                matches!(event, MqttEvent::Connected { .. })
+            })
+            .await;
+        });
+        adapter
+            .subscribe(broker.id, &topic, QoS::AtLeastOnce)
+            .unwrap();
+
+        // Comfortably over the old 10 KiB ceiling, and over the IPC cap too, so
+        // this covers the truncation on the way out as well.
+        let big = vec![b'x'; MAX_IPC_PAYLOAD_BYTES * 4];
+        adapter
+            .publish(broker.id, &topic, big.clone(), QoS::AtLeastOnce, false)
+            .unwrap();
+
+        adapter.runtime.block_on(async {
+            let received = wait_for(
+                &mut events_rx,
+                |event| matches!(event, MqttEvent::MessageReceived { topic: t, .. } if t == &topic),
+            )
+            .await;
+            let MqttEvent::MessageReceived {
+                payload,
+                payload_len,
+                ..
+            } = received
+            else {
+                unreachable!()
+            };
+            assert_eq!(payload_len, big.len());
+            assert_eq!(payload.len(), MAX_IPC_PAYLOAD_BYTES);
+
+            // Nothing may follow it: the session that carried it is still up.
+            let dropped = timeout(Duration::from_secs(2), async {
+                loop {
+                    let event = events_rx.recv().await.expect("event channel closed");
+                    if matches!(
+                        &event,
+                        MqttEvent::Disconnected { .. }
+                            | MqttEvent::Reconnecting { .. }
+                            | MqttEvent::Warning { .. }
+                    ) {
+                        return event;
+                    }
+                }
+            })
+            .await;
+            assert!(dropped.is_err(), "the session dropped: {dropped:?}");
         });
 
         adapter.disconnect(broker.id).unwrap();

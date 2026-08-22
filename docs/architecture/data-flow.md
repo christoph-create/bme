@@ -41,6 +41,11 @@ delay_ms }` for each wait. `Disconnected` then means "gave up" (or "you asked
 me to stop"), which is what lets the workspace show a retry banner and an
 error banner as two distinct states.
 
+A packet larger than the 16 MiB limit is the exception: it costs the socket
+too, but it is retried on a track of its own with no budget at all (see
+`oversize` in `backend.md`), and reported as a non-fatal `Warning` rather than
+by ending the connection.
+
 `test_connection` is the odd one out: it takes a whole unsaved connection,
 connects, and persists **nothing** — it's the form's "does this even work"
 button.
@@ -71,12 +76,19 @@ so N subscribers still mean one listener. Two subscribers keep state, and they
 split the stream by what it is about: `MessageStoreService` folds
 `MessageReceived` into its per-connection/per-topic map (capped per topic),
 and `ConnectionStatusService` folds `Connected`/`Reconnecting`/`Disconnected`
-into its per-connection status map. Every variant carries a `connection_id`,
+into its per-connection status map, keeping `Warning` in a second map beside
+it — a warning is something the session survived, so it must not touch the
+status. Every variant carries a `connection_id`,
 which is the only thing separating one broker's traffic from another's on this
 single shared channel.
 
 Payloads cross as `Vec<u8>` → `number[]`; decoding to text happens in the
-frontend (`format/payload-text.ts`).
+frontend (`format/payload-text.ts`). That encoding costs roughly three and a
+half characters per byte, so the backend caps what it sends at
+`MAX_IPC_PAYLOAD_BYTES` (256 KiB) and sends the real wire length alongside as
+`payload_len`. Anything showing a size, deciding whether a retained topic was
+cleared, or offering to resend a message has to read `payload_len`, not
+`payload.length`.
 
 Received messages are **never written to SQLite** — close the app and the
 history is gone. Only connections, subscriptions, templates and collections

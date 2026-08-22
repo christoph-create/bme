@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { formatMessageBody, formatPayloadPreview } from "./payload-text";
+import {
+  formatMessageBody,
+  formatPayloadPreview,
+  formatTruncationNote,
+} from "./payload-text";
 
 function encode(text: string): number[] {
   return Array.from(new TextEncoder().encode(text));
@@ -96,5 +100,37 @@ describe("formatMessageBody", () => {
     const payload = encode('{"data1":"data","data2":"data"}');
 
     expect(formatMessageBody(payload)).toBe('{"data1":"data","data2":"data"}');
+  });
+});
+
+describe("truncated payloads", () => {
+  it("reports the wire size in the binary label, not the size of what arrived", () => {
+    const binary = [0xff, 0xfe, 0x00, 0x01, 0x02, 0xff, 0xfe, 0xfd];
+
+    expect(formatMessageBody(binary, 4_000_000)).toBe(
+      "<binary, 4000000 bytes>",
+    );
+    expect(formatPayloadPreview(binary, 4_000_000)).toBe(
+      "<binary, 4000000 bytes>",
+    );
+  });
+
+  it("marks a truncated body with an ellipsis even when what arrived is short", () => {
+    expect(formatMessageBody(encode("abc"), 4_000_000)).toBe("abc…");
+  });
+
+  it("reads a cleared retained topic off the wire length", () => {
+    expect(formatMessageBody([], 0)).toBe("(empty)");
+  });
+
+  it("has no note for a message that arrived whole", () => {
+    expect(formatTruncationNote(3, 3)).toBeNull();
+    expect(formatTruncationNote(0, 0)).toBeNull();
+  });
+
+  it("names both sizes when part of the message was left behind", () => {
+    expect(formatTruncationNote(4_000_000, 262_144)).toBe(
+      "Truncated - showing the first 256.0 KB of 3.8 MB",
+    );
   });
 });

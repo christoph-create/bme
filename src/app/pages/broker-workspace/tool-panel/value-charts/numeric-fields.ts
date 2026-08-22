@@ -30,7 +30,16 @@ export interface NumericField {
  * common as an MQTT payload, hence the fallback - and the unit-suffix case
  * (`23.5 °C`) is common enough to be worth the same treatment.
  */
-export function parsePayload(payload: readonly number[]): unknown {
+export function parsePayload(
+  payload: readonly number[],
+  payloadLen: number = payload.length,
+): unknown {
+  // A truncated payload can still parse as a bare number - "23.5" cut out of a
+  // longer line - and would plot a real-looking point from a message we only
+  // have part of.
+  if (payloadLen > payload.length) {
+    return undefined;
+  }
   if (payload.length === 0) {
     return undefined;
   }
