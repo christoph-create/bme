@@ -28,3 +28,8 @@
 .tok-punctuation {
   color: var(--color-json-punctuation);
 }
+
+.tok-placeholder {
+  color: var(--color-json-placeholder);
+  font-style: italic;
+}

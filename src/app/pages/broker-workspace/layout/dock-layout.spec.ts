@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  DOCK_LIMITS,
   DockFractions,
   DockId,
   LayoutInput,
+  WIDE_TOOLS_WIDTH,
   applyDrag,
   defaultFractions,
   dockSizesPx,
@@ -68,12 +70,14 @@ describe("dockSizesPx", () => {
   });
 
   it("clamps to the maximum when the window grows a lot", () => {
+    // Deliberately far past both maxima, so this keeps testing the clamp
+    // rather than the arithmetic if the limits are retuned again.
     const sizes = dockSizesPx(
-      layout({ windowWidth: 10240, windowHeight: 2304 }),
+      layout({ windowWidth: 10240, windowHeight: 4096 }),
     );
 
-    expect(sizes.subscriptions).toBe(1200);
-    expect(sizes.publish).toBe(560);
+    expect(sizes.subscriptions).toBe(DOCK_LIMITS.subscriptions.max);
+    expect(sizes.publish).toBe(DOCK_LIMITS.publish.max);
   });
 
   it("does not drift across repeated reads at the same window size", () => {
@@ -94,7 +98,7 @@ describe("dockSizesPx", () => {
   });
 
   it("squeezes the tools dock rather than letting the centre column vanish", () => {
-    // 1024 wide, 320 reserved for the centre: a 600px sidebar leaves 104,
+    // 1024 wide, 400 reserved for the centre: a 600px sidebar leaves 24,
     // less than the tools dock's 240 minimum.
     const fractions = drag(withTools(), "subscriptions", 340);
     const sizes = dockSizesPx(withTools({ fractions }));
@@ -116,11 +120,15 @@ describe("dockSizesPx", () => {
   });
 
   it("keeps a closed dock's size, so reopening restores it", () => {
-    const fractions = drag(withTools(), "tools", -60);
-    const closed = dockSizesPx(layout({ fractions }));
+    // Wide enough that the squeeze against the centre column isn't the
+    // binding constraint - this is about the size surviving the close, and
+    // at the default 1024 the cap would decide the answer instead.
+    const wide = { windowWidth: 2048 };
+    const fractions = drag(withTools(wide), "tools", -60);
+    const closed = dockSizesPx(layout({ ...wide, fractions }));
 
-    expect(closed.tools).toBe(420);
-    expect(dockSizesPx(withTools({ fractions })).tools).toBe(420);
+    expect(closed.tools).toBe(780);
+    expect(dockSizesPx(withTools({ ...wide, fractions })).tools).toBe(780);
   });
 });
 
@@ -196,7 +204,7 @@ describe("applyDrag", () => {
     expect(
       dockSizesPx(layout({ fractions: drag(layout(), "publish", -5000) }))
         .publish,
-    ).toBe(560);
+    ).toBe(DOCK_LIMITS.publish.max);
   });
 
   it("shrinks the tools dock as its handle is dragged right", () => {
@@ -212,11 +220,14 @@ describe("applyDrag", () => {
   });
 
   it("clamps the tools dock to its maximum when there is room for it", () => {
-    const wide = withTools({ windowWidth: 2048 });
+    // The window has to leave more than the tools maximum spare after the
+    // sidebar and the centre column, or the squeeze caps it first and this
+    // stops testing the maximum at all.
+    const wide = withTools({ windowWidth: 4096 });
     const fractions = drag(wide, "tools", -5000);
 
-    expect(dockSizesPx(withTools({ windowWidth: 2048, fractions })).tools).toBe(
-      900,
+    expect(dockSizesPx(withTools({ windowWidth: 4096, fractions })).tools).toBe(
+      DOCK_LIMITS.tools.max,
     );
   });
 
@@ -243,9 +254,10 @@ describe("applyDrag", () => {
 
 describe("toolsIsWide", () => {
   it("stays single-column until the dock has room for two", () => {
-    expect(toolsIsWide(360)).toBe(false);
-    expect(toolsIsWide(559)).toBe(false);
-    expect(toolsIsWide(560)).toBe(true);
-    expect(toolsIsWide(900)).toBe(true);
+    expect(toolsIsWide(DOCK_LIMITS.tools.min)).toBe(false);
+    // The boundary itself: wide *at* the threshold, not one past it.
+    expect(toolsIsWide(WIDE_TOOLS_WIDTH - 1)).toBe(false);
+    expect(toolsIsWide(WIDE_TOOLS_WIDTH)).toBe(true);
+    expect(toolsIsWide(WIDE_TOOLS_WIDTH + 300)).toBe(true);
   });
 });

@@ -56,6 +56,9 @@ describe("JsonFormatService", () => {
         '{"unterminated": true',
         "",
         "  42  ",
+        '{"a": {{n}}}',
+        '{"a": "{{n}}"}',
+        "{{ spaced }}",
       ];
       for (const input of inputs) {
         const tokens = service.tokenize(input);
@@ -90,6 +93,40 @@ describe("JsonFormatService", () => {
         "boolean",
         "null",
       ]);
+    });
+
+    it("classifies a bare placeholder as one placeholder token", () => {
+      const tokens = service.tokenize('{"a": {{n}}}');
+
+      expect(tokens.map((t) => t.kind)).toEqual([
+        "punctuation",
+        "key",
+        "punctuation",
+        "whitespace",
+        "placeholder",
+        "punctuation",
+      ]);
+    });
+
+    it("leaves a placeholder inside a string part of that string", () => {
+      // In JSON terms `"{{n}}"` really is a string, and colouring it as one
+      // keeps this tokenizer and the editor's stream mode in agreement.
+      const tokens = service.tokenize('{"a": "{{n}}"}');
+
+      expect(tokens.map((t) => t.kind)).toEqual([
+        "punctuation",
+        "key",
+        "punctuation",
+        "whitespace",
+        "string",
+        "punctuation",
+      ]);
+    });
+
+    it("doesn't treat braces around a non-identifier as a placeholder", () => {
+      const tokens = service.tokenize("{{bad-name}}");
+
+      expect(tokens.map((t) => t.kind)).not.toContain("placeholder");
     });
 
     it("falls back to plain tokens for text that isn't JSON", () => {

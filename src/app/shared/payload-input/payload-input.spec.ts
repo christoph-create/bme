@@ -22,6 +22,15 @@ async function setup(format: MessageFormat = "json") {
   return { fixture, component: fixture.componentInstance, onChange, onTouched };
 }
 
+/** True when the Format action is the clickable one rather than the greyed
+ * out span - i.e. what the user actually sees. */
+function formatEnabled(fixture: { nativeElement: unknown }): boolean {
+  const action = (fixture.nativeElement as HTMLElement).querySelector(
+    ".format-action",
+  );
+  return action !== null && !action.classList.contains("disabled");
+}
+
 function editorText(fixture: { nativeElement: unknown }): string {
   const lines = Array.from(
     (fixture.nativeElement as HTMLElement).querySelectorAll(".cm-line"),
@@ -110,6 +119,27 @@ describe("PayloadInput", () => {
       expect(component.formatError()).toBeNull();
     });
 
+    it("offers Format for valid JSON and withholds it otherwise", async () => {
+      const { fixture, component } = await setup("json");
+
+      component.writeValue('{"a": 1}');
+      fixture.detectChanges();
+      expect(formatEnabled(fixture)).toBe(true);
+
+      component.writeValue("not valid json");
+      fixture.detectChanges();
+      expect(formatEnabled(fixture)).toBe(false);
+    });
+
+    it("withholds Format for an empty field, with a reason", async () => {
+      const { fixture, component } = await setup("json");
+
+      component.writeValue("");
+      fixture.detectChanges();
+
+      expect(formatEnabled(fixture)).toBe(false);
+      expect(component.formatUnavailableReason()).toBe("Nothing to format yet");
+    });
   });
 
   describe("raw format", () => {
@@ -246,5 +276,62 @@ describe("PayloadInput with variables in scope", () => {
     const { component } = await withKinds("not json");
 
     expect(component.formatError()).toBe("Payload isn't valid JSON");
+  });
+
+  it("offers Format for a payload that uses variables", async () => {
+    // The headline fix: Format used to be disabled the moment a payload
+    // contained `{{anything}}`, which is exactly when hand-indenting is worst.
+    const { fixture } = await withKinds('{"t":{{tempC}}}');
+
+    expect(formatEnabled(fixture)).toBe(true);
+  });
+
+  it("pretty-prints the payload from the bug report, variables intact", async () => {
+    const { fixture, component } = await withKinds(
+      '{\n  "data1": {{tempC}},\n"data2": {{tempC}},\n"data3": {{tempC}}\n}',
+    );
+    const onChange = vi.fn();
+    component.registerOnChange(onChange);
+
+    component.formatPayload();
+    fixture.detectChanges();
+
+    const expected = [
+      "{",
+      '  "data1": {{tempC}},',
+      '  "data2": {{tempC}},',
+      '  "data3": {{tempC}}',
+      "}",
+    ].join("\n");
+    expect(editorText(fixture)).toBe(expected);
+    expect(onChange).toHaveBeenCalledWith(expected);
+  });
+
+  it("withholds Format for a bare placeholder in key position", async () => {
+    // Invalid however it expands, and Format must never contradict the error
+    // line the component is showing right next to it.
+    const { fixture, component } = await withKinds("{ {{tempC}}: 1 }");
+
+    expect(component.formatError()).not.toBeNull();
+    expect(formatEnabled(fixture)).toBe(false);
+  });
+
+  it("withholds Format for an undefined variable in a value position", async () => {
+    const { fixture } = await withKinds('{"t":{{typo}}}');
+
+    expect(formatEnabled(fixture)).toBe(false);
+  });
+
+  it("withholds Format when a placeholder can't be masked, saying so", async () => {
+    // `1{{tempC}}` expands to the valid `10`, so the error line stays quiet -
+    // but there is no stand-in that makes the literal text parse, so clicking
+    // Format would do nothing. The tooltip has to explain the difference.
+    const { fixture, component } = await withKinds('{"t": 1{{tempC}}}');
+
+    expect(component.formatError()).toBeNull();
+    expect(formatEnabled(fixture)).toBe(false);
+    expect(component.formatUnavailableReason()).toBe(
+      "Formatting can't preserve this payload's variables",
+    );
   });
 });

@@ -66,6 +66,10 @@
   --color-json-boolean: var(--color-danger);
   --color-json-null: var(--color-text-tertiary);
   --color-json-punctuation: var(--color-text-secondary);
+  /* Amber, plus italic at both call sites: a placeholder is a slot rather
+     than a literal, and it most often sits exactly where a number would - so
+     it can't share the number colour, which is the orange accent. */
+  --color-json-placeholder: var(--color-warning);
 
   /* Value charts. The line is the brand orange because a chart is the one
      place in the app where the accent marks data rather than chrome; the

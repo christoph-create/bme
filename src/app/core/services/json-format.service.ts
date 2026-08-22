@@ -1,5 +1,7 @@
 import { Injectable } from "@angular/core";
 
+import { PLACEHOLDER_PATTERN } from "../variables/placeholders";
+
 export type JsonTokenKind =
   | "key"
   | "string"
@@ -8,6 +10,7 @@ export type JsonTokenKind =
   | "null"
   | "punctuation"
   | "whitespace"
+  | "placeholder"
   | "plain";
 
 export interface JsonToken {
@@ -19,8 +22,24 @@ export type JsonFormatResult =
   | { readonly ok: true; readonly value: string }
   | { readonly ok: false; readonly error: string };
 
-const TOKEN_PATTERN =
-  /"(?:\\.|[^"\\])*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|\btrue\b|\bfalse\b|\bnull\b|[{}[\],:]|\s+/g;
+/** Placeholders come first so `{{count}}` is one token rather than two braces
+ * around a bare word. Alternation is leftmost-*first*, so this only wins where
+ * a placeholder actually starts: at an opening quote the string rule still
+ * matches, leaving `"{{count}}"` a single string token - which is right, since
+ * in JSON terms it is one. */
+const TOKEN_PATTERN = new RegExp(
+  [
+    PLACEHOLDER_PATTERN.source,
+    '"(?:\\\\.|[^"\\\\])*"',
+    "-?\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?",
+    "\\btrue\\b",
+    "\\bfalse\\b",
+    "\\bnull\\b",
+    "[{}[\\],:]",
+    "\\s+",
+  ].join("|"),
+  "g",
+);
 
 /**
  * Single source of truth for JSON parsing/formatting/tokenizing, shared by
@@ -90,6 +109,9 @@ function classifyToken(
   fullText: string,
   endIndex: number,
 ): JsonTokenKind {
+  if (raw.startsWith("{{")) {
+    return "placeholder";
+  }
   if (raw[0] === '"') {
     return isObjectKey(fullText, endIndex) ? "key" : "string";
   }
