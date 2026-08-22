@@ -41,7 +41,13 @@ export const DEMO_CONNECTIONS: readonly BrokerConnection[] = [
     client_id: "bme-desktop",
     username: null,
     password: null,
-    use_tls: false,
+    scheme: "mqtt",
+    ws_path: null,
+    ca_cert_path: null,
+    client_cert_path: null,
+    client_key_path: null,
+    alpn: null,
+    skip_cert_verification: false,
     keep_alive_secs: 60,
     auto_reconnect: true,
     max_reconnect_attempts: 10,
@@ -68,7 +74,13 @@ export const DEMO_CONNECTIONS: readonly BrokerConnection[] = [
     client_id: "bme-desktop",
     username: "bme",
     password: "hunter2",
-    use_tls: true,
+    scheme: "mqtts",
+    ws_path: null,
+    ca_cert_path: null,
+    client_cert_path: null,
+    client_key_path: null,
+    alpn: null,
+    skip_cert_verification: false,
     keep_alive_secs: 30,
     auto_reconnect: true,
     max_reconnect_attempts: 10,
@@ -82,7 +94,13 @@ export const DEMO_CONNECTIONS: readonly BrokerConnection[] = [
     client_id: "bme-office",
     username: null,
     password: null,
-    use_tls: false,
+    scheme: "mqtt",
+    ws_path: null,
+    ca_cert_path: null,
+    client_cert_path: null,
+    client_key_path: null,
+    alpn: null,
+    skip_cert_verification: false,
     keep_alive_secs: 60,
     auto_reconnect: false,
     max_reconnect_attempts: 10,
@@ -101,11 +119,19 @@ export const DEMO_CONNECTIONS: readonly BrokerConnection[] = [
     id: STAGING_CONNECTION_ID,
     name: "Staging Broker",
     host: "staging.example.com",
-    port: 8883,
+    port: 8884,
     client_id: "bme-desktop",
     username: "bme",
     password: "hunter2",
-    use_tls: true,
+    // The WebSocket example: managed brokers are reached this way, and it is
+    // the one connection whose list row does not read as host:port.
+    scheme: "wss",
+    ws_path: "/mqtt",
+    ca_cert_path: "/home/demo/certs/staging-ca.pem",
+    client_cert_path: null,
+    client_key_path: null,
+    alpn: null,
+    skip_cert_verification: false,
     keep_alive_secs: 30,
     auto_reconnect: true,
     max_reconnect_attempts: 10,
@@ -119,7 +145,13 @@ export const DEMO_CONNECTIONS: readonly BrokerConnection[] = [
     client_id: "bme-local",
     username: null,
     password: null,
-    use_tls: false,
+    scheme: "mqtt",
+    ws_path: null,
+    ca_cert_path: null,
+    client_cert_path: null,
+    client_key_path: null,
+    alpn: null,
+    skip_cert_verification: false,
     keep_alive_secs: 60,
     auto_reconnect: true,
     max_reconnect_attempts: 10,
@@ -173,7 +205,8 @@ export const DEMO_TEMPLATES: readonly FavoriteMessage[] = [
     id: "cccccccc-cccc-4ccc-8ccc-cccccccccc03",
     collection_id: SENSORS_COLLECTION_ID,
     name: "Sensor heartbeat",
-    description: "Retained status message, stamped with the {{isoDate}} variable.",
+    description:
+      "Retained status message, stamped with the {{isoDate}} variable.",
     topic: "sensors/zone-a/status",
     payload: '{"online": true, "uptime": 86400, "seen": "{{isoDate}}"}',
     format: "json",
@@ -306,9 +339,22 @@ export const DEMO_TIMELINE: readonly DemoMessage[] = [
     gapMs: 400,
   },
 
-  reading("home/kitchen/temperature", '{"temperature": 19.8, "humidity": 51}', 2_600),
-  reading("home/bedroom/temperature", '{"temperature": 18.9, "humidity": 55}', 1_800),
-  reading("home/kitchen/motion", '{"motion": false, "lux": 143}', 2_200, "AtMostOnce"),
+  reading(
+    "home/kitchen/temperature",
+    '{"temperature": 19.8, "humidity": 51}',
+    2_600,
+  ),
+  reading(
+    "home/bedroom/temperature",
+    '{"temperature": 18.9, "humidity": 55}',
+    1_800,
+  ),
+  reading(
+    "home/kitchen/motion",
+    '{"motion": false, "lux": 143}',
+    2_200,
+    "AtMostOnce",
+  ),
 
   reading(
     DEMO_SELECTED_TOPIC,
@@ -321,19 +367,32 @@ export const DEMO_TIMELINE: readonly DemoMessage[] = [
     '{"temperature": 21.7, "humidity": 46, "battery": 93}',
     5_000,
   ),
-  reading("home/bedroom/temperature", '{"temperature": 19.1, "humidity": 54}', 2_400),
+  reading(
+    "home/bedroom/temperature",
+    '{"temperature": 19.1, "humidity": 54}',
+    2_400,
+  ),
   reading(
     DEMO_SELECTED_TOPIC,
     '{"temperature": 21.6, "humidity": 47, "battery": 92}',
     4_600,
   ),
-  reading("home/kitchen/temperature", '{"temperature": 20.1, "humidity": 50}', 3_300),
+  reading(
+    "home/kitchen/temperature",
+    '{"temperature": 20.1, "humidity": 50}',
+    3_300,
+  ),
   reading(
     DEMO_SELECTED_TOPIC,
     '{"temperature": 21.4, "humidity": 47, "battery": 92}',
     5_200,
   ),
-  reading("home/kitchen/motion", '{"motion": true, "lux": 96}', 2_800, "AtMostOnce"),
+  reading(
+    "home/kitchen/motion",
+    '{"motion": true, "lux": 96}',
+    2_800,
+    "AtMostOnce",
+  ),
   reading(
     DEMO_SELECTED_TOPIC,
     '{"temperature": 21.3, "humidity": 48, "battery": 92}',
@@ -357,7 +416,12 @@ const OFFICE_TIMELINE: readonly DemoMessage[] = [
     gapMs: 0,
   },
   reading("office/desk-4/climate", '{"temperature": 22.8, "co2": 612}', 3_400),
-  reading("office/printer/status", '{"online": true, "toner": 34}', 2_700, "AtMostOnce"),
+  reading(
+    "office/printer/status",
+    '{"online": true, "toner": 34}',
+    2_700,
+    "AtMostOnce",
+  ),
   reading("office/desk-4/climate", '{"temperature": 23.1, "co2": 648}', 4_900),
   reading(
     "office/meeting-room/occupancy",
@@ -373,10 +437,11 @@ const OFFICE_TIMELINE: readonly DemoMessage[] = [
  * A connection with no entry here plays the home timeline, so shots that only
  * care about "some traffic" keep working without being listed.
  */
-export const DEMO_TIMELINES: Readonly<Record<string, readonly DemoMessage[]>> = {
-  [HOME_CONNECTION_ID]: DEMO_TIMELINE,
-  [OFFICE_CONNECTION_ID]: OFFICE_TIMELINE,
-};
+export const DEMO_TIMELINES: Readonly<Record<string, readonly DemoMessage[]>> =
+  {
+    [HOME_CONNECTION_ID]: DEMO_TIMELINE,
+    [OFFICE_CONNECTION_ID]: OFFICE_TIMELINE,
+  };
 
 /** Templates the capture script loads into the publish panel. The payload
  * editor is a CodeMirror instance, so driving it through the app's own "Load

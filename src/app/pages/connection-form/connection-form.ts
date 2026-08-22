@@ -1,8 +1,19 @@
-import { Component, DestroyRef, inject, signal } from "@angular/core";
+import { Component, computed, DestroyRef, inject, signal } from "@angular/core";
+import { toSignal } from "@angular/core/rxjs-interop";
 import { FormBuilder, ReactiveFormsModule, Validators } from "@angular/forms";
 import { ActivatedRoute, Router, RouterLink } from "@angular/router";
+import { open } from "@tauri-apps/plugin-dialog";
 
 import {
+  brokerUrl,
+  BROKER_SCHEMES,
+  certificateName,
+  defaultPortFor,
+  isTls,
+  isWebSocket,
+} from "../../core/connection/broker-url";
+import {
+  BrokerScheme,
   NewBrokerConnection,
   UpdateBrokerConnection,
 } from "../../core/models/broker-connection.model";
@@ -10,9 +21,17 @@ import { MqttEvent } from "../../core/models/mqtt-event.model";
 import { ConnectionsService } from "../../core/services/connections.service";
 import { MqttEventsService } from "../../core/services/mqtt-events.service";
 import { randomClientId } from "./client-id";
+import {
+  connectionToFormValue,
+  formValueToConnection,
+} from "./connection-fields";
 
 const NUMERIC_PATTERN = /^\d+$/;
 const TEST_TIMEOUT_MS = 6000;
+
+/** Which control a Browse button fills in. */
+export type CertificateField =
+  "caCertPath" | "clientCertPath" | "clientKeyPath";
 
 export type TestStatus = "idle" | "testing" | "success" | "error";
 
@@ -20,7 +39,9 @@ export type TestStatus = "idle" | "testing" | "success" | "error";
   selector: "app-connection-form",
   imports: [ReactiveFormsModule, RouterLink],
   templateUrl: "./connection-form.html",
-  styleUrl: "./connection-form.css",
+  // Two files purely for size: one was over the 4kB anyComponentStyle budget
+  // in angular.json, the same reason publish-settings.css was split out.
+  styleUrls: ["./connection-form.css", "./connection-form-sections.css"],
 })
 export class ConnectionForm {
   private readonly connectionsService = inject(ConnectionsService);
@@ -40,16 +61,19 @@ export class ConnectionForm {
   readonly testStatus = signal<TestStatus>("idle");
   readonly testError = signal<string | null>(null);
 
+  readonly schemes = BROKER_SCHEMES;
+
   readonly form = this.formBuilder.nonNullable.group({
     name: ["", Validators.required],
+    scheme: ["mqtt" as BrokerScheme],
     host: ["", Validators.required],
     port: ["1883", [Validators.required, Validators.pattern(NUMERIC_PATTERN)]],
+    wsPath: [""],
     clientId: [randomClientId(), Validators.required],
     keepAliveSecs: [
       "60",
       [Validators.required, Validators.pattern(NUMERIC_PATTERN)],
     ],
-    useTls: [false],
     autoReconnect: [true],
     maxReconnectAttempts: [
       "10",
@@ -58,7 +82,51 @@ export class ConnectionForm {
     requiresAuth: [false],
     username: [""],
     password: [""],
+    caCertPath: [""],
+    clientCertPath: [""],
+    clientKeyPath: [""],
+    alpn: [""],
+    skipCertVerification: [false],
   });
+
+  /**
+   * The form's value as a signal, so the endpoint URL and the
+   * which-sections-are-visible checks below recompute as you type rather than
+   * needing a change-detection pass to be read out of the FormGroup.
+   */
+  private readonly value = toSignal(this.form.valueChanges, {
+    initialValue: this.form.getRawValue(),
+  });
+
+  readonly scheme = computed<BrokerScheme>(() => this.value().scheme ?? "mqtt");
+  readonly showsPath = computed(() => isWebSocket(this.scheme()));
+  readonly showsTlsOptions = computed(() => isTls(this.scheme()));
+  readonly requiresAuth = computed(() => this.value().requiresAuth ?? false);
+  readonly autoReconnect = computed(() => this.value().autoReconnect ?? false);
+  readonly skipsVerification = computed(
+    () => this.value().skipCertVerification ?? false,
+  );
+
+  /** The endpoint as one line, assembled the way the backend assembles it. */
+  readonly endpointUrl = computed(() => {
+    const value = this.value();
+    return brokerUrl(
+      this.scheme(),
+      value.host ?? "",
+      value.port ?? "",
+      value.wsPath ?? "",
+    );
+  });
+
+  readonly caCertName = computed(() =>
+    certificateName(this.value().caCertPath ?? ""),
+  );
+  readonly clientCertName = computed(() =>
+    certificateName(this.value().clientCertPath ?? ""),
+  );
+  readonly clientKeyName = computed(() =>
+    certificateName(this.value().clientKeyPath ?? ""),
+  );
 
   constructor() {
     // A test result only speaks to the values it was run with - once you
@@ -71,6 +139,21 @@ export class ConnectionForm {
       }
     });
     this.destroyRef.onDestroy(() => subscription.unsubscribe());
+
+    // Picking a scheme moves the port with it, but only while the port is
+    // still a default nobody has touched. Overwriting a hand-typed 8884 on the
+    // way from mqtts to wss would be the more annoying half of the bargain.
+    let previousScheme = this.form.controls.scheme.value;
+    const schemeSubscription = this.form.controls.scheme.valueChanges.subscribe(
+      (scheme) => {
+        const port = this.form.controls.port.value;
+        if (port === "" || port === String(defaultPortFor(previousScheme))) {
+          this.form.controls.port.setValue(String(defaultPortFor(scheme)));
+        }
+        previousScheme = scheme;
+      },
+    );
+    this.destroyRef.onDestroy(() => schemeSubscription.unsubscribe());
 
     const id = this.editId();
     if (id !== null) {
@@ -117,19 +200,7 @@ export class ConnectionForm {
         this.loadError.set("Connection not found");
         return;
       }
-      this.form.setValue({
-        name: connection.name,
-        host: connection.host,
-        port: String(connection.port),
-        clientId: connection.client_id,
-        keepAliveSecs: String(connection.keep_alive_secs),
-        useTls: connection.use_tls,
-        autoReconnect: connection.auto_reconnect,
-        maxReconnectAttempts: String(connection.max_reconnect_attempts),
-        requiresAuth: connection.username !== null,
-        username: connection.username ?? "",
-        password: connection.password ?? "",
-      });
+      this.form.setValue(connectionToFormValue(connection));
     } catch (err) {
       this.loadError.set(err instanceof Error ? err.message : String(err));
     } finally {
@@ -203,7 +274,13 @@ export class ConnectionForm {
         this.testStatus.set("success");
       } else {
         this.testStatus.set("error");
-        this.testError.set("Could not connect to the broker");
+        // The backend attaches a reason for the failures it can name - a bad
+        // certificate, a WebSocket path that isn't one - and those are exactly
+        // the ones the generic line was useless for.
+        this.testError.set(
+          ("Disconnected" in result ? result.Disconnected.reason : null) ??
+            "Could not connect to the broker",
+        );
       }
     } catch (err) {
       this.testStatus.set("error");
@@ -218,25 +295,43 @@ export class ConnectionForm {
       }
       subscription.unsubscribe();
       if (ephemeralId !== null) {
-        await this.connectionsService.disconnect(ephemeralId).catch(() => undefined);
+        await this.connectionsService
+          .disconnect(ephemeralId)
+          .catch(() => undefined);
       }
     }
   }
 
+  /**
+   * Opens a native file picker for one of the certificate fields. Only the
+   * path is stored - the backend reads the file itself on every connect, so a
+   * renewed certificate is picked up without coming back through here.
+   */
+  async pickCertificate(field: CertificateField): Promise<void> {
+    const picked = await open({
+      multiple: false,
+      directory: false,
+      title: "Choose a certificate file",
+      filters: [
+        {
+          name: "Certificates and keys",
+          extensions: ["pem", "crt", "cer", "key", "der"],
+        },
+        { name: "All files", extensions: ["*"] },
+      ],
+    });
+
+    if (typeof picked === "string") {
+      this.form.controls[field].setValue(picked);
+    }
+  }
+
+  clearCertificate(field: CertificateField): void {
+    this.form.controls[field].setValue("");
+  }
+
   private buildConnectionFields(): UpdateBrokerConnection {
-    const value = this.form.getRawValue();
-    return {
-      name: value.name,
-      host: value.host,
-      port: Number(value.port),
-      client_id: value.clientId,
-      username: value.requiresAuth ? value.username : null,
-      password: value.requiresAuth ? value.password : null,
-      use_tls: value.useTls,
-      keep_alive_secs: Number(value.keepAliveSecs),
-      auto_reconnect: value.autoReconnect,
-      max_reconnect_attempts: Number(value.maxReconnectAttempts),
-    };
+    return formValueToConnection(this.form.getRawValue());
   }
 
   private buildNewConnection(): NewBrokerConnection {

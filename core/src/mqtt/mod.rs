@@ -1,7 +1,10 @@
 pub mod connection_registry;
+pub mod failure;
 pub mod manager;
 pub mod oversize;
 pub mod port;
 pub mod reconnect;
 pub mod rumqttc_adapter;
 pub mod subscription_set;
+pub mod tls;
+pub mod transport;

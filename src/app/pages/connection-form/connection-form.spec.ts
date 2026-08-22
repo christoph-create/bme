@@ -17,6 +17,11 @@ import { ConnectionsService } from "../../core/services/connections.service";
 import { MqttEventsService } from "../../core/services/mqtt-events.service";
 import { ConnectionForm } from "./connection-form";
 
+// The file picker is a Tauri plugin, so there is no runtime for it here. The
+// tests that care drive its return value; the rest just need it not to throw.
+const openDialog = vi.hoisted(() => vi.fn());
+vi.mock("@tauri-apps/plugin-dialog", () => ({ open: openDialog }));
+
 const CREATED: BrokerConnection = {
   id: "22222222-2222-2222-2222-222222222222",
   name: "Home Assistant",
@@ -25,7 +30,13 @@ const CREATED: BrokerConnection = {
   client_id: "bme-abcdef",
   username: null,
   password: null,
-  use_tls: false,
+  scheme: "mqtt",
+  ws_path: null,
+  ca_cert_path: null,
+  client_cert_path: null,
+  client_key_path: null,
+  alpn: null,
+  skip_cert_verification: false,
   keep_alive_secs: 60,
   auto_reconnect: true,
   max_reconnect_attempts: 10,
@@ -57,7 +68,8 @@ async function setup(
     update: overrides.update ?? vi.fn().mockResolvedValue(CREATED),
     get: overrides.get ?? vi.fn().mockResolvedValue(CREATED),
     connect: vi.fn().mockResolvedValue(undefined),
-    testConnection: overrides.testConnection ?? vi.fn().mockResolvedValue(TEST_ID),
+    testConnection:
+      overrides.testConnection ?? vi.fn().mockResolvedValue(TEST_ID),
     disconnect: vi.fn().mockResolvedValue(undefined),
   };
 
@@ -83,16 +95,22 @@ async function setup(
 
 const VALID_VALUE = {
   name: "Home Assistant",
+  scheme: "mqtt" as const,
   host: "homeassistant.local",
   port: "1883",
+  wsPath: "",
   clientId: "bme-abcdef",
   keepAliveSecs: "60",
-  useTls: false,
   autoReconnect: true,
   maxReconnectAttempts: "10",
   requiresAuth: false,
   username: "",
   password: "",
+  caCertPath: "",
+  clientCertPath: "",
+  clientKeyPath: "",
+  alpn: "",
+  skipCertVerification: false,
 };
 
 describe("ConnectionForm", () => {
@@ -114,7 +132,13 @@ describe("ConnectionForm", () => {
       client_id: "bme-abcdef",
       username: null,
       password: null,
-      use_tls: false,
+      scheme: "mqtt",
+      ws_path: null,
+      ca_cert_path: null,
+      client_cert_path: null,
+      client_key_path: null,
+      alpn: null,
+      skip_cert_verification: false,
       keep_alive_secs: 60,
       auto_reconnect: true,
       max_reconnect_attempts: 10,
@@ -166,6 +190,110 @@ describe("ConnectionForm", () => {
     );
   });
 
+  describe("scheme and certificates", () => {
+    it("moves the port to the new scheme's default", async () => {
+      const { fixture } = await setup();
+      const form = fixture.componentInstance.form;
+
+      form.controls.scheme.setValue("wss");
+
+      expect(form.controls.port.value).toBe("8084");
+    });
+
+    // The port following the scheme is a convenience, not a rule - taking a
+    // deliberately typed port away again would be the more annoying half.
+    it("leaves a hand-typed port alone", async () => {
+      const { fixture } = await setup();
+      const form = fixture.componentInstance.form;
+      form.controls.port.setValue("18883");
+
+      form.controls.scheme.setValue("mqtts");
+
+      expect(form.controls.port.value).toBe("18883");
+    });
+
+    /// The switch is 32x18; the banner it sits in is the width of the column.
+    /// Labelling the whole banner is what makes the setting reachable without
+    /// aiming, and the accessible name has to survive it - the hint mentions
+    /// "hostname", which would otherwise make every by-label lookup for the
+    /// Host field ambiguous.
+    it("toggles from anywhere in the warning banner, and keeps its name", async () => {
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+      component.form.controls.scheme.setValue("mqtts");
+      fixture.detectChanges();
+
+      const panel = (fixture.nativeElement as HTMLElement).querySelector(
+        ".danger-panel",
+      ) as HTMLLabelElement;
+      const input = (fixture.nativeElement as HTMLElement).querySelector(
+        "#skipCertVerification",
+      ) as HTMLInputElement;
+
+      expect(panel.tagName).toBe("LABEL");
+      expect(panel.htmlFor).toBe("skipCertVerification");
+      expect(input.getAttribute("aria-labelledby")).toBe(
+        "skipCertVerificationTitle",
+      );
+
+      // What a click on the banner's own area resolves to.
+      panel.click();
+      fixture.detectChanges();
+
+      expect(input.checked).toBe(true);
+      expect(component.form.controls.skipCertVerification.value).toBe(true);
+      expect(panel.classList.contains("armed")).toBe(true);
+    });
+
+    it("fills a certificate path from the picker and can clear it again", async () => {
+      openDialog.mockResolvedValue("/home/me/certs/AmazonRootCA1.pem");
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+
+      await component.pickCertificate("caCertPath");
+
+      expect(component.form.controls.caCertPath.value).toBe(
+        "/home/me/certs/AmazonRootCA1.pem",
+      );
+      expect(component.caCertName()).toBe("AmazonRootCA1.pem");
+
+      component.clearCertificate("caCertPath");
+
+      expect(component.form.controls.caCertPath.value).toBe("");
+      expect(component.caCertName()).toBe(null);
+    });
+
+    it("keeps the existing path when the picker is dismissed", async () => {
+      openDialog.mockResolvedValue(null);
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+      component.form.controls.clientKeyPath.setValue("/certs/device.key");
+
+      await component.pickCertificate("clientKeyPath");
+
+      expect(component.form.controls.clientKeyPath.value).toBe(
+        "/certs/device.key",
+      );
+    });
+
+    it("saves a cleared certificate as null rather than an empty path", async () => {
+      const { fixture, fake } = await setup();
+      const component = fixture.componentInstance;
+      component.form.setValue({
+        ...VALID_VALUE,
+        scheme: "mqtts",
+        caCertPath: "/certs/ca.pem",
+      });
+
+      component.clearCertificate("caCertPath");
+      await component.submit();
+
+      expect(fake.create).toHaveBeenCalledWith(
+        expect.objectContaining({ ca_cert_path: null }),
+      );
+    });
+  });
+
   describe("edit mode", () => {
     it("loads and prefills the existing connection", async () => {
       const get = vi.fn().mockResolvedValue(CREATED);
@@ -175,16 +303,22 @@ describe("ConnectionForm", () => {
       expect(fixture.componentInstance.loading()).toBe(false);
       expect(fixture.componentInstance.form.getRawValue()).toEqual({
         name: CREATED.name,
+        scheme: CREATED.scheme,
         host: CREATED.host,
         port: String(CREATED.port),
+        wsPath: "",
         clientId: CREATED.client_id,
         keepAliveSecs: String(CREATED.keep_alive_secs),
-        useTls: CREATED.use_tls,
         autoReconnect: CREATED.auto_reconnect,
         maxReconnectAttempts: String(CREATED.max_reconnect_attempts),
         requiresAuth: false,
         username: "",
         password: "",
+        caCertPath: "",
+        clientCertPath: "",
+        clientKeyPath: "",
+        alpn: "",
+        skipCertVerification: false,
       });
     });
 
@@ -242,7 +376,13 @@ describe("ConnectionForm", () => {
         client_id: CREATED.client_id,
         username: null,
         password: null,
-        use_tls: CREATED.use_tls,
+        scheme: CREATED.scheme,
+        ws_path: null,
+        ca_cert_path: null,
+        client_cert_path: null,
+        client_key_path: null,
+        alpn: null,
+        skip_cert_verification: false,
         keep_alive_secs: CREATED.keep_alive_secs,
         auto_reconnect: CREATED.auto_reconnect,
         max_reconnect_attempts: CREATED.max_reconnect_attempts,
@@ -360,7 +500,9 @@ describe("ConnectionForm", () => {
       await testPromise;
       expect(fixture.componentInstance.testStatus()).toBe("success");
 
-      fixture.componentInstance.form.controls.host.setValue("other.example.com");
+      fixture.componentInstance.form.controls.host.setValue(
+        "other.example.com",
+      );
 
       expect(fixture.componentInstance.testStatus()).toBe("idle");
       expect(fixture.componentInstance.testError()).toBeNull();

@@ -202,177 +202,193 @@ export function installDemoBackend(): void {
   installDemoClock();
   const state = new DemoState();
 
-  mockIPC((cmd, args) => {
-    switch (cmd) {
-      // Fire-and-forget side effects the UI never reads back.
-      case "plugin:log|log":
-      case "plugin:opener|open_url":
-      case "open_log_dir":
-      case "skip_update_version":
-        return null;
+  mockIPC(
+    (cmd, args) => {
+      switch (cmd) {
+        // Fire-and-forget side effects the UI never reads back.
+        case "plugin:log|log":
+        case "plugin:opener|open_url":
+        case "open_log_dir":
+        case "skip_update_version":
+          return null;
 
-      case "get_app_version":
-        return DEMO_APP_VERSION;
+        case "get_app_version":
+          return DEMO_APP_VERSION;
 
-      case "check_for_updates":
-        // Always up to date: the notifier runs an automatic check three
-        // seconds after launch, and a dialog appearing mid-capture would
-        // land in whichever screenshot happened to be in progress.
-        return {
-          current_version: DEMO_APP_VERSION,
-          latest: null,
-          throttled: false,
-        } satisfies UpdateCheck;
+        case "check_for_updates":
+          // Always up to date: the notifier runs an automatic check three
+          // seconds after launch, and a dialog appearing mid-capture would
+          // land in whichever screenshot happened to be in progress.
+          return {
+            current_version: DEMO_APP_VERSION,
+            latest: null,
+            throttled: false,
+          } satisfies UpdateCheck;
 
-      case "list_connections":
-        return cloneAll(state.connections);
-      case "get_connection":
-        return clone(state.connection(arg<string>(args, "id")));
-      case "create_connection":
-        return clone(
-          state.createConnection(arg<NewBrokerConnection>(args, "newConnection")),
-        );
-      case "update_connection":
-        return clone(
-          state.updateConnection(
-            arg<string>(args, "id"),
-            arg<UpdateBrokerConnection>(args, "update"),
-          ),
-        );
-      case "delete_connection":
-        removeById(state.connections, arg<string>(args, "id"));
-        return null;
-
-      case "connect_broker": {
-        const id = arg<string>(args, "id");
-        setTimeout(
-          () => void emitMqtt({ Connected: { connection_id: id } }),
-          CONNECT_LATENCY_MS,
-        );
-        return null;
-      }
-      case "disconnect_broker": {
-        const id = arg<string>(args, "id");
-        setTimeout(
-          () => void emitMqtt({ Disconnected: { connection_id: id } }),
-          CONNECT_LATENCY_MS,
-        );
-        return null;
-      }
-      case "test_connection":
-        return nextId();
-
-      case "publish_message": {
-        // Echoed straight back, which is what a broker that has us subscribed
-        // to our own publish topic would do - it keeps the stream alive when
-        // the app is driven by hand.
-        const event: MqttEvent = {
-          MessageReceived: {
-            connection_id: arg<string>(args, "connectionId"),
-            topic: arg<string>(args, "topic"),
-            payload: arg<number[]>(args, "payload"),
-            payload_len: arg<number[]>(args, "payload").length,
-            qos: arg<QoS>(args, "qos"),
-            retain: arg<boolean>(args, "retain"),
-          },
-        };
-        setTimeout(() => void emitMqtt(event), 0);
-        return null;
-      }
-      case "subscribe_topic": {
-        const connectionId = arg<string>(args, "connectionId");
-        const subscription: Subscription = {
-          id: nextId(),
-          connection_id: connectionId,
-          topic: arg<string>(args, "topic"),
-          qos: arg<QoS>(args, "qos"),
-        };
-        state.connection(connectionId)?.subscriptions.push(subscription);
-        return clone(subscription);
-      }
-      case "unsubscribe_topic": {
-        const connection = state.connection(arg<string>(args, "connectionId"));
-        if (connection) {
-          removeById(
-            connection.subscriptions,
-            arg<string>(args, "subscriptionId"),
+        case "list_connections":
+          return cloneAll(state.connections);
+        case "get_connection":
+          return clone(state.connection(arg<string>(args, "id")));
+        case "create_connection":
+          return clone(
+            state.createConnection(
+              arg<NewBrokerConnection>(args, "newConnection"),
+            ),
           );
+        case "update_connection":
+          return clone(
+            state.updateConnection(
+              arg<string>(args, "id"),
+              arg<UpdateBrokerConnection>(args, "update"),
+            ),
+          );
+        case "delete_connection":
+          removeById(state.connections, arg<string>(args, "id"));
+          return null;
+
+        case "connect_broker": {
+          const id = arg<string>(args, "id");
+          setTimeout(
+            () => void emitMqtt({ Connected: { connection_id: id } }),
+            CONNECT_LATENCY_MS,
+          );
+          return null;
         }
-        return null;
+        case "disconnect_broker": {
+          const id = arg<string>(args, "id");
+          setTimeout(
+            () => void emitMqtt({ Disconnected: { connection_id: id } }),
+            CONNECT_LATENCY_MS,
+          );
+          return null;
+        }
+        case "test_connection":
+          return nextId();
+
+        // The certificate file picker. There is no filesystem here, so it hands
+        // back a plausible path rather than opening anything - enough for the
+        // Browse buttons to behave in a browser and in a screenshot.
+        case "plugin:dialog|open":
+          return "/home/demo/certs/AmazonRootCA1.pem";
+
+        case "publish_message": {
+          // Echoed straight back, which is what a broker that has us subscribed
+          // to our own publish topic would do - it keeps the stream alive when
+          // the app is driven by hand.
+          const event: MqttEvent = {
+            MessageReceived: {
+              connection_id: arg<string>(args, "connectionId"),
+              topic: arg<string>(args, "topic"),
+              payload: arg<number[]>(args, "payload"),
+              payload_len: arg<number[]>(args, "payload").length,
+              qos: arg<QoS>(args, "qos"),
+              retain: arg<boolean>(args, "retain"),
+            },
+          };
+          setTimeout(() => void emitMqtt(event), 0);
+          return null;
+        }
+        case "subscribe_topic": {
+          const connectionId = arg<string>(args, "connectionId");
+          const subscription: Subscription = {
+            id: nextId(),
+            connection_id: connectionId,
+            topic: arg<string>(args, "topic"),
+            qos: arg<QoS>(args, "qos"),
+          };
+          state.connection(connectionId)?.subscriptions.push(subscription);
+          return clone(subscription);
+        }
+        case "unsubscribe_topic": {
+          const connection = state.connection(
+            arg<string>(args, "connectionId"),
+          );
+          if (connection) {
+            removeById(
+              connection.subscriptions,
+              arg<string>(args, "subscriptionId"),
+            );
+          }
+          return null;
+        }
+
+        case "list_favorites":
+          return cloneAll(state.templates);
+        case "get_favorite":
+          return clone(
+            state.templates.find((t) => t.id === arg<string>(args, "id")) ??
+              null,
+          );
+        case "create_favorite":
+          return clone(
+            state.createFavorite(arg<NewFavoriteMessage>(args, "newFavorite")),
+          );
+        case "update_favorite":
+          return clone(
+            replaceById(
+              state.templates,
+              arg<string>(args, "id"),
+              arg<UpdateFavoriteMessage>(args, "update"),
+            ),
+          );
+        case "delete_favorite":
+          removeById(state.templates, arg<string>(args, "id"));
+          return null;
+
+        case "list_favorite_collections":
+          return cloneAll(state.collections);
+        case "get_favorite_collection":
+          return clone(
+            state.collections.find((c) => c.id === arg<string>(args, "id")) ??
+              null,
+          );
+        case "create_favorite_collection":
+          return clone(
+            state.createCollection(
+              arg<NewFavoriteCollection>(args, "newCollection"),
+            ),
+          );
+        case "update_favorite_collection":
+          return clone(
+            replaceById(
+              state.collections,
+              arg<string>(args, "id"),
+              arg<UpdateFavoriteCollection>(args, "update"),
+            ),
+          );
+        case "delete_favorite_collection":
+          removeById(state.collections, arg<string>(args, "id"));
+          return null;
+
+        case "list_payload_variables":
+          return cloneAll(state.variables);
+        case "get_payload_variable":
+          return clone(
+            state.variables.find((v) => v.id === arg<string>(args, "id")) ??
+              null,
+          );
+        case "create_payload_variable":
+          return clone(
+            state.createVariable(arg<NewPayloadVariable>(args, "newVariable")),
+          );
+        case "update_payload_variable":
+          return clone(
+            replaceById(
+              state.variables,
+              arg<string>(args, "id"),
+              arg<UpdatePayloadVariable>(args, "update"),
+            ),
+          );
+        case "delete_payload_variable":
+          removeById(state.variables, arg<string>(args, "id"));
+          return null;
+
+        default:
+          throw new Error(`demo backend: unhandled command "${cmd}"`);
       }
-
-      case "list_favorites":
-        return cloneAll(state.templates);
-      case "get_favorite":
-        return clone(
-          state.templates.find((t) => t.id === arg<string>(args, "id")) ?? null,
-        );
-      case "create_favorite":
-        return clone(
-          state.createFavorite(arg<NewFavoriteMessage>(args, "newFavorite")),
-        );
-      case "update_favorite":
-        return clone(
-          replaceById(
-            state.templates,
-            arg<string>(args, "id"),
-            arg<UpdateFavoriteMessage>(args, "update"),
-          ),
-        );
-      case "delete_favorite":
-        removeById(state.templates, arg<string>(args, "id"));
-        return null;
-
-      case "list_favorite_collections":
-        return cloneAll(state.collections);
-      case "get_favorite_collection":
-        return clone(
-          state.collections.find((c) => c.id === arg<string>(args, "id")) ?? null,
-        );
-      case "create_favorite_collection":
-        return clone(
-          state.createCollection(
-            arg<NewFavoriteCollection>(args, "newCollection"),
-          ),
-        );
-      case "update_favorite_collection":
-        return clone(
-          replaceById(
-            state.collections,
-            arg<string>(args, "id"),
-            arg<UpdateFavoriteCollection>(args, "update"),
-          ),
-        );
-      case "delete_favorite_collection":
-        removeById(state.collections, arg<string>(args, "id"));
-        return null;
-
-      case "list_payload_variables":
-        return cloneAll(state.variables);
-      case "get_payload_variable":
-        return clone(
-          state.variables.find((v) => v.id === arg<string>(args, "id")) ?? null,
-        );
-      case "create_payload_variable":
-        return clone(
-          state.createVariable(arg<NewPayloadVariable>(args, "newVariable")),
-        );
-      case "update_payload_variable":
-        return clone(
-          replaceById(
-            state.variables,
-            arg<string>(args, "id"),
-            arg<UpdatePayloadVariable>(args, "update"),
-          ),
-        );
-      case "delete_payload_variable":
-        removeById(state.variables, arg<string>(args, "id"));
-        return null;
-
-      default:
-        throw new Error(`demo backend: unhandled command "${cmd}"`);
-    }
-  }, { shouldMockEvents: true });
+    },
+    { shouldMockEvents: true },
+  );
 
   window.__bmeDemo = {
     async connect(connectionId: string): Promise<void> {

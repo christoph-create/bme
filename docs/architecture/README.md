@@ -22,6 +22,7 @@ bme/
 │   └── src/
 │       ├── models.rs          Domain types (BrokerConnection, FavoriteMessage, QoS, …)
 │       ├── mqtt/              port.rs (trait + events) · rumqttc_adapter.rs · manager.rs
+│       │                      transport.rs + tls.rs (scheme → transport) · failure.rs (why it dropped)
 │       ├── update/            port.rs (trait) · github.rs · version.rs · checker.rs
 │       └── storage/           mod.rs (open/migrate) · *_repo.rs · migrations/*.sql
 ├── src-tauri/             Rust: the Tauri shell. Thin — wiring, not logic.
@@ -34,7 +35,7 @@ bme/
 │   └── app/
 │       ├── app.config.ts      Providers: router, global error handler, heartbeat
 │       ├── app.routes.ts      All 5 routes
-│       ├── core/              models/ (mirror Rust types) · services/ (IPC + state)
+│       ├── core/              models/ (mirror Rust types) · services/ (IPC + state) · connection/
 │       ├── pages/             One dir per route; sub-dirs are that page's components
 │       └── shared/            Cross-page components (modal, payload-input, …)
 │   └── demo/              Mock backend + example data; runs the UI with no broker or DB
@@ -55,6 +56,8 @@ bme/
 | --- | --- |
 | What the frontend can ask the backend to do | `src-tauri/src/commands.rs` (+ the `generate_handler!` list and `build_test_app()` in `src-tauri/src/lib.rs`, + `capabilities/default.json`, + the command list in `src-tauri/build.rs`) |
 | MQTT behaviour (connect/publish/subscribe) | `core/src/mqtt/rumqttc_adapter.rs`, then `manager.rs` |
+| How a broker is *reached* — WebSockets, TLS, certificates | `core/src/mqtt/transport.rs` (scheme → rumqttc transport, and the ws URL) and `tls.rs` (the rustls config). The UI builds the same URL for display in `src/app/core/connection/broker-url.ts` — the two have to agree |
+| What a failed connection tells the user | `core/src/mqtt/failure.rs`, which fills the `reason` on the `Disconnected` event |
 | The database schema | A **new** file in `core/src/storage/migrations/` — never edit an applied one |
 | A domain type shared across the app | `core/src/models.rs`, then mirror it in `src/app/core/models/` |
 | A screen | `src/app/pages/<route>/` |

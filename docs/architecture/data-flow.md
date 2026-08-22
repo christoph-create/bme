@@ -132,9 +132,17 @@ Change one side of any of these and the other breaks silently:
 | `MqttEvent` in `core/src/mqtt/port.rs` (externally tagged) | `mqtt-event.model.ts` |
 | `QoS` (serialized by name: `"AtLeastOnce"`) | `qos.ts` |
 | `MessageFormat` (`"json"` / `"raw"`) | `message-format.model.ts` |
+| `BrokerScheme` (`"mqtt"` / `"mqtts"` / `"ws"` / `"wss"`) | `broker-connection.model.ts` |
 | `VariableGenerator` (internally tagged on `kind`, camelCase) | the union in `payload-variable.model.ts` |
 | command names + arg names in `commands.rs` | the `invoke()` calls in `core/services/` |
 | the exchange format in `spec/` | `template-exchange.service.ts` |
+
+`BrokerScheme` is triply load-bearing: it is the `broker_connections.scheme`
+column, the IPC field, *and* the first segment of the URL the UI builds - and
+the backend builds the same URL independently in
+`core/src/mqtt/transport.rs` to hand to rumqttc, so the path-defaulting rules
+in `broker-url.ts` and `transport.rs` have to agree or the form shows an
+address the connection does not dial.
 
 `VariableGenerator`'s JSON is doubly load-bearing: it is both the
 `payload_variables.generator` column and the IPC payload, so a change to the

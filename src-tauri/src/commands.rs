@@ -178,7 +178,13 @@ pub fn test_connection(
         client_id: connection.client_id,
         username: connection.username,
         password: connection.password,
-        use_tls: connection.use_tls,
+        scheme: connection.scheme,
+        ws_path: connection.ws_path,
+        ca_cert_path: connection.ca_cert_path,
+        client_cert_path: connection.client_cert_path,
+        client_key_path: connection.client_key_path,
+        alpn: connection.alpn,
+        skip_cert_verification: connection.skip_cert_verification,
         keep_alive_secs: connection.keep_alive_secs,
         // A connectivity check should report what happened once. Retrying for
         // minutes behind a "Test Connection" button would be baffling, and the

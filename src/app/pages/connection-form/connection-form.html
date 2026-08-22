@@ -8,80 +8,110 @@
   </header>
 
   @if (loading()) {
-    <p class="status-text">Loading connection…</p>
+  <p class="status-text">Loading connection…</p>
   } @else if (loadError()) {
-    <p class="status-text error">{{ loadError() }}</p>
+  <p class="status-text error">{{ loadError() }}</p>
   } @else {
-    <form class="form" [formGroup]="form" (ngSubmit)="submit()">
-      <div class="field">
-        <label for="name">Name</label>
-        <input id="name" type="text" formControlName="name" placeholder="e.g. localhost" />
-      </div>
+  <form class="form" [formGroup]="form" (ngSubmit)="submit()">
+    <section class="endpoint">
+      <header class="section-header">
+        <h2 class="section-title">Endpoint</h2>
+        <!-- The assembled URL, live: the four fields below are a broker
+               address split into parts, and this puts it back together in the
+               form people actually paste to each other. -->
+        <span class="endpoint-url mono">{{ endpointUrl() }}</span>
+      </header>
 
       <div class="field-row">
+        <div class="field field-scheme">
+          <label for="scheme">Scheme</label>
+          <select id="scheme" class="mono" formControlName="scheme">
+            @for (option of schemes; track option) {
+            <option [value]="option">{{ option }}://</option>
+            }
+          </select>
+        </div>
         <div class="field field-host">
           <label for="host">Host</label>
-          <input id="host" type="text" formControlName="host" placeholder="broker.example.com" class="mono" />
+          <input
+            id="host"
+            class="mono"
+            type="text"
+            formControlName="host"
+            placeholder="broker.example.com"
+          />
         </div>
         <div class="field field-port">
           <label for="port">Port</label>
-          <input id="port" type="text" formControlName="port" class="mono" />
-        </div>
-      </div>
-
-      <div class="field">
-        <label for="clientId">Client ID</label>
-        <input id="clientId" type="text" formControlName="clientId" class="mono" />
-      </div>
-
-      <div class="field">
-        <label for="keepAliveSecs">Keep-alive (seconds)</label>
-        <input id="keepAliveSecs" type="text" formControlName="keepAliveSecs" class="mono" />
-      </div>
-
-      <div class="field-row">
-        <label class="toggle-field">
-          <span>TLS / SSL</span>
-          <span class="switch">
-            <input type="checkbox" formControlName="useTls" />
-            <span class="switch-track"></span>
-          </span>
-        </label>
-      </div>
-
-      <div class="field-row">
-        <label class="toggle-field">
-          <span>Reconnect automatically</span>
-          <span class="switch">
-            <input type="checkbox" formControlName="autoReconnect" />
-            <span class="switch-track"></span>
-          </span>
-        </label>
-      </div>
-
-      @if (form.controls.autoReconnect.value) {
-        <div class="field">
-          <label for="maxReconnectAttempts">Max reconnect attempts</label>
           <input
-            id="maxReconnectAttempts"
-            type="text"
-            formControlName="maxReconnectAttempts"
+            id="port"
             class="mono"
+            type="text"
+            inputmode="numeric"
+            formControlName="port"
           />
         </div>
-      }
+        @if (showsPath()) {
+        <div class="field field-path">
+          <label for="wsPath">Path</label>
+          <input
+            id="wsPath"
+            class="mono"
+            type="text"
+            formControlName="wsPath"
+            placeholder="/mqtt"
+          />
+        </div>
+        }
+      </div>
+    </section>
 
-      <label class="checkbox-field">
-        <span class="checkbox">
-          <input type="checkbox" formControlName="requiresAuth" />
-          <span class="checkbox-box">
-            <span class="checkbox-check">✓</span>
+    <div class="columns">
+      <section class="column">
+        <h2 class="section-title">Connection</h2>
+
+        <div class="field">
+          <label for="name">Name</label>
+          <input id="name" type="text" formControlName="name" />
+        </div>
+
+        <div class="field-row">
+          <div class="field field-client-id">
+            <label for="clientId">Client ID</label>
+            <input
+              id="clientId"
+              class="mono"
+              type="text"
+              formControlName="clientId"
+            />
+          </div>
+          <div class="field field-keep-alive">
+            <label for="keepAliveSecs">Keep-alive</label>
+            <input
+              id="keepAliveSecs"
+              class="mono"
+              type="text"
+              inputmode="numeric"
+              formControlName="keepAliveSecs"
+            />
+          </div>
+        </div>
+
+        <label class="checkbox-field" for="requiresAuth">
+          <span class="checkbox">
+            <input
+              id="requiresAuth"
+              type="checkbox"
+              formControlName="requiresAuth"
+            />
+            <span class="checkbox-box"
+              ><span class="checkbox-check">✓</span></span
+            >
           </span>
-        </span>
-        <span>Requires authentication</span>
-      </label>
+          <span>Requires authentication</span>
+        </label>
 
-      @if (form.controls.requiresAuth.value) {
+        @if (requiresAuth()) {
         <div class="field-row">
           <div class="field">
             <label for="username">Username</label>
@@ -92,39 +122,212 @@
             <input id="password" type="password" formControlName="password" />
           </div>
         </div>
-      }
-
-      @if (error()) {
-        <p class="status-text error">{{ error() }}</p>
-      }
-
-      <footer class="page-footer">
-        @if (testStatus() === "success") {
-          <span class="status-text success footer-status">✓ Connected successfully</span>
-        } @else if (testStatus() === "error") {
-          <span class="status-text error footer-status">{{ testError() }}</span>
         }
-        <a class="btn-secondary" routerLink="/connections">Cancel</a>
-        <button
-          type="button"
-          class="btn-test"
-          [disabled]="
+
+        <label class="toggle-field" for="autoReconnect">
+          <span>Reconnect automatically</span>
+          <span class="switch">
+            <input
+              id="autoReconnect"
+              type="checkbox"
+              formControlName="autoReconnect"
+            />
+            <span class="switch-track"></span>
+          </span>
+        </label>
+
+        @if (autoReconnect()) {
+        <div class="field">
+          <label for="maxReconnectAttempts">Max reconnect attempts</label>
+          <input
+            id="maxReconnectAttempts"
+            class="mono"
+            type="text"
+            inputmode="numeric"
+            formControlName="maxReconnectAttempts"
+          />
+        </div>
+        }
+      </section>
+
+      <section class="column">
+        <h2 class="section-title">Certificates &amp; verification</h2>
+
+        @if (showsTlsOptions()) {
+        <div class="cert-row">
+          <label for="caCertPath">CA certificate</label>
+          <input
+            id="caCertPath"
+            class="mono cert-path"
+            type="text"
+            formControlName="caCertPath"
+            placeholder="System trust store"
+            [title]="form.controls.caCertPath.value"
+          />
+          @if (caCertName()) {
+          <button
+            type="button"
+            class="btn-clear"
+            title="Clear the CA certificate"
+            aria-label="Clear the CA certificate"
+            (click)="clearCertificate('caCertPath')"
+          >
+            ×
+          </button>
+          }
+          <button
+            type="button"
+            class="btn-browse"
+            (click)="pickCertificate('caCertPath')"
+          >
+            {{ caCertName() ? "Replace" : "Browse" }}
+          </button>
+        </div>
+
+        <div class="cert-row">
+          <label for="clientCertPath">Client certificate</label>
+          <input
+            id="clientCertPath"
+            class="mono cert-path"
+            type="text"
+            formControlName="clientCertPath"
+            placeholder="Choose a file…"
+            [title]="form.controls.clientCertPath.value"
+          />
+          @if (clientCertName()) {
+          <button
+            type="button"
+            class="btn-clear"
+            title="Clear the client certificate"
+            aria-label="Clear the client certificate"
+            (click)="clearCertificate('clientCertPath')"
+          >
+            ×
+          </button>
+          }
+          <button
+            type="button"
+            class="btn-browse"
+            (click)="pickCertificate('clientCertPath')"
+          >
+            {{ clientCertName() ? "Replace" : "Browse" }}
+          </button>
+        </div>
+
+        <div class="cert-row">
+          <label for="clientKeyPath">Client key</label>
+          <input
+            id="clientKeyPath"
+            class="mono cert-path"
+            type="text"
+            formControlName="clientKeyPath"
+            placeholder="Choose a file…"
+            [title]="form.controls.clientKeyPath.value"
+          />
+          @if (clientKeyName()) {
+          <button
+            type="button"
+            class="btn-clear"
+            title="Clear the client key"
+            aria-label="Clear the client key"
+            (click)="clearCertificate('clientKeyPath')"
+          >
+            ×
+          </button>
+          }
+          <button
+            type="button"
+            class="btn-browse"
+            (click)="pickCertificate('clientKeyPath')"
+          >
+            {{ clientKeyName() ? "Replace" : "Browse" }}
+          </button>
+        </div>
+
+        <div class="field">
+          <label for="alpn">ALPN</label>
+          <input
+            id="alpn"
+            class="mono"
+            type="text"
+            formControlName="alpn"
+            placeholder="x-amzn-mqtt-ca"
+          />
+        </div>
+
+        <!-- Styled as a warning rather than as another setting: it is the
+                 one option here that trades away security, and it should not
+                 look like the rest of the column. -->
+        <label
+          class="danger-panel"
+          [class.armed]="skipsVerification()"
+          for="skipCertVerification"
+        >
+          <div class="danger-label">
+            <span class="danger-title" id="skipCertVerificationTitle"
+              >Skip certificate verification</span
+            >
+            <span class="danger-hint" id="skipCertVerificationHint"
+              >Dev escape hatch — chain and hostname unchecked</span
+            >
+          </div>
+          <span class="switch">
+            <!-- Named by the title alone rather than by the enclosing label,
+                 which would fold the hint into the accessible name - and
+                 "hostname" in there collides with the Host field for anything
+                 picking controls by label, the screenshot script included. -->
+            <input
+              id="skipCertVerification"
+              type="checkbox"
+              formControlName="skipCertVerification"
+              aria-labelledby="skipCertVerificationTitle"
+              aria-describedby="skipCertVerificationHint"
+            />
+            <span class="switch-track"></span>
+          </span>
+        </label>
+        } @else {
+        <p class="section-hint">
+          Certificates apply to the encrypted schemes. Pick
+          <span class="mono">mqtts://</span> or
+          <span class="mono">wss://</span> to configure them.
+        </p>
+        }
+      </section>
+    </div>
+
+    @if (error()) {
+    <p class="status-text error">{{ error() }}</p>
+    }
+
+    <footer class="page-footer">
+      <span class="footer-url mono">{{ endpointUrl() }}</span>
+      @if (testStatus() === "success") {
+      <span class="status-text success">✓ Connected successfully</span>
+      } @else if (testStatus() === "error") {
+      <span class="status-text error">{{ testError() }}</span>
+      }
+      <a class="btn-secondary" routerLink="/connections">Cancel</a>
+      <button
+        type="button"
+        class="btn-test"
+        [disabled]="
             form.controls.host.invalid ||
             form.controls.port.invalid ||
             testStatus() === 'testing'
           "
-          (click)="testConnection()"
-        >
-          {{ testStatus() === "testing" ? "Testing…" : "Test Connection" }}
-        </button>
-        <button
-          type="submit"
-          class="btn-primary"
-          [disabled]="form.invalid || submitting()"
-        >
-          {{ editId() ? "Save Changes" : "Save & Connect" }}
-        </button>
-      </footer>
-    </form>
+        (click)="testConnection()"
+      >
+        {{ testStatus() === "testing" ? "Testing…" : "Test Connection" }}
+      </button>
+      <button
+        type="submit"
+        class="btn-primary"
+        [disabled]="form.invalid || submitting()"
+      >
+        {{ editId() ? "Save Changes" : "Save & Connect" }}
+      </button>
+    </footer>
+  </form>
   }
 </div>

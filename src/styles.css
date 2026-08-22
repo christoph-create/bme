@@ -77,17 +77,15 @@
   --color-chart-axis-text: var(--color-text-quaternary);
 
   --font-sans:
-      "Inter",          /* The gold standard for modern UI alignment (if installed) */
-      "Segoe UI",       /* Kept for Windows, but we neutralize it next */
-      Arial,
-      Helvetica,
-      sans-serif;
+    "Inter",
+    /* The gold standard for modern UI alignment (if installed) */ "Segoe UI",
+    /* Kept for Windows, but we neutralize it next */ Arial, Helvetica,
+    sans-serif;
 
-    --font-mono:
-      Consolas,         /* Exceptionally well-balanced monospace for Windows */
-      "Liberation Mono",/* Standard, clean Linux monospace fallback */
-      Menlo,
-      monospace;
+  --font-mono:
+    Consolas,
+    /* Exceptionally well-balanced monospace for Windows */ "Liberation Mono",
+    /* Standard, clean Linux monospace fallback */ Menlo, monospace;
 
   --radius-sm: 5px;
   --radius-md: 8px;
@@ -173,6 +171,11 @@ textarea::placeholder {
   background: var(--color-toggle-track);
   border-radius: 9px;
   transition: background 0.15s;
+  /* The track is painted after the input and covers it exactly, so without
+     this it swallows every click. The toggles that sit inside a <label for>
+     get away with it because the label forwards the click; a switch standing
+     on its own would be permanently stuck. */
+  pointer-events: none;
 }
 
 .switch-track::before {
