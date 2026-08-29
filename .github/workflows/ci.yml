@@ -158,6 +158,27 @@ jobs:
       - run: npm ci
       - run: npm run tauri build
 
+      # Repack the .deb as a pacman package. makepkg only runs on Arch, hence
+      # the container; it compiles nothing, so this costs seconds, and the
+      # result carries the same binary as the .deb above.
+      - name: Build Arch package
+        run: |
+          version="$(grep -m1 '^version' src-tauri/Cargo.toml | cut -d'"' -f2)"
+          # Staged outside target/release/bundle so the deb copy below does not
+          # get picked up a second time by the **/*.deb glob in the next step.
+          workdir=target/arch-pkg
+          mkdir -p "$workdir"
+          cp "target/release/bundle/deb/bme_${version}_amd64.deb" "$workdir/"
+          cp packaging/arch/PKGBUILD LICENSE "$workdir/"
+          sed -i "s/^pkgver=.*/pkgver=${version}/" "$workdir/PKGBUILD"
+          docker run --rm -v "$PWD/$workdir:/pkg" archlinux:base-devel bash -c '
+            set -e
+            # makepkg refuses to run as root.
+            useradd -m builder
+            chown -R builder /pkg
+            su builder -c "cd /pkg && makepkg --nodeps --clean"
+          '
+
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
@@ -167,6 +188,7 @@ jobs:
             target/release/bundle/**/*.deb
             target/release/bundle/**/*.rpm
             target/release/bundle/**/*.AppImage
+            target/arch-pkg/*.pkg.tar.zst
 
   release-windows:
     runs-on: windows-latest
