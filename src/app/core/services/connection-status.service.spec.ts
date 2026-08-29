@@ -104,6 +104,29 @@ describe("ConnectionStatusService", () => {
     expect(service.statusOf(ID)).toEqual({ kind: "disconnected", error: null });
   });
 
+  /** The regression this guards: the backend announces a teardown with the
+   * same event a vanished broker produces, so the dot went red for a
+   * disconnect the user asked for. */
+  it("stays idle when the teardown's own Disconnected event lands afterwards", async () => {
+    const { service, events$ } = setup();
+    await service.connect(ID);
+    await service.disconnect(ID);
+
+    events$.next({ Disconnected: { connection_id: ID } });
+
+    expect(service.statusOf(ID)).toEqual({ kind: "disconnected", error: null });
+  });
+
+  it("lets a broker be connected again after being disconnected", async () => {
+    const { service, events$ } = setup();
+    await service.disconnect(ID);
+
+    await service.connect(ID);
+    events$.next({ Connected: { connection_id: ID } });
+
+    expect(service.statusOf(ID)).toEqual({ kind: "connected" });
+  });
+
   it("surfaces a failed disconnect and rethrows so the caller stays put", async () => {
     const disconnect = vi.fn().mockRejectedValue(new Error("still busy"));
     const { service } = setup({ disconnect });
@@ -113,6 +136,18 @@ describe("ConnectionStatusService", () => {
       kind: "disconnected",
       error: "still busy",
     });
+  });
+
+  /** A rejected disconnect leaves the session up, so it has to keep being
+   * heard from - unlike a successful one, which ends the story. */
+  it("keeps following a connection whose disconnect failed", async () => {
+    const disconnect = vi.fn().mockRejectedValue(new Error("still busy"));
+    const { service, events$ } = setup({ disconnect });
+    await expect(service.disconnect(ID)).rejects.toThrow("still busy");
+
+    events$.next({ Connected: { connection_id: ID } });
+
+    expect(service.statusOf(ID)).toEqual({ kind: "connected" });
   });
 
   it("stops a retry loop and leaves the error banner up", async () => {
@@ -129,6 +164,27 @@ describe("ConnectionStatusService", () => {
     await service.stopReconnecting(ID);
 
     expect(disconnect).toHaveBeenCalledWith(ID);
+    expect(service.statusOf(ID)).toEqual({
+      kind: "disconnected",
+      error: DISCONNECTED_BY_BROKER,
+    });
+  });
+
+  /** The retry loop takes a moment to notice; an attempt already in flight
+   * must not put the spinner back after the user pressed Stop. */
+  it("does not restart the spinner on a Reconnecting event that lands after Stop", async () => {
+    const { service, events$ } = setup();
+    await service.stopReconnecting(ID);
+
+    events$.next({
+      Reconnecting: {
+        connection_id: ID,
+        attempt: 3,
+        max_attempts: 10,
+        delay_ms: 4000,
+      },
+    });
+
     expect(service.statusOf(ID)).toEqual({
       kind: "disconnected",
       error: DISCONNECTED_BY_BROKER,
