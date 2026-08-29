@@ -114,6 +114,7 @@ There is no macOS build and no ARM build yet — on those platforms you'd need t
 | Linux | `bme_<version>_amd64.AppImage` | `chmod +x bme_*.AppImage && ./bme_*.AppImage` |
 | Linux | `bme_<version>_amd64.deb` | `sudo dpkg -i bme_*.deb` |
 | Linux | `bme-<version>-1.x86_64.rpm` | `sudo rpm -i bme-*.rpm` |
+| Linux (Arch) | `bme-<version>-1-x86_64.pkg.tar.zst` | `sudo pacman -U bme-*.pkg.tar.zst` |
 | Windows | `bme_<version>_x64-setup.exe` | Run the installer |
 | Windows | `bme_<version>_x64_en-US.msi` | Run the installer |
 | Windows | `bme-<version>-windows-portable.exe` | Run it — nothing to install |
