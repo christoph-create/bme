@@ -33,11 +33,24 @@ export class ConnectionStatusService {
    * is worth reporting while the connection is up and working. */
   private readonly warnings = signal<ReadonlyMap<string, string>>(new Map());
 
+  /** Connections the user has deliberately stopped. Events from the session
+   * being torn down keep arriving after the command resolves, and the backend
+   * cannot tell an intentional teardown from a broker that vanished - both are
+   * a `Disconnected` with no reason. Whoever pressed the button knows, so the
+   * decision is made here and held until the user asks to connect again.
+   *
+   * A plain Set rather than a signal: it is only ever read inside the event
+   * subscription, never in a computed. */
+  private readonly stopped = new Set<string>();
+
   constructor() {
     const events = inject(MqttEventsService);
     const destroyRef = inject(DestroyRef);
 
     const subscription = events.events$.subscribe((event) => {
+      // Ahead of the Warning branch on purpose: a warning from a session the
+      // user has already ended is as stale as its status.
+      if (this.stopped.has(connectionIdOf(event))) return;
       if ("Warning" in event) {
         this.setWarning(event.Warning.connection_id, event.Warning.message);
         // Returns rather than falling through to `update`: a warning leaves the
@@ -92,6 +105,7 @@ export class ConnectionStatusService {
     // the session, so a Connected lands moments after every warning and would
     // wipe it before it could be read.
     this.dismissWarning(connectionId);
+    this.stopped.delete(connectionId);
     this.set(connectionId, { kind: "connecting" });
     try {
       await this.connectionsService.connect(connectionId);
@@ -103,14 +117,20 @@ export class ConnectionStatusService {
   }
 
   async disconnect(connectionId: string): Promise<void> {
+    // Before the await, not after: the backend announces the teardown as a
+    // `Disconnected` that is indistinguishable from a broker dropping us, and
+    // it can land while the command is still in flight. Asking to stop is not
+    // a fault, so nothing the dying session says may repaint this red.
+    this.stopped.add(connectionId);
     try {
       await this.connectionsService.disconnect(connectionId);
     } catch (err) {
+      // The session may well still be live, so its events have to keep
+      // flowing - it is only a *successful* stop that ends the story.
+      this.stopped.delete(connectionId);
       this.set(connectionId, { kind: "disconnected", error: message(err) });
       throw err;
     }
-    // The backend's Disconnected event sets the same state; doing it here too
-    // means a dropped event can't leave the spinner running forever.
     this.set(connectionId, { kind: "disconnected", error: null });
   }
 
@@ -119,6 +139,10 @@ export class ConnectionStatusService {
    * topic tree and message history stay on screen and Retry is still there.
    */
   async stopReconnecting(connectionId: string): Promise<void> {
+    // Same reason as `disconnect`, and the case the backend could never have
+    // got right on its own: Stop and Disconnect are one IPC command, but only
+    // this one keeps the error banner and its Retry button up.
+    this.stopped.add(connectionId);
     let error: string | null = DISCONNECTED_BY_BROKER;
     try {
       await this.connectionsService.disconnect(connectionId);
@@ -132,6 +156,7 @@ export class ConnectionStatusService {
    * does not leave a status behind for an id that will never be seen again. */
   forget(connectionId: string): void {
     this.dismissWarning(connectionId);
+    this.stopped.delete(connectionId);
     this.state.update((current) => {
       if (!current.has(connectionId)) return current;
       const next = new Map(current);
