@@ -615,6 +615,146 @@ describe("MessageStream", () => {
     });
   });
 
+  describe("search", () => {
+    it("keeps the search input out of the way until Ctrl+F is pressed", async () => {
+      const { fixture } = await setup({ device: [message()] });
+      await selectTopic(fixture, "device");
+      const host = fixture.nativeElement as HTMLElement;
+
+      expect(host.querySelector(".search-input")).toBeNull();
+
+      host.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "f", ctrlKey: true, bubbles: true }),
+      );
+      fixture.detectChanges();
+
+      expect(host.querySelector(".search-input")).not.toBeNull();
+    });
+
+    it("does nothing on Ctrl+F when no topic is selected", async () => {
+      const { fixture } = await setup({});
+      const host = fixture.nativeElement as HTMLElement;
+
+      host.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "f", ctrlKey: true, bubbles: true }),
+      );
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.searchOpen()).toBe(false);
+    });
+
+    it("defers to the topic tree when focus is inside it", async () => {
+      const { fixture } = await setup({ device: [message()] });
+      await selectTopic(fixture, "device");
+
+      const tree = document.createElement("app-topic-tree");
+      const row = document.createElement("div");
+      tree.appendChild(row);
+      document.body.appendChild(tree);
+
+      row.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "f", ctrlKey: true, bubbles: true }),
+      );
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.searchOpen()).toBe(false);
+      tree.remove();
+    });
+
+    it("narrows the rendered cards to matching payloads and reports matched-of-total", async () => {
+      const { fixture } = await setup({
+        device: [
+          message({ payload: encode("temperature: 21") }),
+          message({ payload: encode("humidity: 40") }),
+        ],
+      });
+      await selectTopic(fixture, "device");
+      const component = fixture.componentInstance;
+
+      component.openSearch();
+      component.search.set("temp");
+      fixture.detectChanges();
+
+      const element = fixture.nativeElement as HTMLElement;
+      expect(element.textContent).toContain("1 of 2 messages in this session");
+      expect(element.textContent).toContain("temperature");
+      expect(element.textContent).not.toContain("humidity");
+    });
+
+    it("highlights the matched substring inside the payload", async () => {
+      const { fixture } = await setup({
+        device: [message({ payload: encode("temperature: 21") })],
+      });
+      await selectTopic(fixture, "device");
+      const component = fixture.componentInstance;
+
+      component.openSearch();
+      component.search.set("temp");
+      fixture.detectChanges();
+
+      const match = (fixture.nativeElement as HTMLElement).querySelector(
+        ".payload span.match",
+      );
+      expect(match?.textContent).toBe("temp");
+    });
+
+    it("tells the user when nothing matches", async () => {
+      const { fixture } = await setup({ device: [message()] });
+      await selectTopic(fixture, "device");
+      const component = fixture.componentInstance;
+
+      component.openSearch();
+      component.search.set("nope");
+      fixture.detectChanges();
+
+      const text = (fixture.nativeElement as HTMLElement).textContent ?? "";
+      expect(text).toContain('No messages match "nope"');
+    });
+
+    it("clears the search when the input is closed, so the list is never narrowed invisibly", async () => {
+      const { fixture } = await setup({
+        device: [
+          message({ payload: encode("temperature: 21") }),
+          message({ payload: encode("humidity: 40") }),
+        ],
+      });
+      await selectTopic(fixture, "device");
+      const component = fixture.componentInstance;
+
+      component.openSearch();
+      component.search.set("temp");
+      fixture.detectChanges();
+      expect((fixture.nativeElement as HTMLElement).textContent).not.toContain(
+        "humidity",
+      );
+
+      component.closeSearch();
+      fixture.detectChanges();
+
+      expect(component.search()).toBe("");
+      expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+        "humidity",
+      );
+    });
+
+    it("does not carry a search over to a newly selected topic", async () => {
+      const { fixture } = await setup({
+        device: [message()],
+        other: [message()],
+      });
+      await selectTopic(fixture, "device");
+      const component = fixture.componentInstance;
+
+      component.openSearch();
+      component.search.set("something");
+
+      await selectTopic(fixture, "other");
+
+      expect(component.searchOpen()).toBe(false);
+      expect(component.search()).toBe("");
+    });
+  });
+
   describe("clear", () => {
     it("clears the selected topic from the store and empties the panel", async () => {
       const { fixture, clearTopic } = await setupStreaming([

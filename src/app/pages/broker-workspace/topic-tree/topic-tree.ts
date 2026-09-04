@@ -37,11 +37,16 @@ const FLASH_DURATION_MS = 400;
 })
 export class TopicTree implements OnInit {
   readonly connectionId = input.required<string>();
+  /** Whether the message stream currently has a topic open and can run its
+   * own Ctrl+F search - when it can, this tree defers to it unless the
+   * user's focus is actually inside the tree. See `onFindShortcut`. */
+  readonly streamAvailable = input(false);
   readonly topicSelected = output<string>();
   readonly publishTopicRequested = output<string>();
 
   private readonly messageStore = inject(MessageStoreService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly elementRef = inject(ElementRef<HTMLElement>);
 
   readonly nodes = signal<TopicNode[]>([]);
   readonly expandedPaths = signal<ReadonlySet<string>>(new Set());
@@ -163,8 +168,19 @@ export class TopicTree implements OnInit {
     }
   }
 
+  /** Both this tree and the message stream bind Ctrl+F on `document`, so
+   * both fire on every press - deferring here whenever the stream can
+   * handle it and focus isn't actually inside the tree keeps the two from
+   * opening at once. `MessageStream.onFindShortcut` carries the other half:
+   * it defers back to this tree whenever focus is inside it. */
   @HostListener("document:keydown.control.f", ["$event"])
   onFindShortcut(event: Event): void {
+    const target = event.target as Node | null;
+    const focusInsideTree =
+      target !== null && this.elementRef.nativeElement.contains(target);
+    if (!focusInsideTree && this.streamAvailable()) {
+      return;
+    }
     event.preventDefault();
     this.openFilter();
   }
