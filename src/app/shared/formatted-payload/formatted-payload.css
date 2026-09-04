@@ -33,3 +33,8 @@
   color: var(--color-json-placeholder);
   font-style: italic;
 }
+
+.tok.match {
+  background: var(--color-accent-tint);
+  border-radius: 2px;
+}

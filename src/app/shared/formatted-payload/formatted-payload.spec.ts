@@ -8,6 +8,7 @@ async function setup(
   payload: string,
   format: MessageFormat = "json",
   prettyPrint = true,
+  highlight = "",
 ) {
   TestBed.configureTestingModule({ imports: [FormattedPayload] });
 
@@ -15,6 +16,7 @@ async function setup(
   fixture.componentRef.setInput("payload", payload);
   fixture.componentRef.setInput("format", format);
   fixture.componentRef.setInput("prettyPrint", prettyPrint);
+  fixture.componentRef.setInput("highlight", highlight);
   fixture.detectChanges();
   await fixture.whenStable();
   fixture.detectChanges();
@@ -59,5 +61,41 @@ describe("FormattedPayload", () => {
 
     expect(text(fixture)).toBe('{"a":1}');
     expect(spanClasses(fixture)).toContainEqual(["tok", "tok-key"]);
+  });
+
+  describe("highlight", () => {
+    it("marks no spans when highlight is empty", async () => {
+      const { fixture } = await setup('{"a":1}', "json", true, "");
+
+      expect(spanClasses(fixture).some((classes) => classes.includes("match"))).toBe(
+        false,
+      );
+    });
+
+    it("splits a matching token and marks the matched segment", async () => {
+      const { fixture } = await setup('{"data":"hello"}', "json", false, "ell");
+
+      const spans = Array.from(
+        (fixture.nativeElement as HTMLElement).querySelectorAll("span"),
+      );
+      const matched = spans.find((el) => el.classList.contains("match"));
+      expect(matched?.textContent).toBe("ell");
+      // The surrounding text keeps the same syntax kind as the token it split from.
+      expect(matched?.classList.contains("tok-string")).toBe(true);
+      expect(
+        spans.some(
+          (el) => el.textContent === "\"h" && el.classList.contains("tok-string"),
+        ),
+      ).toBe(true);
+    });
+
+    it("matches case-insensitively", async () => {
+      const { fixture } = await setup("plain text", "raw", true, "TEXT");
+
+      const matched = (fixture.nativeElement as HTMLElement).querySelector(
+        "span.match",
+      );
+      expect(matched?.textContent).toBe("text");
+    });
   });
 });

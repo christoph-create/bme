@@ -394,6 +394,59 @@ describe("TopicTree", () => {
     expect(host.querySelector(".filter-input")).not.toBeNull();
   });
 
+  it("opens its own filter on Ctrl+F when the stream can't handle it", async () => {
+    const { fixture } = await setup(
+      new Map([["sensors/humidity", [message()]]]),
+    );
+    fixture.componentRef.setInput("streamAvailable", false);
+    fixture.detectChanges();
+
+    document.body.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "f", ctrlKey: true, bubbles: true }),
+    );
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.filterOpen()).toBe(true);
+  });
+
+  it("defers Ctrl+F to the stream once a topic is open and focus is outside the tree", async () => {
+    const { fixture } = await setup(
+      new Map([["sensors/humidity", [message()]]]),
+    );
+    fixture.componentRef.setInput("streamAvailable", true);
+    fixture.detectChanges();
+
+    document.body.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "f", ctrlKey: true, bubbles: true }),
+    );
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.filterOpen()).toBe(false);
+  });
+
+  it("still opens its own filter on Ctrl+F when focus is inside the tree, even if the stream could handle it", async () => {
+    const { fixture } = await setup(
+      new Map([["sensors/humidity", [message()]]]),
+    );
+    fixture.componentRef.setInput("streamAvailable", true);
+    fixture.detectChanges();
+
+    // Bubbling only reaches the `document`-bound listener if the element is
+    // actually connected to the document, not just structurally nested
+    // inside the fixture's own (possibly detached) root.
+    document.body.appendChild(fixture.nativeElement);
+    const row = (fixture.nativeElement as HTMLElement).querySelector(
+      ".tree-row",
+    ) as HTMLElement;
+    row.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "f", ctrlKey: true, bubbles: true }),
+    );
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.filterOpen()).toBe(true);
+    fixture.nativeElement.remove();
+  });
+
   it("clears the filter when the input is closed, so the tree is never narrowed invisibly", async () => {
     const { fixture } = await setup(
       new Map([
