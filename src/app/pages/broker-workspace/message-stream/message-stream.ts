@@ -25,6 +25,7 @@ import { MessageStoreService } from "../../../core/services/message-store.servic
 import { MqttService } from "../../../core/services/mqtt.service";
 import { ConfirmDialog } from "../../../shared/confirm-dialog/confirm-dialog";
 import { FormattedPayload } from "../../../shared/formatted-payload/formatted-payload";
+import { formatClockTime } from "../format/clock-time";
 import { formatMessageBody, formatTruncationNote } from "../format/payload-text";
 import { formatTimeAgo } from "../format/time-ago";
 import { MeasureHeight } from "./measure-height.directive";
@@ -52,7 +53,7 @@ const BUFFER_ITEMS = 6;
  * redoing that per template call made fast scrolling visibly janky. */
 interface MessageView {
   readonly message: StoredMessage;
-  readonly timeAgo: string;
+  readonly timeLabel: string;
   readonly qos: 0 | 1 | 2;
   readonly body: string;
   /** Set when the message was too large to cross to the UI whole, so the card
@@ -95,6 +96,7 @@ export class MessageStream {
   private readonly now = signal(Date.now());
 
   readonly prettyJson = signal(true);
+  readonly showRealTime = signal(false);
 
   // Pausing freezes what's on screen without unsubscribing - the store keeps
   // accumulating underneath, and resuming shows everything that arrived. The
@@ -137,9 +139,12 @@ export class MessageStream {
   readonly messageViews = computed<readonly MessageView[]>(() => {
     const now = this.now();
     const topic = this.topic();
+    const showRealTime = this.showRealTime();
     return [...this.messages()].reverse().map((message) => ({
       message,
-      timeAgo: formatTimeAgo(now - message.receivedAt),
+      timeLabel: showRealTime
+        ? formatClockTime(message.receivedAt, now)
+        : formatTimeAgo(now - message.receivedAt),
       qos: qosNumber(message.qos),
       body: formatMessageBody(message.payload, message.payloadLen),
       truncatedNote: formatTruncationNote(
@@ -288,6 +293,10 @@ export class MessageStream {
 
   togglePrettyJson(): void {
     this.prettyJson.update((pretty) => !pretty);
+  }
+
+  toggleRealTime(): void {
+    this.showRealTime.update((v) => !v);
   }
 
   askClearRetained(): void {
