@@ -5,6 +5,16 @@
       <div class="header-actions">
         <span
           class="toggle-link"
+          [class.active]="showRealTime()"
+          (click)="toggleRealTime()"
+          (keydown.enter)="toggleRealTime()"
+          role="button"
+          tabindex="0"
+        >
+          {{ showRealTime() ? "Relative" : "Real time" }}
+        </span>
+        <span
+          class="toggle-link"
           [class.active]="paused()"
           (click)="togglePause()"
           (keydown.enter)="togglePause()"
@@ -79,7 +89,7 @@
           (heightChange)="onCardHeight(pv.view.message, $event)"
         >
           <div class="meta">
-            <span class="ts">{{ pv.view.timeAgo }}</span>
+            <span class="ts">{{ pv.view.timeLabel }}</span>
             <span class="qos-badge">QoS {{ pv.view.qos }}</span>
             @if (pv.view.message.retain) {
               <span class="retain-badge">Retained</span>
