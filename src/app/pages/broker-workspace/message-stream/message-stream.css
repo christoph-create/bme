@@ -80,6 +80,37 @@
   border-radius: 4px;
 }
 
+.search-row {
+  position: relative;
+  display: flex;
+  margin-top: 8px;
+}
+
+.search-input {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 24px 0 8px;
+  font-size: 12px;
+}
+
+.search-clear {
+  position: absolute;
+  right: 8px;
+  top: 0;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--color-text-quaternary);
+  cursor: pointer;
+}
+
+.search-clear:hover {
+  color: var(--color-text);
+}
+
 .message-list {
   flex: 1;
   overflow: auto;

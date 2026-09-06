@@ -1,3 +1,5 @@
-@for (token of tokens(); track $index) {
-  <span class="tok tok-{{ token.kind }}">{{ token.text }}</span>
+@for (token of displayTokens(); track $index) {
+  <span class="tok tok-{{ token.kind }}" [class.match]="token.matched">{{
+    token.text
+  }}</span>
 }

@@ -3,6 +3,7 @@ import {
   Component,
   DestroyRef,
   ElementRef,
+  HostListener,
   Injector,
   afterNextRender,
   computed,
@@ -28,6 +29,7 @@ import { FormattedPayload } from "../../../shared/formatted-payload/formatted-pa
 import { formatClockTime } from "../format/clock-time";
 import { formatMessageBody, formatTruncationNote } from "../format/payload-text";
 import { formatTimeAgo } from "../format/time-ago";
+import { filterMessageViews } from "./filter-message-views";
 import { MeasureHeight } from "./measure-height.directive";
 import { messageToDraft } from "./message-to-draft";
 import { computeOffsets, computeVisibleRange } from "./virtual-range";
@@ -51,7 +53,7 @@ const BUFFER_ITEMS = 6;
  * decoding) only re-runs when its inputs actually change, instead of on
  * every change-detection pass - with hundreds of messages in a session,
  * redoing that per template call made fast scrolling visibly janky. */
-interface MessageView {
+export interface MessageView {
   readonly message: StoredMessage;
   readonly timeLabel: string;
   readonly qos: 0 | 1 | 2;
@@ -97,6 +99,16 @@ export class MessageStream {
 
   readonly prettyJson = signal(true);
   readonly showRealTime = signal(false);
+
+  // Ctrl+F search - same shape as the topic tree's filter (signal query,
+  // open/closed flag, closing always clears) but pruning message cards
+  // instead of tree nodes, plus in-text highlighting the tree has no
+  // equivalent of.
+  readonly search = signal("");
+  readonly searchOpen = signal(false);
+  readonly searching = computed(() => this.search().trim() !== "");
+  private readonly searchInput =
+    viewChild<ElementRef<HTMLInputElement>>("searchInput");
 
   // Pausing freezes what's on screen without unsubscribing - the store keeps
   // accumulating underneath, and resuming shows everything that arrived. The
@@ -164,7 +176,21 @@ export class MessageStream {
 
   readonly messageCountLabel = computed(() => {
     const count = this.messages().length;
-    return `${count} ${count === 1 ? "message" : "messages"} in this session`;
+    const label = `${count} ${count === 1 ? "message" : "messages"} in this session`;
+    if (!this.searching()) {
+      return label;
+    }
+    return `${this.visibleForSearch().length} of ${label}`;
+  });
+
+  /** What's actually rendered: every message while not searching, or only
+   * the ones whose body matches. `messageViews()` stays the untouched full
+   * list so the count above can still describe the whole session. */
+  readonly visibleForSearch = computed<readonly MessageView[]>(() => {
+    const views = this.messageViews();
+    return this.searching()
+      ? filterMessageViews(views, this.search())
+      : views;
   });
 
 
@@ -184,7 +210,7 @@ export class MessageStream {
 
   private readonly rowHeightsList = computed(() => {
     this.heightVersion();
-    return this.messageViews().map(
+    return this.visibleForSearch().map(
       (v) => this.rowHeights.get(v.message) ?? DEFAULT_ROW_HEIGHT_PX,
     );
   });
@@ -206,7 +232,7 @@ export class MessageStream {
       this.viewportHeight(),
       BUFFER_ITEMS,
     );
-    const views = this.messageViews();
+    const views = this.visibleForSearch();
     const positioned: PositionedMessageView[] = [];
     for (let i = startIndex; i < endIndex; i++) {
       positioned.push({ view: views[i], top: offsets[i] });
@@ -219,6 +245,15 @@ export class MessageStream {
   private containerObserver: ResizeObserver | null = null;
 
   constructor() {
+    // The input only exists in the DOM once `searchOpen()` is true, so
+    // focusing can't happen at the moment it's opened - same reasoning as
+    // the topic tree's `filterInput` effect.
+    effect(() => {
+      if (this.searchOpen()) {
+        this.searchInput()?.nativeElement.focus();
+      }
+    });
+
     effect(() => {
       const connectionId = this.connectionId();
       const topic = this.topic();
@@ -297,6 +332,47 @@ export class MessageStream {
 
   toggleRealTime(): void {
     this.showRealTime.update((v) => !v);
+  }
+
+  onSearchInput(event: Event): void {
+    this.search.set((event.target as HTMLInputElement).value);
+    this.resetScroll();
+  }
+
+  /** Closing always clears, so a hidden search box can never be silently
+   * narrowing the list - same rule as the topic tree's `closeFilter`. */
+  closeSearch(): void {
+    this.searchOpen.set(false);
+    this.search.set("");
+    this.resetScroll();
+  }
+
+  openSearch(): void {
+    this.searchOpen.set(true);
+  }
+
+  clearSearch(): void {
+    this.search.set("");
+    this.searchInput()?.nativeElement.focus();
+    this.resetScroll();
+  }
+
+  /** Both this panel and the topic tree bind Ctrl+F on `document`, so both
+   * fire on every press - deferring here when focus is inside the tree (it
+   * should own the shortcut while the user is actually in it) keeps the two
+   * from opening at once. `TopicTree.onFindShortcut` carries the other half
+   * of this: it defers to this panel whenever a topic is open and focus
+   * isn't inside the tree. */
+  @HostListener("document:keydown.control.f", ["$event"])
+  onFindShortcut(event: Event): void {
+    if (this.topic() === null) {
+      return;
+    }
+    if ((event.target as HTMLElement | null)?.closest("app-topic-tree")) {
+      return;
+    }
+    event.preventDefault();
+    this.openSearch();
   }
 
   askClearRetained(): void {
@@ -418,6 +494,10 @@ export class MessageStream {
     // silently freeze a topic the user just opened.
     this.paused.set(false);
     this.clearPending();
+    // Likewise a search - it was scoped to whatever the user was just
+    // looking at, so it shouldn't silently narrow the next topic too.
+    this.searchOpen.set(false);
+    this.search.set("");
     if (topic === null) {
       this.messages.set([]);
       return;

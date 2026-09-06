@@ -78,6 +78,31 @@
     @if (clearRetainedError(); as error) {
       <p class="error">{{ error }}</p>
     }
+    @if (searchOpen()) {
+      <div class="search-row">
+        <input
+          #searchInput
+          type="text"
+          class="search-input"
+          placeholder="Search messages…"
+          aria-label="Search messages"
+          [value]="search()"
+          (input)="onSearchInput($event)"
+          (keydown.escape)="closeSearch()"
+        />
+        @if (searching()) {
+          <span
+            class="search-clear"
+            (click)="clearSearch()"
+            (keydown.enter)="clearSearch()"
+            role="button"
+            tabindex="0"
+            aria-label="Clear search"
+            >×</span
+          >
+        }
+      </div>
+    }
   </div>
   <div class="message-list" #list (scroll)="onScroll($event)">
     <div class="virtual-content" [style.height.px]="totalHeight()">
@@ -131,12 +156,15 @@
             [payload]="pv.view.body"
             format="json"
             [prettyPrint]="prettyJson()"
+            [highlight]="search()"
           />
         </div>
       }
     </div>
     @if (messages().length === 0) {
       <div class="empty-state">No messages yet on this topic</div>
+    } @else if (searching() && visibleForSearch().length === 0) {
+      <div class="empty-state">No messages match "{{ search().trim() }}"</div>
     }
   </div>
 
