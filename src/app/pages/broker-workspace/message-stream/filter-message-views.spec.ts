@@ -18,6 +18,7 @@ function view(body: string): MessageView {
     body,
     truncatedNote: null,
     draft: null,
+    propertyRows: [],
   };
 }
 

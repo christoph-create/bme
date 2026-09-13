@@ -29,6 +29,7 @@ import { FormattedPayload } from "../../../shared/formatted-payload/formatted-pa
 import { formatClockTime } from "../format/clock-time";
 import { formatMessageBody, formatTruncationNote } from "../format/payload-text";
 import { formatTimeAgo } from "../format/time-ago";
+import { formatPropertyRows, PropertyRow } from "./format-properties";
 import { filterMessageViews } from "./filter-message-views";
 import { MeasureHeight } from "./measure-height.directive";
 import { messageToDraft } from "./message-to-draft";
@@ -64,6 +65,8 @@ export interface MessageView {
   /** Null when the payload isn't editable as text (binary, empty or
    * truncated), which is also what disables the card's Resend control. */
   readonly draft: MessageDraft | null;
+  /** The MQTT 5 properties it arrived with; empty for every other message. */
+  readonly propertyRows: readonly PropertyRow[];
 }
 
 interface PositionedMessageView {
@@ -75,7 +78,7 @@ interface PositionedMessageView {
   selector: "app-message-stream",
   imports: [MeasureHeight, FormattedPayload, ConfirmDialog],
   templateUrl: "./message-stream.html",
-  styleUrl: "./message-stream.css",
+  styleUrls: ["./message-stream.css", "./message-properties.css"],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MessageStream {
@@ -171,6 +174,7 @@ export class MessageStream {
               message,
               (text) => this.jsonFormat.format(text).ok,
             ),
+      propertyRows: formatPropertyRows(message.properties),
     }));
   });
 

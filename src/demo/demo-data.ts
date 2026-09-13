@@ -2,6 +2,7 @@ import { BrokerConnection } from "../app/core/models/broker-connection.model";
 import { FavoriteCollection } from "../app/core/models/favorite-collection.model";
 import { FavoriteMessage } from "../app/core/models/favorite-message.model";
 import { PayloadVariable } from "../app/core/models/payload-variable.model";
+import { MessageProperties } from "../app/core/models/message-properties.model";
 import { QoS } from "../app/core/models/qos";
 
 /**
@@ -309,6 +310,9 @@ export interface DemoMessage {
   qos: QoS;
   retain: boolean;
   gapMs: number;
+  /** MQTT 5 properties, on a connection that speaks it. Left off, not
+   * null, for the same reason the real event leaves the field off. */
+  properties?: MessageProperties;
 }
 
 function reading(

@@ -40,5 +40,8 @@ export function messageToDraft(
     format: isJson(payload) ? "json" : "raw",
     qos: message.qos,
     retain: message.retain,
+    // Left off rather than set to undefined, so a draft from a v3.1.1
+    // message is exactly what it was before properties existed.
+    ...(message.properties === null ? {} : { properties: message.properties }),
   };
 }

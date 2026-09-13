@@ -419,6 +419,9 @@ export function installDemoBackend(): void {
             payload_len: payload.length,
             qos: message.qos,
             retain: message.retain,
+            ...(message.properties === undefined
+              ? {}
+              : { properties: message.properties }),
           },
         });
       }

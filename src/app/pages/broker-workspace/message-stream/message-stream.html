@@ -151,6 +151,16 @@
               </span>
             </div>
           </div>
+          @if (pv.view.propertyRows.length > 0) {
+            <dl class="properties">
+              @for (row of pv.view.propertyRows; track $index) {
+                <dt [class.user]="row.user" [title]="row.user ? 'User property' : ''">
+                  {{ row.label }}
+                </dt>
+                <dd>{{ row.value }}</dd>
+              }
+            </dl>
+          }
           <app-formatted-payload
             class="payload"
             [payload]="pv.view.body"

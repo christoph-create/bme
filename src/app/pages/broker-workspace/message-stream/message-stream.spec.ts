@@ -201,6 +201,46 @@ describe("MessageStream", () => {
     expect(text).not.toContain("Retained");
   });
 
+  it("lists a message's MQTT 5 properties under its meta row", async () => {
+    const { fixture } = await setup({
+      device: [
+        message({
+          properties: {
+            content_type: "application/json",
+            payload_is_utf8: false,
+            message_expiry_interval: 120,
+            response_topic: null,
+            correlation_data: null,
+            user_properties: [{ key: "trace", value: "abc-1" }],
+          },
+        }),
+      ],
+    });
+    await selectTopic(fixture, "device");
+
+    const host = fixture.nativeElement as HTMLElement;
+    const labels = Array.from(host.querySelectorAll(".properties dt")).map(
+      (dt) => dt.textContent?.trim(),
+    );
+    const values = Array.from(host.querySelectorAll(".properties dd")).map(
+      (dd) => dd.textContent?.trim(),
+    );
+    expect(labels).toEqual(["Content type", "Expires", "trace"]);
+    expect(values).toEqual(["application/json", "2 min", "abc-1"]);
+    expect(host.querySelector(".properties dt.user")?.textContent?.trim()).toBe(
+      "trace",
+    );
+  });
+
+  it("renders no properties block for a message without any", async () => {
+    const { fixture } = await setup({ device: [message()] });
+    await selectTopic(fixture, "device");
+
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector(".properties"),
+    ).toBeNull();
+  });
+
   it("pretty-prints JSON payloads by default", async () => {
     const payload = encode('{"data1":"data","data2":"data"}');
     const { fixture } = await setup({ device: [message({ payload })] });
@@ -399,6 +439,29 @@ describe("MessageStream", () => {
           retain: true,
         },
       ]);
+    });
+
+    it("carries the message's MQTT 5 properties into the draft", async () => {
+      const properties = {
+        content_type: "text/plain",
+        payload_is_utf8: true,
+        message_expiry_interval: null,
+        response_topic: null,
+        correlation_data: "req-9",
+        user_properties: [],
+      };
+      const { fixture } = await setup({
+        device: [message({ payload: encode("hi"), properties })],
+      });
+      await selectTopic(fixture, "device");
+
+      const emitted: MessageDraft[] = [];
+      fixture.componentInstance.resendRequested.subscribe((draft) =>
+        emitted.push(draft),
+      );
+      cardAction(fixture.nativeElement as HTMLElement, "Resend").click();
+
+      expect(emitted[0].properties).toEqual(properties);
     });
 
     it("emits again when the same message is resent twice", async () => {

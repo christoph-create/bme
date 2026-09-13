@@ -51,6 +51,31 @@ describe("messageToDraft", () => {
     });
   });
 
+  // Resend has to reproduce the message, properties included - but a draft
+  // from a message without any must not grow a `properties` key, so the
+  // panel's "clear the editor" path still sees the old shape.
+  it("carries the MQTT 5 properties when the message had some", () => {
+    const properties = {
+      content_type: "text/plain",
+      payload_is_utf8: true,
+      message_expiry_interval: null,
+      response_topic: "replies",
+      correlation_data: null,
+      user_properties: [{ key: "k", value: "v" }],
+    };
+
+    const draft = messageToDraft(
+      "a",
+      message({ payload: encode("hi"), properties }),
+      isJson,
+    );
+
+    expect(draft?.properties).toEqual(properties);
+    expect(
+      messageToDraft("a", message({ payload: encode("hi") }), isJson),
+    ).not.toHaveProperty("properties");
+  });
+
   it("marks a JSON object payload as json", () => {
     const draft = messageToDraft(
       "a",
