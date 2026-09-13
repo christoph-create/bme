@@ -179,6 +179,7 @@ pub fn test_connection(
         username: connection.username,
         password: connection.password,
         scheme: connection.scheme,
+        protocol_version: connection.protocol_version,
         ws_path: connection.ws_path,
         ca_cert_path: connection.ca_cert_path,
         client_cert_path: connection.client_cert_path,

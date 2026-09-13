@@ -1,6 +1,7 @@
 import {
   BrokerConnection,
   BrokerScheme,
+  MqttVersion,
   UpdateBrokerConnection,
 } from "../../core/models/broker-connection.model";
 
@@ -12,6 +13,7 @@ import {
 export interface ConnectionFormValue {
   name: string;
   scheme: BrokerScheme;
+  protocolVersion: MqttVersion;
   host: string;
   port: string;
   wsPath: string;
@@ -46,6 +48,7 @@ export function formValueToConnection(
     username: value.requiresAuth ? value.username : null,
     password: value.requiresAuth ? value.password : null,
     scheme: value.scheme,
+    protocol_version: value.protocolVersion,
     // The path only means anything for the WebSocket schemes, so switching
     // back to mqtt:// drops it rather than leaving it to reappear if the user
     // switches forward again with a different endpoint in mind.
@@ -72,6 +75,7 @@ export function connectionToFormValue(
   return {
     name: connection.name,
     scheme: connection.scheme,
+    protocolVersion: connection.protocol_version,
     host: connection.host,
     port: String(connection.port),
     wsPath: connection.ws_path ?? "",

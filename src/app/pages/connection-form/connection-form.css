@@ -87,6 +87,11 @@ h1 {
   width: 110px;
 }
 
+.field-protocol {
+  flex: 0 0 auto;
+  width: 120px;
+}
+
 select {
   height: var(--control-height);
   background: var(--color-input-bg);

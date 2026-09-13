@@ -238,7 +238,7 @@ impl ServerCertVerifier for NoCertVerification {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::BrokerScheme;
+    use crate::models::{BrokerScheme, MqttVersion};
     use std::io::Write;
     use uuid::Uuid;
 
@@ -252,6 +252,7 @@ mod tests {
             username: None,
             password: None,
             scheme: BrokerScheme::Mqtts,
+            protocol_version: MqttVersion::V311,
             ws_path: None,
             ca_cert_path: None,
             client_cert_path: None,

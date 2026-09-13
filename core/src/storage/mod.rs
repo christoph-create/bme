@@ -10,7 +10,7 @@ use rusqlite::types::{FromSql, FromSqlError, FromSqlResult, ToSql, ToSqlOutput, 
 use rusqlite::Connection;
 use rusqlite_migration::{Migrations, M};
 
-use crate::models::{BrokerScheme, MessageFormat, QoS};
+use crate::models::{BrokerScheme, MessageFormat, MqttVersion, QoS};
 
 #[derive(Debug, thiserror::Error)]
 pub enum StorageError {
@@ -86,6 +86,21 @@ impl FromSql for BrokerScheme {
     }
 }
 
+// TEXT again, and for the same reason: "v311"/"v5" in the sqlite file is the
+// string the IPC layer and the form's select use.
+impl ToSql for MqttVersion {
+    fn to_sql(&self) -> rusqlite::Result<ToSqlOutput<'_>> {
+        Ok(ToSqlOutput::from(String::from(*self)))
+    }
+}
+
+impl FromSql for MqttVersion {
+    fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
+        let raw = value.as_str()?;
+        MqttVersion::try_from(raw).map_err(|_| FromSqlError::InvalidType)
+    }
+}
+
 static MIGRATIONS: LazyLock<Migrations<'static>> = LazyLock::new(|| {
     Migrations::new(vec![
         M::up(include_str!("migrations/0001_broker_connections.sql")),
@@ -105,6 +120,7 @@ static MIGRATIONS: LazyLock<Migrations<'static>> = LazyLock::new(|| {
         M::up(include_str!("migrations/0009_app_settings.sql")),
         M::up(include_str!("migrations/0010_payload_variables.sql")),
         M::up(include_str!("migrations/0011_websocket_and_tls.sql")),
+        M::up(include_str!("migrations/0012_protocol_version.sql")),
     ])
 });
 

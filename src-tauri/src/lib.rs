@@ -387,6 +387,7 @@ mod tests {
                     "username": null,
                     "password": null,
                     "scheme": "mqtt",
+                    "protocol_version": "v311",
                     "ws_path": null,
                     "ca_cert_path": null,
                     "client_cert_path": null,
@@ -429,6 +430,7 @@ mod tests {
                     "username": null,
                     "password": null,
                     "scheme": "mqtt",
+                    "protocol_version": "v311",
                     "ws_path": null,
                     "ca_cert_path": null,
                     "client_cert_path": null,
@@ -472,6 +474,7 @@ mod tests {
                     "username": null,
                     "password": null,
                     "scheme": "mqtt",
+                    "protocol_version": "v311",
                     "ws_path": null,
                     "ca_cert_path": null,
                     "client_cert_path": null,
@@ -500,6 +503,7 @@ mod tests {
                     "username": null,
                     "password": null,
                     "scheme": "mqtts",
+                    "protocol_version": "v311",
                     "ws_path": null,
                     "ca_cert_path": null,
                     "client_cert_path": null,
@@ -541,6 +545,7 @@ mod tests {
                     "username": null,
                     "password": null,
                     "scheme": "wss",
+                    "protocol_version": "v5",
                     "ws_path": "/mqtt",
                     "ca_cert_path": "/certs/AmazonRootCA1.pem",
                     "client_cert_path": "/certs/device-cert.pem",
@@ -572,6 +577,7 @@ mod tests {
         assert_eq!(fetched["client_key_path"], "/certs/device-key.pem");
         assert_eq!(fetched["alpn"], "x-amzn-mqtt-ca");
         assert_eq!(fetched["skip_cert_verification"], true);
+        assert_eq!(fetched["protocol_version"], "v5");
     }
 
     /// The reconnect settings are only useful if they survive the IPC round
@@ -595,6 +601,7 @@ mod tests {
                     "username": null,
                     "password": null,
                     "scheme": "mqtt",
+                    "protocol_version": "v311",
                     "ws_path": null,
                     "ca_cert_path": null,
                     "client_cert_path": null,
@@ -933,6 +940,7 @@ mod tests {
                     "username": null,
                     "password": null,
                     "scheme": "mqtt",
+                    "protocol_version": "v311",
                     "ws_path": null,
                     "ca_cert_path": null,
                     "client_cert_path": null,
@@ -986,6 +994,7 @@ mod tests {
                     "username": null,
                     "password": null,
                     "scheme": "mqtt",
+                    "protocol_version": "v311",
                     "ws_path": null,
                     "ca_cert_path": null,
                     "client_cert_path": null,
@@ -1024,6 +1033,7 @@ mod tests {
                     "username": null,
                     "password": null,
                     "scheme": "mqtt",
+                    "protocol_version": "v311",
                     "ws_path": null,
                     "ca_cert_path": null,
                     "client_cert_path": null,

@@ -73,7 +73,7 @@ impl<P: MqttPort> MqttClientManager<P> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::BrokerScheme;
+    use crate::models::{BrokerScheme, MqttVersion};
 
     #[derive(Debug, PartialEq)]
     enum Call {
@@ -175,6 +175,7 @@ mod tests {
             username: None,
             password: None,
             scheme: BrokerScheme::Mqtt,
+            protocol_version: MqttVersion::V311,
             ws_path: None,
             ca_cert_path: None,
             client_cert_path: None,

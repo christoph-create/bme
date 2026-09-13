@@ -31,6 +31,7 @@ const CREATED: BrokerConnection = {
   username: null,
   password: null,
   scheme: "mqtt",
+  protocol_version: "v311",
   ws_path: null,
   ca_cert_path: null,
   client_cert_path: null,
@@ -96,6 +97,7 @@ async function setup(
 const VALID_VALUE = {
   name: "Home Assistant",
   scheme: "mqtt" as const,
+  protocolVersion: "v311" as const,
   host: "homeassistant.local",
   port: "1883",
   wsPath: "",
@@ -133,6 +135,7 @@ describe("ConnectionForm", () => {
       username: null,
       password: null,
       scheme: "mqtt",
+      protocol_version: "v311",
       ws_path: null,
       ca_cert_path: null,
       client_cert_path: null,
@@ -148,6 +151,30 @@ describe("ConnectionForm", () => {
     // it (see connection-form.ts).
     expect(fake.connect).not.toHaveBeenCalled();
     expect(navigate).toHaveBeenCalledWith(["/broker", CREATED.id]);
+  });
+
+  // v5 is opt-in: a broker that only speaks 3.1.1 refuses a v5 CONNECT, so
+  // the default has to be the one every broker accepts.
+  it("defaults a new connection to MQTT 3.1.1", async () => {
+    const { fixture } = await setup();
+
+    expect(fixture.componentInstance.form.getRawValue().protocolVersion).toBe(
+      "v311",
+    );
+  });
+
+  it("saves the picked protocol version", async () => {
+    const { fixture, fake } = await setup();
+    fixture.componentInstance.form.setValue({
+      ...VALID_VALUE,
+      protocolVersion: "v5",
+    });
+
+    await fixture.componentInstance.submit();
+
+    expect(fake.create).toHaveBeenCalledWith(
+      expect.objectContaining({ protocol_version: "v5" }),
+    );
   });
 
   it("does not create a connection when required fields are missing", async () => {
@@ -304,6 +331,7 @@ describe("ConnectionForm", () => {
       expect(fixture.componentInstance.form.getRawValue()).toEqual({
         name: CREATED.name,
         scheme: CREATED.scheme,
+        protocolVersion: CREATED.protocol_version,
         host: CREATED.host,
         port: String(CREATED.port),
         wsPath: "",
@@ -320,6 +348,17 @@ describe("ConnectionForm", () => {
         alpn: "",
         skipCertVerification: false,
       });
+    });
+
+    it("prefills the protocol version of an MQTT 5 connection", async () => {
+      const v5: BrokerConnection = { ...CREATED, protocol_version: "v5" };
+      const { fixture } = await setup(CREATED.id, {
+        get: vi.fn().mockResolvedValue(v5),
+      });
+
+      expect(
+        fixture.componentInstance.form.getRawValue().protocolVersion,
+      ).toBe("v5");
     });
 
     it("prefills the reconnect settings of a connection that has them switched off", async () => {
@@ -377,6 +416,7 @@ describe("ConnectionForm", () => {
         username: null,
         password: null,
         scheme: CREATED.scheme,
+        protocol_version: CREATED.protocol_version,
         ws_path: null,
         ca_cert_path: null,
         client_cert_path: null,

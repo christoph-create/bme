@@ -97,6 +97,53 @@ impl From<BrokerScheme> for String {
     }
 }
 
+/// Which MQTT revision a connection speaks. Both are dialects rumqttc drives
+/// through entirely separate APIs (`rumqttc::*` vs `rumqttc::v5::*`), so this
+/// picks a session driver rather than toggling a flag - see
+/// `crate::mqtt::session`. Text in SQLite ("v311"/"v5") for the same
+/// legibility reason as `BrokerScheme`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MqttVersion {
+    V311,
+    V5,
+}
+
+impl MqttVersion {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            MqttVersion::V311 => "v311",
+            MqttVersion::V5 => "v5",
+        }
+    }
+
+    /// The name a user would recognise, for reason strings and logs.
+    pub fn display_name(self) -> &'static str {
+        match self {
+            MqttVersion::V311 => "MQTT 3.1.1",
+            MqttVersion::V5 => "MQTT 5",
+        }
+    }
+}
+
+impl TryFrom<&str> for MqttVersion {
+    type Error = String;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "v311" => Ok(MqttVersion::V311),
+            "v5" => Ok(MqttVersion::V5),
+            other => Err(format!("invalid MqttVersion value: {other}")),
+        }
+    }
+}
+
+impl From<MqttVersion> for String {
+    fn from(version: MqttVersion) -> Self {
+        version.as_str().to_string()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Subscription {
     pub id: Uuid,
@@ -115,6 +162,7 @@ pub struct BrokerConnection {
     pub username: Option<String>,
     pub password: Option<String>,
     pub scheme: BrokerScheme,
+    pub protocol_version: MqttVersion,
     /// The URL path of a WebSocket endpoint, `ws`/`wss` only. Empty or unset
     /// means `/mqtt`, which is what nearly every broker serves it on.
     pub ws_path: Option<String>,
@@ -154,6 +202,7 @@ pub struct NewBrokerConnection {
     pub username: Option<String>,
     pub password: Option<String>,
     pub scheme: BrokerScheme,
+    pub protocol_version: MqttVersion,
     pub ws_path: Option<String>,
     pub ca_cert_path: Option<String>,
     pub client_cert_path: Option<String>,
@@ -175,6 +224,7 @@ pub struct UpdateBrokerConnection {
     pub username: Option<String>,
     pub password: Option<String>,
     pub scheme: BrokerScheme,
+    pub protocol_version: MqttVersion,
     pub ws_path: Option<String>,
     pub ca_cert_path: Option<String>,
     pub client_cert_path: Option<String>,
@@ -420,6 +470,30 @@ mod tests {
         assert!(BrokerScheme::Mqtts.is_tls() && !BrokerScheme::Mqtts.is_websocket());
         assert!(!BrokerScheme::Ws.is_tls() && BrokerScheme::Ws.is_websocket());
         assert!(BrokerScheme::Wss.is_tls() && BrokerScheme::Wss.is_websocket());
+    }
+
+    #[test]
+    fn mqtt_version_roundtrips_through_str() {
+        for version in [MqttVersion::V311, MqttVersion::V5] {
+            let as_str: String = version.into();
+            assert_eq!(MqttVersion::try_from(as_str.as_str()), Ok(version));
+        }
+    }
+
+    #[test]
+    fn mqtt_version_rejects_invalid_values() {
+        assert!(MqttVersion::try_from("v3").is_err());
+    }
+
+    /// The version is the SQLite column *and* the IPC field the TypeScript
+    /// union mirrors, so the exact strings are pinned here.
+    #[test]
+    fn mqtt_version_serializes_as_lowercase_json() {
+        assert_eq!(
+            serde_json::to_string(&MqttVersion::V311).unwrap(),
+            "\"v311\""
+        );
+        assert_eq!(serde_json::to_string(&MqttVersion::V5).unwrap(), "\"v5\"");
     }
 
     #[test]

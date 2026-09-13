@@ -6,6 +6,12 @@ import { QoS } from "./qos";
  */
 export type BrokerScheme = "mqtt" | "mqtts" | "ws" | "wss";
 
+/**
+ * Mirrors `core::models::MqttVersion`. Serialized lowercase. Picks which of
+ * rumqttc's two protocol drivers the backend connects with.
+ */
+export type MqttVersion = "v311" | "v5";
+
 /** Mirrors `core::models::Subscription`. */
 export interface Subscription {
   id: string;
@@ -24,6 +30,7 @@ export interface BrokerConnection {
   username: string | null;
   password: string | null;
   scheme: BrokerScheme;
+  protocol_version: MqttVersion;
   /** `ws`/`wss` only; empty or null means `/mqtt`. */
   ws_path: string | null;
   /** Absolute paths to PEM files, read by the backend on every connect. */
@@ -54,6 +61,7 @@ export interface NewBrokerConnection {
   username: string | null;
   password: string | null;
   scheme: BrokerScheme;
+  protocol_version: MqttVersion;
   ws_path: string | null;
   ca_cert_path: string | null;
   client_cert_path: string | null;
@@ -75,6 +83,7 @@ export interface UpdateBrokerConnection {
   username: string | null;
   password: string | null;
   scheme: BrokerScheme;
+  protocol_version: MqttVersion;
   ws_path: string | null;
   ca_cert_path: string | null;
   client_cert_path: string | null;
