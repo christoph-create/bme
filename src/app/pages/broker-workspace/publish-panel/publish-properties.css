@@ -1,0 +1,50 @@
+/* The MQTT 5 properties block on the settings layer. Its own file for the
+   same reason publish-settings.css is: the per-stylesheet size budget. */
+
+.properties {
+  gap: var(--space-3);
+}
+
+.properties > .field-label {
+  margin-bottom: 0;
+}
+
+.user-property-row {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+/* Inputs keep an intrinsic width otherwise, and two of them side by side
+   would push the whole panel wider than the window. */
+.user-property-row > input {
+  flex: 1;
+  min-width: 0;
+  width: 0;
+}
+
+.btn-remove {
+  flex: 0 0 auto;
+  width: var(--control-height);
+  padding: 0;
+  border-radius: var(--radius-input);
+  border: 1px solid var(--color-input-border);
+  background: transparent;
+  color: var(--color-text-tertiary);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.btn-remove:hover {
+  color: var(--color-text);
+  border-color: var(--color-text-secondary);
+}
+
+.btn-add-property {
+  align-self: flex-start;
+}
+
+/* Two chips side by side: only the first keeps the left-pushing margin. */
+.repeat-chip + .properties-chip {
+  margin-right: 0;
+}

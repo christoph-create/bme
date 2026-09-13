@@ -10,6 +10,7 @@ import {
 } from "@angular/core";
 import { Router } from "@angular/router";
 
+import { MqttVersion } from "../../core/models/broker-connection.model";
 import { MessageDraft } from "../../core/models/message-draft.model";
 import { ConnectionStatusService } from "../../core/services/connection-status.service";
 import { WorkspacesService } from "../../core/services/workspaces.service";
@@ -76,6 +77,12 @@ export class BrokerWorkspace implements OnInit {
   /** Fetched once when the tab opens, and shared with the tab bar. */
   readonly connection = computed(() =>
     this.workspaces.connectionFor(this.connectionId()),
+  );
+  /** Falls back to 3.1.1 while the connection is still loading, which only
+   * ever hides the MQTT 5 controls for a moment rather than showing them
+   * on a connection that turns out not to have them. */
+  readonly protocolVersion = computed<MqttVersion>(
+    () => this.connection()?.protocol_version ?? "v311",
   );
 
   /** Owned here rather than in the message stream because the charts freeze

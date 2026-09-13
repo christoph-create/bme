@@ -87,6 +87,107 @@
         }
       }
 
+      @if (showsProperties()) {
+        <div class="field properties">
+          <span class="field-label">MQTT 5 properties</span>
+          <div class="field">
+            <label for="contentType">Content type</label>
+            <input
+              id="contentType"
+              type="text"
+              class="mono"
+              placeholder="application/json"
+              [value]="propertiesForm().contentType"
+              (input)="setPropertyField('contentType', $any($event.target).value)"
+            />
+          </div>
+          <div class="field">
+            <label for="messageExpiry">Message expiry (seconds)</label>
+            <input
+              id="messageExpiry"
+              type="text"
+              class="mono"
+              inputmode="numeric"
+              [value]="propertiesForm().messageExpiry"
+              (input)="setPropertyField('messageExpiry', $any($event.target).value)"
+            />
+          </div>
+          <div class="field">
+            <label for="responseTopic">Response topic</label>
+            <input
+              id="responseTopic"
+              type="text"
+              class="mono"
+              [value]="propertiesForm().responseTopic"
+              (input)="setPropertyField('responseTopic', $any($event.target).value)"
+            />
+          </div>
+          <div class="field">
+            <label for="correlationData">Correlation data</label>
+            <input
+              id="correlationData"
+              type="text"
+              class="mono"
+              [value]="propertiesForm().correlationData"
+              (input)="setPropertyField('correlationData', $any($event.target).value)"
+            />
+          </div>
+          <div class="field-row">
+            <label class="toggle-field">
+              <span>Payload is UTF-8 text</span>
+              <span class="switch">
+                <input
+                  type="checkbox"
+                  class="utf8-checkbox"
+                  [checked]="propertiesForm().payloadIsUtf8"
+                  (change)="togglePayloadIsUtf8()"
+                />
+                <span class="switch-track"></span>
+              </span>
+            </label>
+          </div>
+          <div class="field">
+            <span class="field-label">User properties</span>
+            @for (property of propertiesForm().userProperties; track $index) {
+              <div class="user-property-row">
+                <input
+                  type="text"
+                  class="mono"
+                  placeholder="key"
+                  aria-label="User property key"
+                  [value]="property.key"
+                  (input)="setUserProperty($index, 'key', $any($event.target).value)"
+                />
+                <input
+                  type="text"
+                  class="mono"
+                  placeholder="value"
+                  aria-label="User property value"
+                  [value]="property.value"
+                  (input)="setUserProperty($index, 'value', $any($event.target).value)"
+                />
+                <button
+                  type="button"
+                  class="btn-remove"
+                  aria-label="Remove user property"
+                  title="Remove"
+                  (click)="removeUserProperty($index)"
+                >
+                  ×
+                </button>
+              </div>
+            }
+            <button
+              type="button"
+              class="btn-outline btn-add-property"
+              (click)="addUserProperty()"
+            >
+              + Add user property
+            </button>
+          </div>
+        </div>
+      }
+
       <div class="field">
         <span class="field-label">Variables</span>
         <div class="variables-summary">
@@ -193,6 +294,16 @@
           (click)="openSettings()"
         >
           {{ repeatSummary() }}
+        </button>
+      }
+      @if (propertiesSummary(); as summary) {
+        <button
+          type="button"
+          class="repeat-chip properties-chip"
+          title="Change MQTT 5 properties"
+          (click)="openSettings()"
+        >
+          {{ summary }}
         </button>
       }
       <button
