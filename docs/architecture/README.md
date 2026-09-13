@@ -21,7 +21,7 @@ bme/
 ├── core/                  Rust: domain logic, MQTT, persistence. No Tauri deps.
 │   └── src/
 │       ├── models.rs          Domain types (BrokerConnection, FavoriteMessage, QoS, …)
-│       ├── mqtt/              port.rs (trait + events) · rumqttc_adapter.rs · manager.rs
+│       ├── mqtt/              port.rs (trait + events) · rumqttc_adapter.rs · session.rs (v3.1.1/v5) · manager.rs
 │       │                      transport.rs + tls.rs (scheme → transport) · failure.rs (why it dropped)
 │       ├── update/            port.rs (trait) · github.rs · version.rs · checker.rs
 │       └── storage/           mod.rs (open/migrate) · *_repo.rs · migrations/*.sql
@@ -56,6 +56,7 @@ bme/
 | --- | --- |
 | What the frontend can ask the backend to do | `src-tauri/src/commands.rs` (+ the `generate_handler!` list and `build_test_app()` in `src-tauri/src/lib.rs`, + `capabilities/default.json`, + the command list in `src-tauri/build.rs`) |
 | MQTT behaviour (connect/publish/subscribe) | `core/src/mqtt/rumqttc_adapter.rs`, then `manager.rs` |
+| Anything MQTT 5 specific, or the difference between the two rumqttc APIs | `core/src/mqtt/session.rs`; the reason strings live in `failure.rs` |
 | How a broker is *reached* — WebSockets, TLS, certificates | `core/src/mqtt/transport.rs` (scheme → rumqttc transport, and the ws URL) and `tls.rs` (the rustls config). The UI builds the same URL for display in `src/app/core/connection/broker-url.ts` — the two have to agree |
 | What a failed connection tells the user | `core/src/mqtt/failure.rs`, which fills the `reason` on the `Disconnected` event |
 | The database schema | A **new** file in `core/src/storage/migrations/` — never edit an applied one |

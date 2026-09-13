@@ -85,6 +85,18 @@
               formControlName="clientId"
             />
           </div>
+          <div class="field field-protocol">
+            <label for="protocolVersion">Protocol</label>
+            <select
+              id="protocolVersion"
+              class="mono"
+              formControlName="protocolVersion"
+            >
+              @for (option of protocolVersions; track option.value) {
+              <option [value]="option.value">{{ option.label }}</option>
+              }
+            </select>
+          </div>
           <div class="field field-keep-alive">
             <label for="keepAliveSecs">Keep-alive</label>
             <input

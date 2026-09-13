@@ -11,6 +11,7 @@ import {
 } from "../../../core/models/payload-variable.model";
 import { FavoriteCollectionsService } from "../../../core/services/favorite-collections.service";
 import { FavoritesService } from "../../../core/services/favorites.service";
+import { MessageProperties } from "../../../core/models/message-properties.model";
 import { MqttService } from "../../../core/services/mqtt.service";
 import { VariablesService } from "../../../core/services/variables.service";
 import { PublishPanel } from "./publish-panel";
@@ -90,6 +91,15 @@ function clickSegment(
   fixture.detectChanges();
 }
 
+const PROPERTIES: MessageProperties = {
+  content_type: "application/json",
+  payload_is_utf8: true,
+  message_expiry_interval: 30,
+  response_topic: "replies/1",
+  correlation_data: "req-1",
+  user_properties: [{ key: "trace", value: "abc" }],
+};
+
 describe("PublishPanel", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -151,6 +161,7 @@ describe("PublishPanel", () => {
       encode('{"a":1,"b":2}'),
       "AtMostOnce",
       false,
+      null,
     );
   });
 
@@ -181,6 +192,7 @@ describe("PublishPanel", () => {
       encode("not valid json"),
       "AtMostOnce",
       false,
+      null,
     );
   });
 
@@ -199,6 +211,7 @@ describe("PublishPanel", () => {
       encode('{"a": 1}'),
       "AtMostOnce",
       false,
+      null,
     );
   });
 
@@ -218,6 +231,7 @@ describe("PublishPanel", () => {
       encode("hello"),
       "ExactlyOnce",
       false,
+      null,
     );
   });
 
@@ -236,6 +250,7 @@ describe("PublishPanel", () => {
       encode("hello"),
       "AtMostOnce",
       false,
+      null,
     );
   });
 
@@ -255,6 +270,7 @@ describe("PublishPanel", () => {
       encode("hello"),
       "AtMostOnce",
       true,
+      null,
     );
   });
 
@@ -608,6 +624,153 @@ describe("PublishPanel", () => {
 
       expect(component.publishError()).toBeNull();
     });
+
+    it("fills the MQTT 5 properties editor from a draft that has them", async () => {
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+
+      component.loadDraft({ ...DRAFT, properties: PROPERTIES });
+
+      expect(component.propertiesForm()).toEqual({
+        contentType: "application/json",
+        responseTopic: "replies/1",
+        correlationData: "req-1",
+        messageExpiry: "30",
+        payloadIsUtf8: true,
+        userProperties: [{ key: "trace", value: "abc" }],
+      });
+    });
+
+    // "Overwrites the draft" includes the properties: a resent message that
+    // had none must not go out wearing whatever was typed earlier.
+    it("clears the properties editor for a draft without any", async () => {
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+      component.loadDraft({ ...DRAFT, properties: PROPERTIES });
+
+      component.loadDraft(DRAFT);
+
+      expect(component.propertiesForm().contentType).toBe("");
+      expect(component.propertiesForm().userProperties).toEqual([]);
+    });
+  });
+
+  describe("MQTT 5 properties", () => {
+    function settingsLayer(
+      fixture: Awaited<ReturnType<typeof setup>>["fixture"],
+    ): HTMLElement {
+      fixture.componentInstance.openSettings();
+      fixture.detectChanges();
+      return fixture.nativeElement as HTMLElement;
+    }
+
+    it("hides the editor on a 3.1.1 connection", async () => {
+      const { fixture } = await setup();
+
+      const host = settingsLayer(fixture);
+
+      expect(host.querySelector("#contentType")).toBeNull();
+    });
+
+    it("shows the editor on an MQTT 5 connection", async () => {
+      const { fixture } = await setup();
+      fixture.componentRef.setInput("protocolVersion", "v5");
+
+      const host = settingsLayer(fixture);
+
+      expect(host.querySelector("#contentType")).not.toBeNull();
+      expect(host.querySelector("#responseTopic")).not.toBeNull();
+      expect(host.querySelector(".utf8-checkbox")).not.toBeNull();
+    });
+
+    it("sends what was typed, with blank fields left out", async () => {
+      const { fixture, publish } = await setup();
+      const component = fixture.componentInstance;
+      fixture.componentRef.setInput("protocolVersion", "v5");
+      component.setTopic("t");
+      component.form.controls.payload.setValue("1");
+      component.setPropertyField("contentType", "text/plain");
+      component.setPropertyField("messageExpiry", "45");
+      component.addUserProperty();
+      component.setUserProperty(0, "key", "trace");
+      component.setUserProperty(0, "value", "abc");
+      component.addUserProperty(); // left blank: must not be sent
+
+      await component.publish();
+
+      expect(publish).toHaveBeenCalledWith(
+        CONNECTION_ID,
+        "t",
+        encode("1"),
+        "AtMostOnce",
+        false,
+        {
+          content_type: "text/plain",
+          payload_is_utf8: false,
+          message_expiry_interval: 45,
+          response_topic: null,
+          correlation_data: null,
+          user_properties: [{ key: "trace", value: "abc" }],
+        } satisfies MessageProperties,
+      );
+    });
+
+    it("sends nothing on a 3.1.1 connection even if the editor holds values", async () => {
+      const { fixture, publish } = await setup();
+      const component = fixture.componentInstance;
+      component.setTopic("t");
+      component.form.controls.payload.setValue("1");
+      component.loadDraft({
+        topic: "t",
+        payload: "1",
+        format: "raw",
+        qos: "AtMostOnce",
+        retain: false,
+        properties: PROPERTIES,
+      });
+
+      await component.publish();
+
+      expect(publish).toHaveBeenCalledWith(
+        CONNECTION_ID,
+        "t",
+        encode("1"),
+        "AtMostOnce",
+        false,
+        null,
+      );
+    });
+
+    it("summarises the set properties in a chip on the publish layer", async () => {
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+      fixture.componentRef.setInput("protocolVersion", "v5");
+      fixture.detectChanges();
+      const host = fixture.nativeElement as HTMLElement;
+      expect(host.querySelector(".properties-chip")).toBeNull();
+
+      component.setPropertyField("contentType", "text/plain");
+      component.togglePayloadIsUtf8();
+      fixture.detectChanges();
+
+      expect(
+        host.querySelector(".properties-chip")?.textContent?.trim(),
+      ).toBe("2 properties");
+    });
+
+    it("removes a user property row", async () => {
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+      component.addUserProperty();
+      component.addUserProperty();
+      component.setUserProperty(1, "key", "keep");
+
+      component.removeUserProperty(0);
+
+      expect(component.propertiesForm().userProperties).toEqual([
+        { key: "keep", value: "" },
+      ]);
+    });
   });
 });
 
@@ -635,6 +798,7 @@ describe("PublishPanel payload variables", () => {
       encode('{"id":"dev-42"}'),
       "AtMostOnce",
       false,
+      null,
     );
   });
 

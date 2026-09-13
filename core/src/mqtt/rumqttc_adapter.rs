@@ -1,48 +1,31 @@
 use std::time::Duration;
 
-use rumqttc::{AsyncClient, Event, EventLoop, MqttOptions, Packet};
+use bytes::Bytes;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
-use crate::models::{BrokerConnection, QoS};
+use crate::models::{BrokerConnection, MessageProperties, MqttVersion, QoS};
 use crate::mqtt::connection_registry::ConnectionRegistry;
-use crate::mqtt::failure::connect_failure_reason;
-use crate::mqtt::oversize::{oversize_delay, oversize_reason, MAX_PACKET_BYTES};
+use crate::mqtt::oversize::{oversize_delay, MAX_PACKET_BYTES};
 use crate::mqtt::port::{MqttError, MqttEvent, MqttPort, MAX_IPC_PAYLOAD_BYTES};
 use crate::mqtt::reconnect::ReconnectPolicy;
+use crate::mqtt::session::{publish_packet_bytes, PollError, Session, SessionEvent};
 use crate::mqtt::subscription_set::SubscriptionSet;
-use crate::mqtt::transport::{broker_addr, transport_for};
+use crate::mqtt::transport::transport_for;
 
-impl From<QoS> for rumqttc::QoS {
-    fn from(qos: QoS) -> Self {
-        match qos {
-            QoS::AtMostOnce => rumqttc::QoS::AtMostOnce,
-            QoS::AtLeastOnce => rumqttc::QoS::AtLeastOnce,
-            QoS::ExactlyOnce => rumqttc::QoS::ExactlyOnce,
-        }
-    }
-}
-
-impl From<rumqttc::QoS> for QoS {
-    fn from(qos: rumqttc::QoS) -> Self {
-        match qos {
-            rumqttc::QoS::AtMostOnce => QoS::AtMostOnce,
-            rumqttc::QoS::AtLeastOnce => QoS::AtLeastOnce,
-            rumqttc::QoS::ExactlyOnce => QoS::ExactlyOnce,
-        }
-    }
-}
-
+/// Protocol-neutral on purpose: the task on the other end owns a `Session`
+/// in whichever dialect the connection asked for, and translates.
 enum Command {
     Publish {
         topic: String,
-        payload: Vec<u8>,
-        qos: rumqttc::QoS,
+        payload: Bytes,
+        qos: QoS,
         retain: bool,
+        properties: Option<MessageProperties>,
     },
     Subscribe {
         topic: String,
-        qos: rumqttc::QoS,
+        qos: QoS,
     },
     Unsubscribe {
         topic: String,
@@ -56,33 +39,16 @@ enum Command {
     },
 }
 
-type Connections = ConnectionRegistry<mpsc::UnboundedSender<Command>>;
-
-/// How large the PUBLISH packet carrying `payload_len` bytes to `topic` will be
-/// once rumqttc frames it.
-///
-/// Mirrors `Publish::size()`, except that the packet id is counted for every
-/// QoS above 0. rumqttc checks the size before assigning the id and so
-/// under-counts by two bytes there; erring the other way keeps this guard from
-/// ever waving through a packet the event loop would then reject - which would
-/// cost the whole session rather than just the one message.
-fn publish_packet_bytes(topic: &str, payload_len: usize, qos: rumqttc::QoS) -> usize {
-    let remaining = 2
-        + topic.len()
-        + payload_len
-        + if qos == rumqttc::QoS::AtMostOnce {
-            0
-        } else {
-            2
-        };
-    let length_bytes = match remaining {
-        0..=127 => 1,
-        128..=16_383 => 2,
-        16_384..=2_097_151 => 3,
-        _ => 4,
-    };
-    1 + length_bytes + remaining
+/// What the registry holds per live connection. The version travels with
+/// the channel because the publish size guard runs on the caller's side,
+/// before anything reaches the task that knows which dialect it speaks.
+#[derive(Clone)]
+struct Live {
+    command_tx: mpsc::UnboundedSender<Command>,
+    version: MqttVersion,
 }
+
+type Connections = ConnectionRegistry<Live>;
 
 /// Drives real MQTT connections with `rumqttc`. Each connected broker gets
 /// its own background task, spawned on an owned tokio runtime, that owns
@@ -104,12 +70,15 @@ impl RumqttcAdapter {
         }
     }
 
-    fn send_command(&self, connection_id: Uuid, command: Command) -> Result<(), MqttError> {
-        let command_tx = self
-            .connections
+    fn live(&self, connection_id: Uuid) -> Result<Live, MqttError> {
+        self.connections
             .get(connection_id)
-            .ok_or(MqttError::UnknownConnection(connection_id))?;
-        command_tx
+            .ok_or(MqttError::UnknownConnection(connection_id))
+    }
+
+    fn send_command(&self, connection_id: Uuid, command: Command) -> Result<(), MqttError> {
+        self.live(connection_id)?
+            .command_tx
             .send(command)
             .map_err(|_| MqttError::Other("connection task has already stopped".to_string()))
     }
@@ -127,40 +96,33 @@ impl MqttPort for RumqttcAdapter {
             // already out of the registry, so it can no longer receive
             // commands - the worst it can still do is deliver a message or
             // two from the session it is closing.
-            let _ = superseded.send(Command::Disconnect { announce: false });
+            let _ = superseded
+                .command_tx
+                .send(Command::Disconnect { announce: false });
         }
 
         // Built before anything is registered or spawned: an unusable
         // certificate is knowable now, and reporting it as a return value beats
         // reporting it as a disconnect the caller has to wait for.
         let transport = transport_for(broker).map_err(|err| MqttError::Config(err.to_string()))?;
+        let session = Session::open(broker, transport)?;
 
-        let mut options =
-            MqttOptions::new(broker.client_id.clone(), broker_addr(broker), broker.port);
-        options.set_keep_alive(Duration::from_secs(broker.keep_alive_secs as u64));
-        options.set_max_packet_size(MAX_PACKET_BYTES, MAX_PACKET_BYTES);
-        // Stated rather than inherited from rumqttc's default: the whole
-        // resubscribe-after-ConnAck design below only makes sense because the
-        // broker has forgotten the session, so the assumption belongs in the
-        // code that depends on it.
-        options.set_clean_session(true);
-        if let (Some(username), Some(password)) = (&broker.username, &broker.password) {
-            options.set_credentials(username.clone(), password.clone());
-        }
-        options.set_transport(transport);
-
-        let (client, eventloop) = AsyncClient::new(options, 64);
         let (command_tx, command_rx) = mpsc::unbounded_channel();
 
         // Registered before the task is spawned, so a publish issued the
         // instant connect() returns finds a channel to go down.
-        let generation = self.connections.insert(connection_id, command_tx);
+        let generation = self.connections.insert(
+            connection_id,
+            Live {
+                command_tx,
+                version: session.version(),
+            },
+        );
 
         self.runtime.spawn(run_connection(
             connection_id,
             generation,
-            client,
-            eventloop,
+            session,
             command_rx,
             self.events_tx.clone(),
             self.connections.clone(),
@@ -178,12 +140,14 @@ impl MqttPort for RumqttcAdapter {
         payload: Vec<u8>,
         qos: QoS,
         retain: bool,
+        properties: Option<MessageProperties>,
     ) -> Result<(), MqttError> {
-        let qos = qos.into();
+        let live = self.live(connection_id)?;
+        let payload = Bytes::from(payload);
         // Rejected here, where the caller still gets to see the error, instead
         // of in the event loop - which enforces the same limit by dropping the
         // session, taking every other topic down with it.
-        let bytes = publish_packet_bytes(topic, payload.len(), qos);
+        let bytes = publish_packet_bytes(live.version, topic, &payload, qos, properties.as_ref());
         if bytes > MAX_PACKET_BYTES {
             return Err(MqttError::PayloadTooLarge {
                 bytes,
@@ -191,15 +155,15 @@ impl MqttPort for RumqttcAdapter {
             });
         }
 
-        self.send_command(
-            connection_id,
-            Command::Publish {
+        live.command_tx
+            .send(Command::Publish {
                 topic: topic.to_string(),
                 payload,
                 qos,
                 retain,
-            },
-        )
+                properties,
+            })
+            .map_err(|_| MqttError::Other("connection task has already stopped".to_string()))
     }
 
     fn subscribe(&self, connection_id: Uuid, topic: &str, qos: QoS) -> Result<(), MqttError> {
@@ -207,7 +171,7 @@ impl MqttPort for RumqttcAdapter {
             connection_id,
             Command::Subscribe {
                 topic: topic.to_string(),
-                qos: qos.into(),
+                qos,
             },
         )
     }
@@ -227,8 +191,8 @@ impl MqttPort for RumqttcAdapter {
     /// since the end state the caller wants - "not connected" - already
     /// holds.
     fn disconnect(&self, connection_id: Uuid) -> Result<(), MqttError> {
-        if let Some(command_tx) = self.connections.take(connection_id) {
-            let _ = command_tx.send(Command::Disconnect { announce: true });
+        if let Some(live) = self.connections.take(connection_id) {
+            let _ = live.command_tx.send(Command::Disconnect { announce: true });
         }
         Ok(())
     }
@@ -238,15 +202,17 @@ impl MqttPort for RumqttcAdapter {
 async fn run_connection(
     connection_id: Uuid,
     generation: u64,
-    client: AsyncClient,
-    mut eventloop: EventLoop,
+    mut session: Session,
     mut command_rx: mpsc::UnboundedReceiver<Command>,
     events_tx: mpsc::UnboundedSender<MqttEvent>,
     connections: Connections,
     policy: ReconnectPolicy,
     mut subscriptions: SubscriptionSet,
 ) {
-    log::info!("mqtt connection {connection_id}: event loop started");
+    log::info!(
+        "mqtt connection {connection_id}: event loop started ({})",
+        session.version().display_name()
+    );
 
     // Retrying a broker that has never answered would turn a typo in the host
     // field into two and a half minutes of "Reconnecting…" before the real
@@ -265,9 +231,9 @@ async fn run_connection(
         let mut pending_backoff = None;
 
         tokio::select! {
-            event = eventloop.poll() => {
+            event = session.poll() => {
                 match event {
-                    Ok(Event::Incoming(Packet::ConnAck(_))) => {
+                    Ok(SessionEvent::ConnAck) => {
                         log::info!("mqtt connection {connection_id}: connected (ConnAck)");
                         has_connected = true;
                         // A session that came up is real progress, so the next
@@ -286,11 +252,11 @@ async fn run_connection(
                         // doesn't replay them any more.
                         for (topic, qos) in subscriptions.iter() {
                             log::debug!("mqtt connection {connection_id}: (re)subscribing to {topic}");
-                            let _ = client.subscribe(topic, qos.into()).await;
+                            session.subscribe(topic, qos).await;
                         }
                         let _ = events_tx.send(MqttEvent::Connected { connection_id });
                     }
-                    Ok(Event::Incoming(Packet::Publish(publish))) => {
+                    Ok(SessionEvent::Publish(publish)) => {
                         // A message got through, so whatever the last oversize
                         // packet was, the stream is past it.
                         oversize_streak = 0;
@@ -306,19 +272,20 @@ async fn run_connection(
                             connection_id,
                             publish.topic,
                             &publish.payload,
-                            publish.qos.into(),
+                            publish.qos,
                             publish.retain,
+                            publish.properties,
                         ));
                     }
-                    Ok(_) => {}
+                    Ok(SessionEvent::Other) => {}
                     Err(err) => {
-                        log::error!("mqtt connection {connection_id}: eventloop.poll() failed: {err} ({err:?})");
+                        log::error!("mqtt connection {connection_id}: eventloop.poll() failed: {err}");
 
                         // rumqttc's event loop is built to be polled *through* a
                         // disconnect: it drops the socket, resets its state and
                         // re-establishes the session on the next poll. So all a
                         // retry takes is waiting, then looping.
-                        if let Some(reason) = oversize_reason(&err) {
+                        if let PollError::Oversize(reason) = err {
                             // A message the broker is holding is not a broken
                             // connection. Counting these against the reconnect
                             // budget would take a working broker offline over
@@ -363,7 +330,7 @@ async fn run_connection(
                             });
 
                             pending_backoff = Some(delay);
-                        } else {
+                        } else if let PollError::Failed { reason, .. } = err {
                             attempt += 1;
 
                             let Some(delay) = policy.delay_for(attempt).filter(|_| has_connected)
@@ -372,7 +339,7 @@ async fn run_connection(
                                 connections.remove_if_current(connection_id, generation);
                                 let _ = events_tx.send(MqttEvent::Disconnected {
                                     connection_id,
-                                    reason: connect_failure_reason(&err),
+                                    reason,
                                 });
                                 return;
                             };
@@ -396,27 +363,27 @@ async fn run_connection(
             }
             command = command_rx.recv() => {
                 match command {
-                    Some(Command::Publish { topic, payload, qos, retain }) => {
-                        let _ = client.publish(topic, qos, retain, payload).await;
+                    Some(Command::Publish { topic, payload, qos, retain, properties }) => {
+                        session.publish(topic, payload, qos, retain, properties).await;
                     }
                     Some(Command::Subscribe { topic, qos }) => {
                         // Recorded as well as sent, so a topic subscribed to
                         // mid-session is still there to replay after a drop.
-                        subscriptions.insert(topic.clone(), qos.into());
-                        let _ = client.subscribe(topic, qos).await;
+                        subscriptions.insert(topic.clone(), qos);
+                        session.subscribe(&topic, qos).await;
                     }
                     Some(Command::Unsubscribe { topic }) => {
                         subscriptions.remove(&topic);
-                        let _ = client.unsubscribe(topic).await;
+                        session.unsubscribe(&topic).await;
                     }
                     Some(Command::Disconnect { announce }) => {
-                        shutdown(connection_id, generation, &client, &connections, &events_tx, announce).await;
+                        shutdown(connection_id, generation, &mut session, &connections, &events_tx, announce).await;
                         return;
                     }
                     // A closed channel means the adapter itself is going away,
                     // which is as much a disconnect as an explicit request.
                     None => {
-                        shutdown(connection_id, generation, &client, &connections, &events_tx, true).await;
+                        shutdown(connection_id, generation, &mut session, &connections, &events_tx, true).await;
                         return;
                     }
                 }
@@ -450,13 +417,13 @@ async fn run_connection(
 async fn shutdown(
     connection_id: Uuid,
     generation: u64,
-    client: &AsyncClient,
+    session: &mut Session,
     connections: &Connections,
     events_tx: &mpsc::UnboundedSender<MqttEvent>,
     announce: bool,
 ) {
     log::info!("mqtt connection {connection_id}: disconnected (client requested)");
-    let _ = client.disconnect().await;
+    session.disconnect().await;
     connections.remove_if_current(connection_id, generation);
     if announce {
         let _ = events_tx.send(MqttEvent::Disconnected {
@@ -487,7 +454,7 @@ async fn backoff(
             command = command_rx.recv() => {
                 match command {
                     Some(Command::Subscribe { topic, qos }) => {
-                        subscriptions.insert(topic, qos.into());
+                        subscriptions.insert(topic, qos);
                     }
                     Some(Command::Unsubscribe { topic }) => {
                         subscriptions.remove(&topic);
@@ -522,7 +489,7 @@ enum BackoffOutcome {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::BrokerScheme;
+    use crate::models::{BrokerScheme, MqttVersion};
     use tokio::time::timeout;
 
     fn sample_broker(host: &str, port: u16) -> BrokerConnection {
@@ -535,6 +502,7 @@ mod tests {
             username: None,
             password: None,
             scheme: BrokerScheme::Mqtt,
+            protocol_version: MqttVersion::V311,
             ws_path: None,
             ca_cert_path: None,
             client_cert_path: None,
@@ -648,7 +616,7 @@ mod tests {
         command_tx
             .send(Command::Subscribe {
                 topic: "fresh/#".to_string(),
-                qos: rumqttc::QoS::ExactlyOnce,
+                qos: QoS::ExactlyOnce,
             })
             .unwrap();
         command_tx
@@ -702,31 +670,12 @@ mod tests {
         adapter.connect(broker.id, &broker).unwrap();
         let second = adapter.connections.get(broker.id).expect("registered");
 
-        assert!(!first.same_channel(&second));
+        assert!(!first.command_tx.same_channel(&second.command_tx));
         // The superseded task was told to stop, and quietly, so the
         // replacement's Connected is not immediately contradicted.
-        assert!(first.is_closed() || !second.is_closed());
+        assert!(first.command_tx.is_closed() || !second.command_tx.is_closed());
         assert_eq!(adapter.disconnect(broker.id), Ok(()));
         assert!(!adapter.connections.contains(broker.id));
-    }
-
-    #[test]
-    fn a_publish_packet_is_the_header_plus_the_topic_plus_the_payload() {
-        // 1 fixed header + 1 length byte + 2 topic-length + 4 topic + 3 payload.
-        assert_eq!(
-            publish_packet_bytes("temp", 3, rumqttc::QoS::AtMostOnce),
-            11
-        );
-        // Above QoS 0 the packet id is counted, unlike in rumqttc's own check.
-        assert_eq!(
-            publish_packet_bytes("temp", 3, rumqttc::QoS::AtLeastOnce),
-            13
-        );
-        // The remaining length is a varint, so it grows a byte of its own.
-        assert_eq!(
-            publish_packet_bytes("t", 200, rumqttc::QoS::AtMostOnce),
-            206
-        );
     }
 
     /// Letting an oversize publish reach the event loop would drop the whole
@@ -740,7 +689,7 @@ mod tests {
         adapter.connect(broker.id, &broker).unwrap();
 
         let too_big = vec![0u8; MAX_PACKET_BYTES];
-        let result = adapter.publish(broker.id, "t", too_big, QoS::AtMostOnce, false);
+        let result = adapter.publish(broker.id, "t", too_big, QoS::AtMostOnce, false, None);
 
         assert!(
             matches!(result, Err(MqttError::PayloadTooLarge { max, .. }) if max == MAX_PACKET_BYTES),
@@ -748,7 +697,14 @@ mod tests {
         );
         assert!(adapter.connections.contains(broker.id));
         assert_eq!(
-            adapter.publish(broker.id, "t", b"small".to_vec(), QoS::AtMostOnce, false),
+            adapter.publish(
+                broker.id,
+                "t",
+                b"small".to_vec(),
+                QoS::AtMostOnce,
+                false,
+                None
+            ),
             Ok(())
         );
     }
@@ -764,7 +720,7 @@ mod tests {
         adapter.connect(broker.id, &broker).unwrap();
 
         assert_eq!(
-            adapter.publish(broker.id, "t", b"x".to_vec(), QoS::AtMostOnce, false),
+            adapter.publish(broker.id, "t", b"x".to_vec(), QoS::AtMostOnce, false, None),
             Ok(())
         );
     }
@@ -800,6 +756,7 @@ mod tests {
                 b"hello from bme".to_vec(),
                 QoS::AtLeastOnce,
                 false,
+                None,
             )
             .unwrap();
 
@@ -818,6 +775,109 @@ mod tests {
         });
 
         adapter.disconnect(broker.id).unwrap();
+    }
+
+    /// The MQTT 5 driver end to end. test.mosquitto.org runs Mosquitto 2.x,
+    /// which negotiates v5 on the same port as v3.1.1.
+    /// Run explicitly with: cargo test -p bme-core -- --ignored mqtt5
+    #[test]
+    #[ignore]
+    fn connects_publishes_and_receives_over_mqtt5() {
+        let (events_tx, mut events_rx) = mpsc::unbounded_channel();
+        let adapter = RumqttcAdapter::new(events_tx);
+        let mut broker = sample_broker("test.mosquitto.org", 1883);
+        broker.protocol_version = MqttVersion::V5;
+        let topic = format!("bme/tests/{}", broker.id);
+
+        adapter.connect(broker.id, &broker).unwrap();
+
+        adapter.runtime.block_on(async {
+            wait_for(&mut events_rx, |event| {
+                matches!(event, MqttEvent::Connected { .. })
+            })
+            .await;
+        });
+
+        adapter
+            .subscribe(broker.id, &topic, QoS::AtLeastOnce)
+            .unwrap();
+        let sent = MessageProperties {
+            content_type: Some("text/plain".to_string()),
+            payload_is_utf8: true,
+            message_expiry_interval: Some(60),
+            response_topic: Some(format!("{topic}/reply")),
+            correlation_data: Some("req-1".to_string()),
+            user_properties: vec![crate::models::UserProperty {
+                key: "origin".to_string(),
+                value: "bme-test".to_string(),
+            }],
+        };
+        adapter
+            .publish(
+                broker.id,
+                &topic,
+                b"hello over mqtt 5".to_vec(),
+                QoS::AtLeastOnce,
+                false,
+                Some(sent.clone()),
+            )
+            .unwrap();
+
+        adapter.runtime.block_on(async {
+            let received = wait_for(
+                &mut events_rx,
+                |event| matches!(event, MqttEvent::MessageReceived { topic: t, .. } if t == &topic),
+            )
+            .await;
+            match received {
+                MqttEvent::MessageReceived {
+                    payload,
+                    properties,
+                    ..
+                } => {
+                    assert_eq!(payload, b"hello over mqtt 5");
+                    // The expiry comes back as whatever is left of it, so
+                    // compare it loosely and everything else exactly.
+                    let mut properties = properties.expect("the properties should come back");
+                    assert!(properties.message_expiry_interval.is_some_and(|s| s <= 60));
+                    properties.message_expiry_interval = sent.message_expiry_interval;
+                    assert_eq!(properties, sent);
+                }
+                _ => unreachable!(),
+            }
+        });
+
+        adapter.disconnect(broker.id).unwrap();
+    }
+
+    /// A v5 broker says *why* it refused, and that has to reach the banner.
+    /// test.mosquitto.org's 1884 listener requires credentials.
+    /// Run explicitly with: cargo test -p bme-core -- --ignored mqtt5
+    #[test]
+    #[ignore]
+    fn an_mqtt5_refusal_explains_itself() {
+        let (events_tx, mut events_rx) = mpsc::unbounded_channel();
+        let adapter = RumqttcAdapter::new(events_tx);
+        let mut broker = sample_broker("test.mosquitto.org", 1884);
+        broker.protocol_version = MqttVersion::V5;
+        broker.username = Some("nobody".to_string());
+        broker.password = Some("wrong".to_string());
+
+        adapter.connect(broker.id, &broker).unwrap();
+
+        adapter.runtime.block_on(async {
+            let event = wait_for(&mut events_rx, |event| {
+                matches!(event, MqttEvent::Disconnected { .. })
+            })
+            .await;
+            match event {
+                MqttEvent::Disconnected { reason, .. } => {
+                    let reason = reason.expect("the refusal should be explained");
+                    assert!(reason.contains("refused"), "{reason}");
+                }
+                _ => unreachable!(),
+            }
+        });
     }
 
     /// The WebSocket path end to end, against test.mosquitto.org's TLS
@@ -858,6 +918,7 @@ mod tests {
                 b"hello over websockets".to_vec(),
                 QoS::AtLeastOnce,
                 false,
+                None,
             )
             .unwrap();
 
@@ -913,7 +974,7 @@ mod tests {
     /// every reconnect, flapping forever.
     ///
     /// Needs a local broker: `docker run --rm -p 1883:1883 eclipse-mosquitto`.
-    /// Run explicitly with: cargo test -p bme-core -- --ignored oversize
+    /// Run explicitly with: cargo test -p bme-core -- --ignored dropping_the_session
     #[test]
     #[ignore]
     fn a_message_far_over_the_old_limit_arrives_without_dropping_the_session() {
@@ -937,7 +998,14 @@ mod tests {
         // this covers the truncation on the way out as well.
         let big = vec![b'x'; MAX_IPC_PAYLOAD_BYTES * 4];
         adapter
-            .publish(broker.id, &topic, big.clone(), QoS::AtLeastOnce, false)
+            .publish(
+                broker.id,
+                &topic,
+                big.clone(),
+                QoS::AtLeastOnce,
+                false,
+                None,
+            )
             .unwrap();
 
         adapter.runtime.block_on(async {
@@ -958,6 +1026,81 @@ mod tests {
             assert_eq!(payload.len(), MAX_IPC_PAYLOAD_BYTES);
 
             // Nothing may follow it: the session that carried it is still up.
+            let dropped = timeout(Duration::from_secs(2), async {
+                loop {
+                    let event = events_rx.recv().await.expect("event channel closed");
+                    if matches!(
+                        &event,
+                        MqttEvent::Disconnected { .. }
+                            | MqttEvent::Reconnecting { .. }
+                            | MqttEvent::Warning { .. }
+                    ) {
+                        return event;
+                    }
+                }
+            })
+            .await;
+            assert!(dropped.is_err(), "the session dropped: {dropped:?}");
+        });
+
+        adapter.disconnect(broker.id).unwrap();
+    }
+
+    /// The v5 twin of the test above. rumqttc's v5 options default to the
+    /// same 10 KiB, raised through a different knob (the Maximum Packet Size
+    /// CONNECT property), so it needs proving separately.
+    ///
+    /// Needs a local broker; see the v3.1.1 test above.
+    /// Run explicitly with: cargo test -p bme-core -- --ignored dropping_the_session
+    #[test]
+    #[ignore]
+    fn a_large_message_arrives_over_mqtt5_without_dropping_the_session() {
+        let (events_tx, mut events_rx) = mpsc::unbounded_channel();
+        let adapter = RumqttcAdapter::new(events_tx);
+        let mut broker = sample_broker("localhost", 1883);
+        broker.protocol_version = MqttVersion::V5;
+        let topic = format!("bme/tests/{}", broker.id);
+
+        adapter.connect(broker.id, &broker).unwrap();
+        adapter.runtime.block_on(async {
+            wait_for(&mut events_rx, |event| {
+                matches!(event, MqttEvent::Connected { .. })
+            })
+            .await;
+        });
+        adapter
+            .subscribe(broker.id, &topic, QoS::AtLeastOnce)
+            .unwrap();
+
+        let big = vec![b'x'; MAX_IPC_PAYLOAD_BYTES * 4];
+        adapter
+            .publish(
+                broker.id,
+                &topic,
+                big.clone(),
+                QoS::AtLeastOnce,
+                false,
+                None,
+            )
+            .unwrap();
+
+        adapter.runtime.block_on(async {
+            let received = wait_for(
+                &mut events_rx,
+                |event| matches!(event, MqttEvent::MessageReceived { topic: t, .. } if t == &topic),
+            )
+            .await;
+            let MqttEvent::MessageReceived {
+                payload,
+                payload_len,
+                ..
+            } = received
+            else {
+                unreachable!()
+            };
+            assert_eq!(payload_len, big.len());
+            assert_eq!(payload.len(), MAX_IPC_PAYLOAD_BYTES);
+
             let dropped = timeout(Duration::from_secs(2), async {
                 loop {
                     let event = events_rx.recv().await.expect("event channel closed");
@@ -1015,7 +1158,14 @@ mod tests {
             .subscribe(broker.id, &topic, QoS::AtLeastOnce)
             .unwrap();
         adapter
-            .publish(broker.id, &topic, b"once".to_vec(), QoS::AtLeastOnce, false)
+            .publish(
+                broker.id,
+                &topic,
+                b"once".to_vec(),
+                QoS::AtLeastOnce,
+                false,
+                None,
+            )
             .unwrap();
 
         adapter.runtime.block_on(async {

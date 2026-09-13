@@ -216,6 +216,7 @@ mod tests {
                 commands::get_connection,
                 commands::delete_connection,
                 commands::connect_broker,
+                commands::publish_message,
                 commands::subscribe_topic,
                 commands::unsubscribe_topic,
                 commands::test_connection,
@@ -313,6 +314,53 @@ mod tests {
         .to_string()
     }
 
+    /// The frontend leaves `properties` out entirely on a v3.1.1 connection,
+    /// so the argument has to deserialize as `None` when the key is absent -
+    /// and as the struct when it is there. Either way the call has to get as
+    /// far as the manager, which is what the "not connected" error proves.
+    #[test]
+    fn publish_message_takes_properties_as_an_optional_argument() {
+        let app = build_test_app();
+        let webview = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        let connection_id = uuid::Uuid::new_v4();
+
+        let without = invoke_err(
+            &webview,
+            "publish_message",
+            serde_json::json!({
+                "connectionId": connection_id,
+                "topic": "t",
+                "payload": [1],
+                "qos": "AtMostOnce",
+                "retain": false,
+            }),
+        );
+        let with = invoke_err(
+            &webview,
+            "publish_message",
+            serde_json::json!({
+                "connectionId": connection_id,
+                "topic": "t",
+                "payload": [1],
+                "qos": "AtMostOnce",
+                "retain": false,
+                "properties": {
+                    "content_type": "text/plain",
+                    "payload_is_utf8": true,
+                    "message_expiry_interval": null,
+                    "response_topic": null,
+                    "correlation_data": null,
+                    "user_properties": [{ "key": "k", "value": "v" }],
+                },
+            }),
+        );
+
+        assert_eq!(without, "Not connected to the broker");
+        assert_eq!(with, "Not connected to the broker");
+    }
+
     #[test]
     fn get_app_version_returns_the_crate_version_over_ipc() {
         // Also the cheapest proof that a new command's capability entry and
@@ -387,6 +435,7 @@ mod tests {
                     "username": null,
                     "password": null,
                     "scheme": "mqtt",
+                    "protocol_version": "v311",
                     "ws_path": null,
                     "ca_cert_path": null,
                     "client_cert_path": null,
@@ -429,6 +478,7 @@ mod tests {
                     "username": null,
                     "password": null,
                     "scheme": "mqtt",
+                    "protocol_version": "v311",
                     "ws_path": null,
                     "ca_cert_path": null,
                     "client_cert_path": null,
@@ -472,6 +522,7 @@ mod tests {
                     "username": null,
                     "password": null,
                     "scheme": "mqtt",
+                    "protocol_version": "v311",
                     "ws_path": null,
                     "ca_cert_path": null,
                     "client_cert_path": null,
@@ -500,6 +551,7 @@ mod tests {
                     "username": null,
                     "password": null,
                     "scheme": "mqtts",
+                    "protocol_version": "v311",
                     "ws_path": null,
                     "ca_cert_path": null,
                     "client_cert_path": null,
@@ -541,6 +593,7 @@ mod tests {
                     "username": null,
                     "password": null,
                     "scheme": "wss",
+                    "protocol_version": "v5",
                     "ws_path": "/mqtt",
                     "ca_cert_path": "/certs/AmazonRootCA1.pem",
                     "client_cert_path": "/certs/device-cert.pem",
@@ -572,6 +625,7 @@ mod tests {
         assert_eq!(fetched["client_key_path"], "/certs/device-key.pem");
         assert_eq!(fetched["alpn"], "x-amzn-mqtt-ca");
         assert_eq!(fetched["skip_cert_verification"], true);
+        assert_eq!(fetched["protocol_version"], "v5");
     }
 
     /// The reconnect settings are only useful if they survive the IPC round
@@ -595,6 +649,7 @@ mod tests {
                     "username": null,
                     "password": null,
                     "scheme": "mqtt",
+                    "protocol_version": "v311",
                     "ws_path": null,
                     "ca_cert_path": null,
                     "client_cert_path": null,
@@ -933,6 +988,7 @@ mod tests {
                     "username": null,
                     "password": null,
                     "scheme": "mqtt",
+                    "protocol_version": "v311",
                     "ws_path": null,
                     "ca_cert_path": null,
                     "client_cert_path": null,
@@ -986,6 +1042,7 @@ mod tests {
                     "username": null,
                     "password": null,
                     "scheme": "mqtt",
+                    "protocol_version": "v311",
                     "ws_path": null,
                     "ca_cert_path": null,
                     "client_cert_path": null,
@@ -1024,6 +1081,7 @@ mod tests {
                     "username": null,
                     "password": null,
                     "scheme": "mqtt",
+                    "protocol_version": "v311",
                     "ws_path": null,
                     "ca_cert_path": null,
                     "client_cert_path": null,

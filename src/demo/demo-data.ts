@@ -2,6 +2,7 @@ import { BrokerConnection } from "../app/core/models/broker-connection.model";
 import { FavoriteCollection } from "../app/core/models/favorite-collection.model";
 import { FavoriteMessage } from "../app/core/models/favorite-message.model";
 import { PayloadVariable } from "../app/core/models/payload-variable.model";
+import { MessageProperties } from "../app/core/models/message-properties.model";
 import { QoS } from "../app/core/models/qos";
 
 /**
@@ -42,6 +43,9 @@ export const DEMO_CONNECTIONS: readonly BrokerConnection[] = [
     username: null,
     password: null,
     scheme: "mqtt",
+    // The workspace shots open this one, so it is the connection that shows
+    // MQTT 5 off: the climate sensor below publishes with properties.
+    protocol_version: "v5",
     ws_path: null,
     ca_cert_path: null,
     client_cert_path: null,
@@ -75,6 +79,7 @@ export const DEMO_CONNECTIONS: readonly BrokerConnection[] = [
     username: "bme",
     password: "hunter2",
     scheme: "mqtts",
+    protocol_version: "v311",
     ws_path: null,
     ca_cert_path: null,
     client_cert_path: null,
@@ -95,6 +100,7 @@ export const DEMO_CONNECTIONS: readonly BrokerConnection[] = [
     username: null,
     password: null,
     scheme: "mqtt",
+    protocol_version: "v311",
     ws_path: null,
     ca_cert_path: null,
     client_cert_path: null,
@@ -126,6 +132,7 @@ export const DEMO_CONNECTIONS: readonly BrokerConnection[] = [
     // The WebSocket example: managed brokers are reached this way, and it is
     // the one connection whose list row does not read as host:port.
     scheme: "wss",
+    protocol_version: "v311",
     ws_path: "/mqtt",
     ca_cert_path: "/home/demo/certs/staging-ca.pem",
     client_cert_path: null,
@@ -146,6 +153,7 @@ export const DEMO_CONNECTIONS: readonly BrokerConnection[] = [
     username: null,
     password: null,
     scheme: "mqtt",
+    protocol_version: "v311",
     ws_path: null,
     ca_cert_path: null,
     client_cert_path: null,
@@ -304,6 +312,9 @@ export interface DemoMessage {
   qos: QoS;
   retain: boolean;
   gapMs: number;
+  /** MQTT 5 properties, on a connection that speaks it. Left off, not
+   * null, for the same reason the real event leaves the field off. */
+  properties?: MessageProperties;
 }
 
 function reading(
@@ -313,6 +324,22 @@ function reading(
   qos: QoS = "AtLeastOnce",
 ): DemoMessage {
   return { topic, payload, qos, retain: false, gapMs };
+}
+
+/** A reading from a device that speaks MQTT 5 and says so: the properties a
+ * well-behaved sensor firmware would attach to every publish. */
+function climateReading(payload: string, gapMs: number): DemoMessage {
+  return {
+    ...reading(DEMO_SELECTED_TOPIC, payload, gapMs),
+    properties: {
+      content_type: "application/json",
+      payload_is_utf8: true,
+      message_expiry_interval: 300,
+      response_topic: null,
+      correlation_data: null,
+      user_properties: [{ key: "device", value: "climate-01" }],
+    },
+  };
 }
 
 /**
@@ -356,53 +383,29 @@ export const DEMO_TIMELINE: readonly DemoMessage[] = [
     "AtMostOnce",
   ),
 
-  reading(
-    DEMO_SELECTED_TOPIC,
-    '{"temperature": 21.9, "humidity": 46, "battery": 93}',
-    3_000,
-  ),
+  climateReading('{"temperature": 21.9, "humidity": 46, "battery": 93}', 3_000),
   reading("home/hallway/light", '{"state": "ON", "brightness": 180}', 4_100),
-  reading(
-    DEMO_SELECTED_TOPIC,
-    '{"temperature": 21.7, "humidity": 46, "battery": 93}',
-    5_000,
-  ),
+  climateReading('{"temperature": 21.7, "humidity": 46, "battery": 93}', 5_000),
   reading(
     "home/bedroom/temperature",
     '{"temperature": 19.1, "humidity": 54}',
     2_400,
   ),
-  reading(
-    DEMO_SELECTED_TOPIC,
-    '{"temperature": 21.6, "humidity": 47, "battery": 92}',
-    4_600,
-  ),
+  climateReading('{"temperature": 21.6, "humidity": 47, "battery": 92}', 4_600),
   reading(
     "home/kitchen/temperature",
     '{"temperature": 20.1, "humidity": 50}',
     3_300,
   ),
-  reading(
-    DEMO_SELECTED_TOPIC,
-    '{"temperature": 21.4, "humidity": 47, "battery": 92}',
-    5_200,
-  ),
+  climateReading('{"temperature": 21.4, "humidity": 47, "battery": 92}', 5_200),
   reading(
     "home/kitchen/motion",
     '{"motion": true, "lux": 96}',
     2_800,
     "AtMostOnce",
   ),
-  reading(
-    DEMO_SELECTED_TOPIC,
-    '{"temperature": 21.3, "humidity": 48, "battery": 92}',
-    4_800,
-  ),
-  reading(
-    DEMO_SELECTED_TOPIC,
-    '{"temperature": 21.5, "humidity": 48, "battery": 92}',
-    6_100,
-  ),
+  climateReading('{"temperature": 21.3, "humidity": 48, "battery": 92}', 4_800),
+  climateReading('{"temperature": 21.5, "humidity": 48, "battery": 92}', 6_100),
 ];
 
 /** The office broker's traffic. Shorter and visibly different from the home

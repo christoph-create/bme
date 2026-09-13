@@ -1,7 +1,7 @@
 use std::sync::LazyLock;
 
 use bme_core::models::{
-    BrokerConnection, FavoriteCollection, FavoriteMessage, NewBrokerConnection,
+    BrokerConnection, FavoriteCollection, FavoriteMessage, MessageProperties, NewBrokerConnection,
     NewFavoriteCollection, NewFavoriteMessage, NewPayloadVariable, NewSubscription,
     PayloadVariable, QoS, Subscription, UpdateBrokerConnection, UpdateCheck,
     UpdateFavoriteCollection, UpdateFavoriteMessage, UpdatePayloadVariable,
@@ -179,6 +179,7 @@ pub fn test_connection(
         username: connection.username,
         password: connection.password,
         scheme: connection.scheme,
+        protocol_version: connection.protocol_version,
         ws_path: connection.ws_path,
         ca_cert_path: connection.ca_cert_path,
         client_cert_path: connection.client_cert_path,
@@ -199,6 +200,8 @@ pub fn test_connection(
     Ok(id)
 }
 
+/// `properties` is optional on the wire as well as in type: the frontend omits
+/// the key on v3.1.1 connections, and Tauri reads a missing argument as `None`.
 #[tauri::command]
 pub fn publish_message(
     manager: State<MqttManagerState>,
@@ -207,9 +210,10 @@ pub fn publish_message(
     payload: Vec<u8>,
     qos: QoS,
     retain: bool,
+    properties: Option<MessageProperties>,
 ) -> Result<(), String> {
     manager
-        .publish(connection_id, &topic, payload, qos, retain)
+        .publish(connection_id, &topic, payload, qos, retain, properties)
         .map_err(|err| err.to_string())
 }
 

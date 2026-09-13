@@ -9,6 +9,7 @@ import {
 } from "@angular/core";
 import { FormBuilder, ReactiveFormsModule, Validators } from "@angular/forms";
 
+import { MqttVersion } from "../../../core/models/broker-connection.model";
 import { FavoriteMessage } from "../../../core/models/favorite-message.model";
 import { MessageDraft } from "../../../core/models/message-draft.model";
 import { MessageFormat } from "../../../core/models/message-format.model";
@@ -42,6 +43,13 @@ import {
   repeatSummaryLabel,
 } from "./repeat-status";
 import { VariablesModal } from "../../../shared/variables-modal/variables-modal";
+import {
+  emptyPublishPropertiesForm,
+  formToProperties,
+  propertiesSummaryLabel,
+  propertiesToForm,
+  PublishPropertiesForm,
+} from "./publish-properties";
 
 const FLASH_DURATION_MS = 1800;
 const FORMAT_OPTIONS: readonly MessageFormat[] = ["json", "raw"];
@@ -57,7 +65,11 @@ const FORMAT_OPTIONS: readonly MessageFormat[] = ["json", "raw"];
     VariablesModal,
   ],
   templateUrl: "./publish-panel.html",
-  styleUrls: ["./publish-panel.css", "./publish-settings.css"],
+  styleUrls: [
+    "./publish-panel.css",
+    "./publish-settings.css",
+    "./publish-properties.css",
+  ],
 })
 export class PublishPanel {
   readonly formatOptions = FORMAT_OPTIONS;
@@ -68,6 +80,9 @@ export class PublishPanel {
 
   readonly connectionId = input.required<string>();
   readonly connected = input<boolean>(true);
+  /** Which dialect the connection speaks. The properties editor only exists
+   * on MQTT 5, and nothing typed into it is sent on 3.1.1. */
+  readonly protocolVersion = input<MqttVersion>("v311");
 
   private readonly mqttService = inject(MqttService);
   private readonly jsonFormat = inject(JsonFormatService);
@@ -96,6 +111,16 @@ export class PublishPanel {
    * behind the gear instead of competing with the payload for space. */
   readonly showSettings = signal(false);
   readonly showVariablesModal = signal(false);
+
+  /** MQTT 5 publish properties. Like retain, set once and left alone
+   * across publishes; a loaded draft overwrites them. */
+  readonly propertiesForm = signal<PublishPropertiesForm>(
+    emptyPublishPropertiesForm(),
+  );
+  readonly showsProperties = computed(() => this.protocolVersion() === "v5");
+  readonly propertiesSummary = computed(() =>
+    this.showsProperties() ? propertiesSummaryLabel(this.propertiesForm()) : null,
+  );
 
   readonly repeatEnabled = signal(false);
   readonly intervalMs = signal(1000);
@@ -287,6 +312,43 @@ export class PublishPanel {
     this.showSettings.set(!this.showSettings());
   }
 
+  setPropertyField(
+    field: "contentType" | "responseTopic" | "correlationData" | "messageExpiry",
+    value: string,
+  ): void {
+    this.propertiesForm.update((form) => ({ ...form, [field]: value }));
+  }
+
+  togglePayloadIsUtf8(): void {
+    this.propertiesForm.update((form) => ({
+      ...form,
+      payloadIsUtf8: !form.payloadIsUtf8,
+    }));
+  }
+
+  addUserProperty(): void {
+    this.propertiesForm.update((form) => ({
+      ...form,
+      userProperties: [...form.userProperties, { key: "", value: "" }],
+    }));
+  }
+
+  setUserProperty(index: number, part: "key" | "value", text: string): void {
+    this.propertiesForm.update((form) => ({
+      ...form,
+      userProperties: form.userProperties.map((property, i) =>
+        i === index ? { ...property, [part]: text } : property,
+      ),
+    }));
+  }
+
+  removeUserProperty(index: number): void {
+    this.propertiesForm.update((form) => ({
+      ...form,
+      userProperties: form.userProperties.filter((_, i) => i !== index),
+    }));
+  }
+
   openSettings(): void {
     this.showSettings.set(true);
   }
@@ -374,12 +436,14 @@ export class PublishPanel {
     }
 
     const { topic, payload } = this.form.getRawValue();
+    const properties = this.sendableProperties();
     this.saveModalDraft.set({
       topic,
       payload: this.payloadText(payload),
       format: this.format(),
       qos: this.qos(),
       retain: this.retain(),
+      ...(properties === null ? {} : { properties }),
     });
   }
 
@@ -449,7 +513,16 @@ export class PublishPanel {
     this.format.set(draft.format);
     this.qos.set(draft.qos);
     this.retain.set(draft.retain);
+    this.propertiesForm.set(propertiesToForm(draft.properties));
     this.publishError.set(null);
+  }
+
+  /** What the next publish carries: null on 3.1.1 whatever the editor
+   * holds, so switching a connection's protocol never leaks properties. */
+  private sendableProperties() {
+    return this.showsProperties()
+      ? formToProperties(this.propertiesForm())
+      : null;
   }
 
   /** `null` means "until stopped". */
@@ -510,6 +583,7 @@ export class PublishPanel {
         this.encodePayload(replacePlaceholders(payload, resolve)),
         this.qos(),
         this.retain(),
+        this.sendableProperties(),
       );
     } catch (err) {
       return err instanceof Error ? err.message : String(err);

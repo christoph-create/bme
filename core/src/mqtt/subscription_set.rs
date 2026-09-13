@@ -49,8 +49,8 @@ impl SubscriptionSet {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::BrokerScheme;
     use crate::models::Subscription;
+    use crate::models::{BrokerScheme, MqttVersion};
     use uuid::Uuid;
 
     fn broker_with(topics: &[(&str, QoS)]) -> BrokerConnection {
@@ -64,6 +64,7 @@ mod tests {
             username: None,
             password: None,
             scheme: BrokerScheme::Mqtt,
+            protocol_version: MqttVersion::V311,
             ws_path: None,
             ca_cert_path: None,
             client_cert_path: None,

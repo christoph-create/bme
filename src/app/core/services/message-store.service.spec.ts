@@ -66,9 +66,34 @@ describe("MessageStoreService", () => {
         payloadLen: 3,
         qos: "AtLeastOnce",
         retain: false,
+        properties: null,
         receivedAt: expect.any(Number),
       },
     ]);
+  });
+
+  /** The backend leaves the field out on v3.1.1 and on property-less v5
+   * messages, so the store normalises "absent" to null and keeps whatever
+   * a v5 sender did set. */
+  it("keeps a message's MQTT 5 properties, or null when it had none", async () => {
+    const { events$, store } = setup();
+    const properties = {
+      content_type: "application/json",
+      payload_is_utf8: true,
+      message_expiry_interval: 30,
+      response_topic: "replies",
+      correlation_data: "req-1",
+      user_properties: [{ key: "k", value: "v" }],
+    };
+
+    events$.next({ MessageReceived: messageReceived({ properties }) });
+    events$.next({ MessageReceived: messageReceived() });
+
+    const messages = await firstValueFrom(
+      store.messagesFor(CONNECTION_A, "sensors/temp"),
+    );
+    expect(messages[0].properties).toEqual(properties);
+    expect(messages[1].properties).toBeNull();
   });
 
   /** Payloads over 256 KiB reach the UI truncated, so the stored message has

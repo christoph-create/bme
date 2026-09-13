@@ -229,6 +229,35 @@ const SHOTS = [
   },
 
   {
+    name: "mqtt5-properties",
+    async setup(page) {
+      await openWorkspace(page);
+      await loadTemplate(page, "Temperature reading");
+      await growPublishPanel(page, 300);
+      await page.getByRole("button", { name: "Publish settings" }).click();
+      // The block lives at the end of the settings layer, so it is filled
+      // the way a user would and then scrolled into view.
+      await page.getByLabel("Content type").fill("application/json");
+      await page.getByLabel("Message expiry (seconds)").fill("300");
+      await page
+        .getByLabel("Response topic")
+        .fill("home/livingroom/climate/ack");
+      await page.getByLabel("Correlation data").fill("req-0042");
+      await page
+        .locator("label.toggle-field")
+        .filter({ hasText: "Payload is UTF-8 text" })
+        .click();
+      await page.getByRole("button", { name: "+ Add user property" }).click();
+      await page.getByLabel("User property key").fill("device");
+      await page.getByLabel("User property value").fill("bme-desktop");
+      await blurFocus(page);
+      await page
+        .locator(".settings-body")
+        .evaluate((body) => body.scrollTo(0, body.scrollHeight));
+    },
+  },
+
+  {
     name: "broker-tabs",
     async setup(page) {
       await openWorkspace(page);

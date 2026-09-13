@@ -64,6 +64,7 @@ pub fn transport_for(broker: &BrokerConnection) -> Result<Transport, TlsConfigEr
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::MqttVersion;
     use uuid::Uuid;
 
     fn broker(scheme: BrokerScheme, host: &str, port: u16) -> BrokerConnection {
@@ -76,6 +77,7 @@ mod tests {
             username: None,
             password: None,
             scheme,
+            protocol_version: MqttVersion::V311,
             ws_path: None,
             ca_cert_path: None,
             client_cert_path: None,

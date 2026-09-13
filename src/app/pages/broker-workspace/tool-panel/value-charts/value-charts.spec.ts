@@ -17,6 +17,7 @@ function message(text: string, receivedAt = 1000): StoredMessage {
     payloadLen: payload.length,
     qos: "AtMostOnce",
     retain: false,
+    properties: null,
     receivedAt,
   };
 }

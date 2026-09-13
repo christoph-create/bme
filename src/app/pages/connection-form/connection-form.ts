@@ -14,6 +14,7 @@ import {
 } from "../../core/connection/broker-url";
 import {
   BrokerScheme,
+  MqttVersion,
   NewBrokerConnection,
   UpdateBrokerConnection,
 } from "../../core/models/broker-connection.model";
@@ -62,10 +63,16 @@ export class ConnectionForm {
   readonly testError = signal<string | null>(null);
 
   readonly schemes = BROKER_SCHEMES;
+  readonly protocolVersions: readonly { value: MqttVersion; label: string }[] =
+    [
+      { value: "v311", label: "MQTT 3.1.1" },
+      { value: "v5", label: "MQTT 5" },
+    ];
 
   readonly form = this.formBuilder.nonNullable.group({
     name: ["", Validators.required],
     scheme: ["mqtt" as BrokerScheme],
+    protocolVersion: ["v311" as MqttVersion],
     host: ["", Validators.required],
     port: ["1883", [Validators.required, Validators.pattern(NUMERIC_PATTERN)]],
     wsPath: [""],

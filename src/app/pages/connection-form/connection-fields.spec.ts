@@ -9,6 +9,7 @@ import {
 const FORM_VALUE: ConnectionFormValue = {
   name: "Home Assistant",
   scheme: "mqtt",
+  protocolVersion: "v311",
   host: "homeassistant.local",
   port: "1883",
   wsPath: "",
@@ -35,6 +36,7 @@ const CONNECTION: BrokerConnection = {
   username: null,
   password: null,
   scheme: "wss",
+  protocol_version: "v5",
   ws_path: "/mqtt",
   ca_cert_path: "/certs/AmazonRootCA1.pem",
   client_cert_path: "/certs/device-01-cert.pem",
@@ -54,6 +56,14 @@ describe("formValueToConnection", () => {
     expect(connection.port).toBe(1883);
     expect(connection.keep_alive_secs).toBe(60);
     expect(connection.max_reconnect_attempts).toBe(10);
+  });
+
+  it("passes the protocol version through as the backend's tag", () => {
+    expect(formValueToConnection(FORM_VALUE).protocol_version).toBe("v311");
+    expect(
+      formValueToConnection({ ...FORM_VALUE, protocolVersion: "v5" })
+        .protocol_version,
+    ).toBe("v5");
   });
 
   // The backend takes Option<String>, where "" and null mean different things.
@@ -125,6 +135,7 @@ describe("connectionToFormValue", () => {
     expect(value).toEqual({
       name: "AWS IoT",
       scheme: "wss",
+      protocolVersion: "v5",
       host: "a1b2c3.iot.eu-central-1.amazonaws.com",
       port: "8884",
       wsPath: "/mqtt",

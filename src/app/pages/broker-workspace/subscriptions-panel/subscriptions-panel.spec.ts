@@ -20,6 +20,7 @@ function sampleConnection(
     username: null,
     password: null,
     scheme: "mqtt",
+    protocol_version: "v311",
     ws_path: null,
     ca_cert_path: null,
     client_cert_path: null,

@@ -1,7 +1,7 @@
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::models::{BrokerConnection, QoS};
+use crate::models::{BrokerConnection, MessageProperties, QoS};
 
 /// How much of a received payload is handed to the UI.
 ///
@@ -73,6 +73,11 @@ pub enum MqttEvent {
         payload_len: usize,
         qos: QoS,
         retain: bool,
+        /// MQTT 5 only, and only when the sender set something. Skipped
+        /// rather than serialized as null so the TypeScript mirror can
+        /// declare it optional.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        properties: Option<MessageProperties>,
     },
 }
 
@@ -87,6 +92,7 @@ impl MqttEvent {
         payload: &[u8],
         qos: QoS,
         retain: bool,
+        properties: Option<MessageProperties>,
     ) -> Self {
         Self::MessageReceived {
             connection_id,
@@ -95,6 +101,7 @@ impl MqttEvent {
             payload_len: payload.len(),
             qos,
             retain,
+            properties,
         }
     }
 }
@@ -108,6 +115,8 @@ impl MqttEvent {
 pub trait MqttPort: Send + Sync {
     fn connect(&self, connection_id: Uuid, broker: &BrokerConnection) -> Result<(), MqttError>;
 
+    /// `properties` only mean anything on an MQTT 5 connection; a v3.1.1
+    /// session drops them with a warning in the log.
     fn publish(
         &self,
         connection_id: Uuid,
@@ -115,6 +124,7 @@ pub trait MqttPort: Send + Sync {
         payload: Vec<u8>,
         qos: QoS,
         retain: bool,
+        properties: Option<MessageProperties>,
     ) -> Result<(), MqttError>;
 
     fn subscribe(&self, connection_id: Uuid, topic: &str, qos: QoS) -> Result<(), MqttError>;
@@ -135,6 +145,7 @@ mod tests {
             payload,
             QoS::AtMostOnce,
             retain,
+            None,
         )
     }
 
@@ -168,6 +179,38 @@ mod tests {
 
         assert_eq!(payload.len(), MAX_IPC_PAYLOAD_BYTES);
         assert_eq!(payload_len, MAX_IPC_PAYLOAD_BYTES + 1);
+    }
+
+    /// The optional field is skipped, not nulled, which is what lets the
+    /// TypeScript side declare it `properties?:` and a v3.1.1 message stay
+    /// byte-identical to what it was before v5 support.
+    #[test]
+    fn a_message_without_properties_serializes_without_the_field() {
+        let json = serde_json::to_string(&received(b"1", false)).unwrap();
+
+        assert!(!json.contains("properties"), "{json}");
+    }
+
+    #[test]
+    fn a_message_with_properties_carries_them() {
+        let event = MqttEvent::message_received(
+            Uuid::new_v4(),
+            "t".to_string(),
+            b"1",
+            QoS::AtMostOnce,
+            false,
+            Some(MessageProperties {
+                content_type: Some("text/plain".to_string()),
+                ..MessageProperties::default()
+            }),
+        );
+
+        let json = serde_json::to_string(&event).unwrap();
+
+        assert!(
+            json.contains(r#""properties":{"content_type":"text/plain""#),
+            "{json}"
+        );
     }
 
     /// A zero-length retained publish is how MQTT clears a topic, and the UI

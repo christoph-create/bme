@@ -42,10 +42,10 @@ impl SqliteConnectionsRepository {
 /// The column list every read shares. Kept in one place because it appears in
 /// two queries and has to stay in step with `row_to_connection`.
 const CONNECTION_COLUMNS: &str = "id, name, host, port, client_id, username, password, scheme, \
-     ws_path, ca_cert_path, client_cert_path, client_key_path, alpn, skip_cert_verification, \
-     keep_alive_secs, auto_reconnect, max_reconnect_attempts";
+     protocol_version, ws_path, ca_cert_path, client_cert_path, client_key_path, alpn, \
+     skip_cert_verification, keep_alive_secs, auto_reconnect, max_reconnect_attempts";
 
-/// Reads by column *name* rather than position. The table is seventeen columns
+/// Reads by column *name* rather than position. The table is eighteen columns
 /// wide now, and positional indices made every added column a renumbering
 /// exercise across four separate queries. Subscriptions are left empty; they
 /// come from their own table.
@@ -59,6 +59,7 @@ fn row_to_connection(row: &Row) -> rusqlite::Result<BrokerConnection> {
         username: row.get("username")?,
         password: row.get("password")?,
         scheme: row.get("scheme")?,
+        protocol_version: row.get("protocol_version")?,
         ws_path: row.get("ws_path")?,
         ca_cert_path: row.get("ca_cert_path")?,
         client_cert_path: row.get("client_cert_path")?,
@@ -98,11 +99,12 @@ impl ConnectionsRepository for SqliteConnectionsRepository {
         let id = Uuid::new_v4();
         conn.execute(
             "INSERT INTO broker_connections
-                (id, name, host, port, client_id, username, password, scheme, ws_path,
-                 ca_cert_path, client_cert_path, client_key_path, alpn,
-                 skip_cert_verification, keep_alive_secs, auto_reconnect,
-                 max_reconnect_attempts)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
+                (id, name, host, port, client_id, username, password, scheme,
+                 protocol_version, ws_path, ca_cert_path, client_cert_path,
+                 client_key_path, alpn, skip_cert_verification, keep_alive_secs,
+                 auto_reconnect, max_reconnect_attempts)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17,
+                     ?18)",
             params![
                 id,
                 new.name,
@@ -112,6 +114,7 @@ impl ConnectionsRepository for SqliteConnectionsRepository {
                 new.username,
                 new.password,
                 new.scheme,
+                new.protocol_version,
                 new.ws_path,
                 new.ca_cert_path,
                 new.client_cert_path,
@@ -161,11 +164,11 @@ impl ConnectionsRepository for SqliteConnectionsRepository {
         let rows_changed = conn.execute(
             "UPDATE broker_connections
              SET name = ?1, host = ?2, port = ?3, client_id = ?4, username = ?5,
-                 password = ?6, scheme = ?7, ws_path = ?8, ca_cert_path = ?9,
-                 client_cert_path = ?10, client_key_path = ?11, alpn = ?12,
-                 skip_cert_verification = ?13, keep_alive_secs = ?14,
-                 auto_reconnect = ?15, max_reconnect_attempts = ?16
-             WHERE id = ?17",
+                 password = ?6, scheme = ?7, protocol_version = ?8, ws_path = ?9,
+                 ca_cert_path = ?10, client_cert_path = ?11, client_key_path = ?12,
+                 alpn = ?13, skip_cert_verification = ?14, keep_alive_secs = ?15,
+                 auto_reconnect = ?16, max_reconnect_attempts = ?17
+             WHERE id = ?18",
             params![
                 update.name,
                 update.host,
@@ -174,6 +177,7 @@ impl ConnectionsRepository for SqliteConnectionsRepository {
                 update.username,
                 update.password,
                 update.scheme,
+                update.protocol_version,
                 update.ws_path,
                 update.ca_cert_path,
                 update.client_cert_path,
@@ -260,7 +264,7 @@ fn load_subscriptions(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{BrokerScheme, QoS};
+    use crate::models::{BrokerScheme, MqttVersion, QoS};
     use crate::storage::{migrate_to_latest, open_in_memory, open_in_memory_at_version};
 
     fn repo() -> SqliteConnectionsRepository {
@@ -276,6 +280,7 @@ mod tests {
             username: None,
             password: None,
             scheme: BrokerScheme::Mqtt,
+            protocol_version: MqttVersion::V311,
             ws_path: None,
             ca_cert_path: None,
             client_cert_path: None,
@@ -303,6 +308,24 @@ mod tests {
         assert_eq!(fetched.subscriptions.len(), 1);
         assert_eq!(fetched.subscriptions[0].topic, "sensors/#");
         assert_eq!(fetched.subscriptions[0].qos, QoS::AtLeastOnce);
+    }
+
+    /// Opt-in per connection: the fixture stays 3.1.1 and only a row that
+    /// asked for MQTT 5 reads back as MQTT 5.
+    #[test]
+    fn create_then_get_round_trips_the_protocol_version() {
+        let repo = repo();
+        let mut new = sample_connection();
+        new.protocol_version = MqttVersion::V5;
+
+        let created = repo.create(new).unwrap();
+        let fetched = repo.get(created.id).unwrap().expect("connection to exist");
+
+        assert_eq!(fetched.protocol_version, MqttVersion::V5);
+        assert_eq!(
+            repo.create(sample_connection()).unwrap().protocol_version,
+            MqttVersion::V311
+        );
     }
 
     #[test]
@@ -343,6 +366,7 @@ mod tests {
         assert_eq!(fetched.max_reconnect_attempts, 10);
         assert_eq!(fetched.scheme, BrokerScheme::Mqtt);
         assert!(!fetched.skip_cert_verification);
+        assert_eq!(fetched.protocol_version, MqttVersion::V311);
     }
 
     /// The scheme column is a rewrite of the old `use_tls` flag rather than an
@@ -457,6 +481,7 @@ mod tests {
                     username: Some("alice".to_string()),
                     password: Some("hunter2".to_string()),
                     scheme: BrokerScheme::Wss,
+                    protocol_version: MqttVersion::V5,
                     ws_path: Some("/mqtt".to_string()),
                     ca_cert_path: Some("/certs/ca.pem".to_string()),
                     client_cert_path: None,
@@ -479,6 +504,7 @@ mod tests {
         assert_eq!(updated.username.as_deref(), Some("alice"));
         assert_eq!(updated.password.as_deref(), Some("hunter2"));
         assert_eq!(updated.scheme, BrokerScheme::Wss);
+        assert_eq!(updated.protocol_version, MqttVersion::V5);
         assert_eq!(updated.ws_path.as_deref(), Some("/mqtt"));
         assert_eq!(updated.ca_cert_path.as_deref(), Some("/certs/ca.pem"));
         assert_eq!(updated.alpn.as_deref(), Some("mqtt"));
@@ -507,6 +533,7 @@ mod tests {
                     username: None,
                     password: None,
                     scheme: BrokerScheme::Mqtt,
+                    protocol_version: MqttVersion::V311,
                     ws_path: None,
                     ca_cert_path: None,
                     client_cert_path: None,

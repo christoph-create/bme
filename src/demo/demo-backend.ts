@@ -18,6 +18,7 @@ import {
   NewFavoriteMessage,
   UpdateFavoriteMessage,
 } from "../app/core/models/favorite-message.model";
+import { MessageProperties } from "../app/core/models/message-properties.model";
 import { MqttEvent } from "../app/core/models/mqtt-event.model";
 import {
   NewPayloadVariable,
@@ -275,6 +276,12 @@ export function installDemoBackend(): void {
           // Echoed straight back, which is what a broker that has us subscribed
           // to our own publish topic would do - it keeps the stream alive when
           // the app is driven by hand.
+          // Properties come back too, the way a v5 broker forwards them -
+          // and stay absent when absent, the way the real event does.
+          const properties = arg<MessageProperties | undefined>(
+            args,
+            "properties",
+          );
           const event: MqttEvent = {
             MessageReceived: {
               connection_id: arg<string>(args, "connectionId"),
@@ -283,6 +290,7 @@ export function installDemoBackend(): void {
               payload_len: arg<number[]>(args, "payload").length,
               qos: arg<QoS>(args, "qos"),
               retain: arg<boolean>(args, "retain"),
+              ...(properties === undefined ? {} : { properties }),
             },
           };
           setTimeout(() => void emitMqtt(event), 0);
@@ -411,6 +419,9 @@ export function installDemoBackend(): void {
             payload_len: payload.length,
             qos: message.qos,
             retain: message.retain,
+            ...(message.properties === undefined
+              ? {}
+              : { properties: message.properties }),
           },
         });
       }

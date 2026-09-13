@@ -3,7 +3,7 @@ use std::sync::Mutex;
 
 use uuid::Uuid;
 
-use crate::models::{BrokerConnection, QoS};
+use crate::models::{BrokerConnection, MessageProperties, QoS};
 use crate::mqtt::port::{MqttError, MqttPort};
 
 /// Tracks which connections are live on top of a raw `MqttPort`, so callers
@@ -35,10 +35,11 @@ impl<P: MqttPort> MqttClientManager<P> {
         payload: Vec<u8>,
         qos: QoS,
         retain: bool,
+        properties: Option<MessageProperties>,
     ) -> Result<(), MqttError> {
         self.ensure_connected(connection_id)?;
         self.port
-            .publish(connection_id, topic, payload, qos, retain)
+            .publish(connection_id, topic, payload, qos, retain, properties)
     }
 
     pub fn subscribe(&self, connection_id: Uuid, topic: &str, qos: QoS) -> Result<(), MqttError> {
@@ -73,7 +74,7 @@ impl<P: MqttPort> MqttClientManager<P> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::BrokerScheme;
+    use crate::models::{BrokerScheme, MqttVersion};
 
     #[derive(Debug, PartialEq)]
     enum Call {
@@ -84,6 +85,7 @@ mod tests {
             payload: Vec<u8>,
             qos: QoS,
             retain: bool,
+            properties: Option<MessageProperties>,
         },
         Subscribe {
             connection_id: Uuid,
@@ -128,6 +130,7 @@ mod tests {
             payload: Vec<u8>,
             qos: QoS,
             retain: bool,
+            properties: Option<MessageProperties>,
         ) -> Result<(), MqttError> {
             self.calls.lock().unwrap().push(Call::Publish {
                 connection_id,
@@ -135,6 +138,7 @@ mod tests {
                 payload,
                 qos,
                 retain,
+                properties,
             });
             Ok(())
         }
@@ -175,6 +179,7 @@ mod tests {
             username: None,
             password: None,
             scheme: BrokerScheme::Mqtt,
+            protocol_version: MqttVersion::V311,
             ws_path: None,
             ca_cert_path: None,
             client_cert_path: None,
@@ -204,7 +209,7 @@ mod tests {
         let manager = MqttClientManager::new(FakeMqttPort::default());
         let unknown_id = Uuid::new_v4();
 
-        let result = manager.publish(unknown_id, "topic", vec![1], QoS::AtMostOnce, false);
+        let result = manager.publish(unknown_id, "topic", vec![1], QoS::AtMostOnce, false, None);
 
         assert_eq!(result, Err(MqttError::UnknownConnection(unknown_id)));
         assert!(manager.port.calls().is_empty());
@@ -224,6 +229,10 @@ mod tests {
                 vec![1, 2, 3],
                 QoS::AtLeastOnce,
                 true,
+                Some(MessageProperties {
+                    content_type: Some("application/octet-stream".to_string()),
+                    ..MessageProperties::default()
+                }),
             )
             .unwrap();
 
@@ -235,6 +244,10 @@ mod tests {
                 payload: vec![1, 2, 3],
                 qos: QoS::AtLeastOnce,
                 retain: true,
+                properties: Some(MessageProperties {
+                    content_type: Some("application/octet-stream".to_string()),
+                    ..MessageProperties::default()
+                }),
             }]
         );
     }
@@ -298,7 +311,7 @@ mod tests {
         manager.disconnect(broker.id).unwrap();
 
         assert!(!manager.is_connected(broker.id));
-        let result = manager.publish(broker.id, "t", vec![], QoS::AtMostOnce, false);
+        let result = manager.publish(broker.id, "t", vec![], QoS::AtMostOnce, false, None);
         assert_eq!(result, Err(MqttError::UnknownConnection(broker.id)));
     }
 }

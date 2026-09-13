@@ -153,6 +153,7 @@ export class MessageStoreService {
         payloadLen: message.payload_len,
         qos: message.qos,
         retain: message.retain,
+        properties: message.properties ?? null,
         receivedAt: Date.now(),
       },
     ].slice(-this.maxMessagesPerTopic);
