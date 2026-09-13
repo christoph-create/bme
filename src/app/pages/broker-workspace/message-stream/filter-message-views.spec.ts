@@ -5,7 +5,14 @@ import { filterMessageViews } from "./filter-message-views";
 
 function view(body: string): MessageView {
   return {
-    message: { payload: [], payloadLen: 0, qos: "AtMostOnce", retain: false, receivedAt: 0 },
+    message: {
+      payload: [],
+      payloadLen: 0,
+      qos: "AtMostOnce",
+      retain: false,
+      properties: null,
+      receivedAt: 0,
+    },
     timeLabel: "now",
     qos: 0,
     body,

@@ -14,7 +14,7 @@ use bytes::Bytes;
 use rumqttc::v5::mqttbytes::v5 as v5_packets;
 use rumqttc::{v5, Transport};
 
-use crate::models::{BrokerConnection, MqttVersion, QoS};
+use crate::models::{BrokerConnection, MessageProperties, MqttVersion, QoS, UserProperty};
 use crate::mqtt::failure::{connect_failure_reason, connect_failure_reason_v5};
 use crate::mqtt::oversize::{oversize_reason, oversize_reason_v5, MAX_PACKET_BYTES};
 use crate::mqtt::port::MqttError;
@@ -97,6 +97,52 @@ pub(crate) struct ReceivedPublish {
     pub payload: Bytes,
     pub qos: QoS,
     pub retain: bool,
+    /// `None` on v3.1.1, and on a v5 message that set nothing we show.
+    pub properties: Option<MessageProperties>,
+}
+
+/// Our properties as rumqttc wants them on the wire. Everything not modelled
+/// (topic alias, subscription identifiers) is left unset.
+fn to_publish_properties(properties: MessageProperties) -> v5_packets::PublishProperties {
+    v5_packets::PublishProperties {
+        payload_format_indicator: properties.payload_is_utf8.then_some(1),
+        message_expiry_interval: properties.message_expiry_interval,
+        topic_alias: None,
+        response_topic: properties.response_topic,
+        correlation_data: properties.correlation_data.map(Bytes::from),
+        user_properties: properties
+            .user_properties
+            .into_iter()
+            .map(|property| (property.key, property.value))
+            .collect(),
+        subscription_identifiers: Vec::new(),
+        content_type: properties.content_type,
+    }
+}
+
+/// The reverse, collapsed to `None` when the sender set nothing we show -
+/// so a v5 message with no properties looks exactly like a v3.1.1 one to
+/// the UI, and a subscription identifier the broker added on its own does
+/// not make a card grow a properties block.
+fn from_publish_properties(
+    properties: Option<v5_packets::PublishProperties>,
+) -> Option<MessageProperties> {
+    let properties = properties?;
+    let ours = MessageProperties {
+        content_type: properties.content_type,
+        payload_is_utf8: properties.payload_format_indicator == Some(1),
+        message_expiry_interval: properties.message_expiry_interval,
+        response_topic: properties.response_topic,
+        correlation_data: properties
+            .correlation_data
+            .map(|data| String::from_utf8_lossy(&data).into_owned()),
+        user_properties: properties
+            .user_properties
+            .into_iter()
+            .map(|(key, value)| UserProperty { key, value })
+            .collect(),
+    };
+    (!ours.is_empty()).then_some(ours)
 }
 
 /// A failed poll, already classified so the loop chooses a track, not a
@@ -210,6 +256,7 @@ impl Session {
                         payload: publish.payload,
                         qos: publish.qos.into(),
                         retain: publish.retain,
+                        properties: None,
                     }))
                 }
                 Ok(_) => Ok(SessionEvent::Other),
@@ -234,6 +281,7 @@ impl Session {
                         payload: publish.payload,
                         qos: publish.qos.into(),
                         retain: publish.retain,
+                        properties: from_publish_properties(publish.properties),
                     }))
                 }
                 Ok(_) => Ok(SessionEvent::Other),
@@ -256,15 +304,41 @@ impl Session {
     /// loops are `Send` but not `Sync`, so a `&Session` held across an await
     /// would make the connection task unspawnable, while `&mut Session` only
     /// needs `Send`.
-    pub(crate) async fn publish(&mut self, topic: String, payload: Bytes, qos: QoS, retain: bool) {
+    pub(crate) async fn publish(
+        &mut self,
+        topic: String,
+        payload: Bytes,
+        qos: QoS,
+        retain: bool,
+        properties: Option<MessageProperties>,
+    ) {
         match self {
             Session::V311 { client, .. } => {
+                // The UI never offers properties on a v3.1.1 connection, so
+                // this is a caller bug worth a line in the log, not an error
+                // that would swallow the message.
+                if properties.is_some() {
+                    log::warn!("dropping MQTT 5 properties on an MQTT 3.1.1 publish to {topic}");
+                }
                 let _ = client
                     .publish_bytes(topic, qos.into(), retain, payload)
                     .await;
             }
             Session::V5 { client, .. } => {
-                let _ = client.publish(topic, qos.into(), retain, payload).await;
+                let _ = match properties {
+                    Some(properties) => {
+                        client
+                            .publish_with_properties(
+                                topic,
+                                qos.into(),
+                                retain,
+                                payload,
+                                to_publish_properties(properties),
+                            )
+                            .await
+                    }
+                    None => client.publish(topic, qos.into(), retain, payload).await,
+                };
             }
         }
     }
@@ -318,6 +392,7 @@ pub(crate) fn publish_packet_bytes(
     topic: &str,
     payload: &Bytes,
     qos: QoS,
+    properties: Option<&MessageProperties>,
 ) -> usize {
     let pkid = if qos == QoS::AtMostOnce { 0 } else { 1 };
     match version {
@@ -327,7 +402,9 @@ pub(crate) fn publish_packet_bytes(
             packet.size()
         }
         MqttVersion::V5 => {
-            let mut packet = v5_packets::Publish::new(topic, qos.into(), payload.clone(), None);
+            let properties = properties.cloned().map(to_publish_properties);
+            let mut packet =
+                v5_packets::Publish::new(topic, qos.into(), payload.clone(), properties);
             packet.pkid = pkid;
             packet.size()
         }
@@ -392,18 +469,18 @@ mod tests {
         let payload = Bytes::from_static(b"abc");
         // 1 fixed header + 1 length byte + 2 topic-length + 4 topic + 3 payload.
         assert_eq!(
-            publish_packet_bytes(MqttVersion::V311, "temp", &payload, QoS::AtMostOnce),
+            publish_packet_bytes(MqttVersion::V311, "temp", &payload, QoS::AtMostOnce, None),
             11
         );
         // Above QoS 0 the packet id is counted, unlike in rumqttc's own check.
         assert_eq!(
-            publish_packet_bytes(MqttVersion::V311, "temp", &payload, QoS::AtLeastOnce),
+            publish_packet_bytes(MqttVersion::V311, "temp", &payload, QoS::AtLeastOnce, None),
             13
         );
         // The remaining length is a varint, so it grows a byte of its own.
         let long = Bytes::from(vec![0u8; 200]);
         assert_eq!(
-            publish_packet_bytes(MqttVersion::V311, "t", &long, QoS::AtMostOnce),
+            publish_packet_bytes(MqttVersion::V311, "t", &long, QoS::AtMostOnce, None),
             206
         );
     }
@@ -415,12 +492,91 @@ mod tests {
         let payload = Bytes::from_static(b"abc");
 
         assert_eq!(
-            publish_packet_bytes(MqttVersion::V5, "temp", &payload, QoS::AtMostOnce),
+            publish_packet_bytes(MqttVersion::V5, "temp", &payload, QoS::AtMostOnce, None),
             12
         );
         assert_eq!(
-            publish_packet_bytes(MqttVersion::V5, "temp", &payload, QoS::AtLeastOnce),
+            publish_packet_bytes(MqttVersion::V5, "temp", &payload, QoS::AtLeastOnce, None),
             14
         );
+    }
+
+    /// The properties block is what the v3.1.1 formula could never see, and
+    /// it is exactly the part that grows with what the user types.
+    #[test]
+    fn v5_properties_count_towards_the_packet_size() {
+        let payload = Bytes::from_static(b"abc");
+        let properties = MessageProperties {
+            content_type: Some("text/plain".to_string()),
+            ..MessageProperties::default()
+        };
+
+        let with = publish_packet_bytes(
+            MqttVersion::V5,
+            "temp",
+            &payload,
+            QoS::AtMostOnce,
+            Some(&properties),
+        );
+        let without =
+            publish_packet_bytes(MqttVersion::V5, "temp", &payload, QoS::AtMostOnce, None);
+
+        // 1 identifier + 2 length + 10 chars, and the properties length is
+        // still a single byte.
+        assert_eq!(with, without + 13);
+    }
+
+    #[test]
+    fn properties_round_trip_through_rumqttcs_wire_type() {
+        let ours = MessageProperties {
+            content_type: Some("application/json".to_string()),
+            payload_is_utf8: true,
+            message_expiry_interval: Some(30),
+            response_topic: Some("replies".to_string()),
+            correlation_data: Some("req-7".to_string()),
+            user_properties: vec![
+                UserProperty {
+                    key: "a".to_string(),
+                    value: "1".to_string(),
+                },
+                UserProperty {
+                    key: "a".to_string(),
+                    value: "2".to_string(),
+                },
+            ],
+        };
+
+        let wire = to_publish_properties(ours.clone());
+        assert_eq!(wire.payload_format_indicator, Some(1));
+        assert_eq!(wire.correlation_data.as_deref(), Some(b"req-7".as_slice()));
+
+        assert_eq!(from_publish_properties(Some(wire)), Some(ours));
+    }
+
+    /// A broker-added subscription identifier is the one property a plain
+    /// v5 message routinely arrives with, and it must not count as "has
+    /// properties" or every card on a v5 connection would grow a block.
+    #[test]
+    fn a_wire_properties_block_with_nothing_we_show_collapses_to_none() {
+        let wire = v5_packets::PublishProperties {
+            subscription_identifiers: vec![3],
+            ..v5_packets::PublishProperties::default()
+        };
+
+        assert_eq!(from_publish_properties(Some(wire)), None);
+        assert_eq!(from_publish_properties(None), None);
+    }
+
+    #[test]
+    fn a_payload_format_indicator_of_zero_reads_as_not_utf8() {
+        let wire = v5_packets::PublishProperties {
+            payload_format_indicator: Some(0),
+            content_type: Some("application/cbor".to_string()),
+            ..v5_packets::PublishProperties::default()
+        };
+
+        let ours = from_publish_properties(Some(wire)).expect("content type is shown");
+
+        assert!(!ours.payload_is_utf8);
     }
 }

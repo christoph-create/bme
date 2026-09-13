@@ -216,6 +216,7 @@ mod tests {
                 commands::get_connection,
                 commands::delete_connection,
                 commands::connect_broker,
+                commands::publish_message,
                 commands::subscribe_topic,
                 commands::unsubscribe_topic,
                 commands::test_connection,
@@ -311,6 +312,53 @@ mod tests {
         .as_str()
         .expect("expected the error to arrive as a string")
         .to_string()
+    }
+
+    /// The frontend leaves `properties` out entirely on a v3.1.1 connection,
+    /// so the argument has to deserialize as `None` when the key is absent -
+    /// and as the struct when it is there. Either way the call has to get as
+    /// far as the manager, which is what the "not connected" error proves.
+    #[test]
+    fn publish_message_takes_properties_as_an_optional_argument() {
+        let app = build_test_app();
+        let webview = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        let connection_id = uuid::Uuid::new_v4();
+
+        let without = invoke_err(
+            &webview,
+            "publish_message",
+            serde_json::json!({
+                "connectionId": connection_id,
+                "topic": "t",
+                "payload": [1],
+                "qos": "AtMostOnce",
+                "retain": false,
+            }),
+        );
+        let with = invoke_err(
+            &webview,
+            "publish_message",
+            serde_json::json!({
+                "connectionId": connection_id,
+                "topic": "t",
+                "payload": [1],
+                "qos": "AtMostOnce",
+                "retain": false,
+                "properties": {
+                    "content_type": "text/plain",
+                    "payload_is_utf8": true,
+                    "message_expiry_interval": null,
+                    "response_topic": null,
+                    "correlation_data": null,
+                    "user_properties": [{ "key": "k", "value": "v" }],
+                },
+            }),
+        );
+
+        assert_eq!(without, "Not connected to the broker");
+        assert_eq!(with, "Not connected to the broker");
     }
 
     #[test]

@@ -1,3 +1,4 @@
+import { MessageProperties } from "./message-properties.model";
 import { QoS } from "./qos";
 
 /** Mirrors the `MessageReceived` variant's payload. */
@@ -11,6 +12,9 @@ export interface MqttMessageReceived {
   payload_len: number;
   qos: QoS;
   retain: boolean;
+  /** MQTT 5 only, and only when the sender set something; the backend
+   * skips the field otherwise rather than sending null. */
+  properties?: MessageProperties;
 }
 
 /** Mirrors the `Warning` variant's payload: something the user should know

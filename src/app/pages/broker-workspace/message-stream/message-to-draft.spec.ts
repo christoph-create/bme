@@ -10,6 +10,7 @@ function message(overrides: Partial<StoredMessage> = {}): StoredMessage {
     payloadLen: payload.length,
     qos: "AtMostOnce",
     retain: false,
+    properties: null,
     receivedAt: Date.now(),
     ...overrides,
   };

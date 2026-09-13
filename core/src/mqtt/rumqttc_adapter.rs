@@ -4,7 +4,7 @@ use bytes::Bytes;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
-use crate::models::{BrokerConnection, MqttVersion, QoS};
+use crate::models::{BrokerConnection, MessageProperties, MqttVersion, QoS};
 use crate::mqtt::connection_registry::ConnectionRegistry;
 use crate::mqtt::oversize::{oversize_delay, MAX_PACKET_BYTES};
 use crate::mqtt::port::{MqttError, MqttEvent, MqttPort, MAX_IPC_PAYLOAD_BYTES};
@@ -21,6 +21,7 @@ enum Command {
         payload: Bytes,
         qos: QoS,
         retain: bool,
+        properties: Option<MessageProperties>,
     },
     Subscribe {
         topic: String,
@@ -139,13 +140,14 @@ impl MqttPort for RumqttcAdapter {
         payload: Vec<u8>,
         qos: QoS,
         retain: bool,
+        properties: Option<MessageProperties>,
     ) -> Result<(), MqttError> {
         let live = self.live(connection_id)?;
         let payload = Bytes::from(payload);
         // Rejected here, where the caller still gets to see the error, instead
         // of in the event loop - which enforces the same limit by dropping the
         // session, taking every other topic down with it.
-        let bytes = publish_packet_bytes(live.version, topic, &payload, qos);
+        let bytes = publish_packet_bytes(live.version, topic, &payload, qos, properties.as_ref());
         if bytes > MAX_PACKET_BYTES {
             return Err(MqttError::PayloadTooLarge {
                 bytes,
@@ -159,6 +161,7 @@ impl MqttPort for RumqttcAdapter {
                 payload,
                 qos,
                 retain,
+                properties,
             })
             .map_err(|_| MqttError::Other("connection task has already stopped".to_string()))
     }
@@ -271,6 +274,7 @@ async fn run_connection(
                             &publish.payload,
                             publish.qos,
                             publish.retain,
+                            publish.properties,
                         ));
                     }
                     Ok(SessionEvent::Other) => {}
@@ -359,8 +363,8 @@ async fn run_connection(
             }
             command = command_rx.recv() => {
                 match command {
-                    Some(Command::Publish { topic, payload, qos, retain }) => {
-                        session.publish(topic, payload, qos, retain).await;
+                    Some(Command::Publish { topic, payload, qos, retain, properties }) => {
+                        session.publish(topic, payload, qos, retain, properties).await;
                     }
                     Some(Command::Subscribe { topic, qos }) => {
                         // Recorded as well as sent, so a topic subscribed to
@@ -685,7 +689,7 @@ mod tests {
         adapter.connect(broker.id, &broker).unwrap();
 
         let too_big = vec![0u8; MAX_PACKET_BYTES];
-        let result = adapter.publish(broker.id, "t", too_big, QoS::AtMostOnce, false);
+        let result = adapter.publish(broker.id, "t", too_big, QoS::AtMostOnce, false, None);
 
         assert!(
             matches!(result, Err(MqttError::PayloadTooLarge { max, .. }) if max == MAX_PACKET_BYTES),
@@ -693,7 +697,14 @@ mod tests {
         );
         assert!(adapter.connections.contains(broker.id));
         assert_eq!(
-            adapter.publish(broker.id, "t", b"small".to_vec(), QoS::AtMostOnce, false),
+            adapter.publish(
+                broker.id,
+                "t",
+                b"small".to_vec(),
+                QoS::AtMostOnce,
+                false,
+                None
+            ),
             Ok(())
         );
     }
@@ -709,7 +720,7 @@ mod tests {
         adapter.connect(broker.id, &broker).unwrap();
 
         assert_eq!(
-            adapter.publish(broker.id, "t", b"x".to_vec(), QoS::AtMostOnce, false),
+            adapter.publish(broker.id, "t", b"x".to_vec(), QoS::AtMostOnce, false, None),
             Ok(())
         );
     }
@@ -745,6 +756,7 @@ mod tests {
                 b"hello from bme".to_vec(),
                 QoS::AtLeastOnce,
                 false,
+                None,
             )
             .unwrap();
 
@@ -789,6 +801,17 @@ mod tests {
         adapter
             .subscribe(broker.id, &topic, QoS::AtLeastOnce)
             .unwrap();
+        let sent = MessageProperties {
+            content_type: Some("text/plain".to_string()),
+            payload_is_utf8: true,
+            message_expiry_interval: Some(60),
+            response_topic: Some(format!("{topic}/reply")),
+            correlation_data: Some("req-1".to_string()),
+            user_properties: vec![crate::models::UserProperty {
+                key: "origin".to_string(),
+                value: "bme-test".to_string(),
+            }],
+        };
         adapter
             .publish(
                 broker.id,
@@ -796,6 +819,7 @@ mod tests {
                 b"hello over mqtt 5".to_vec(),
                 QoS::AtLeastOnce,
                 false,
+                Some(sent.clone()),
             )
             .unwrap();
 
@@ -806,8 +830,18 @@ mod tests {
             )
             .await;
             match received {
-                MqttEvent::MessageReceived { payload, .. } => {
+                MqttEvent::MessageReceived {
+                    payload,
+                    properties,
+                    ..
+                } => {
                     assert_eq!(payload, b"hello over mqtt 5");
+                    // The expiry comes back as whatever is left of it, so
+                    // compare it loosely and everything else exactly.
+                    let mut properties = properties.expect("the properties should come back");
+                    assert!(properties.message_expiry_interval.is_some_and(|s| s <= 60));
+                    properties.message_expiry_interval = sent.message_expiry_interval;
+                    assert_eq!(properties, sent);
                 }
                 _ => unreachable!(),
             }
@@ -884,6 +918,7 @@ mod tests {
                 b"hello over websockets".to_vec(),
                 QoS::AtLeastOnce,
                 false,
+                None,
             )
             .unwrap();
 
@@ -963,7 +998,14 @@ mod tests {
         // this covers the truncation on the way out as well.
         let big = vec![b'x'; MAX_IPC_PAYLOAD_BYTES * 4];
         adapter
-            .publish(broker.id, &topic, big.clone(), QoS::AtLeastOnce, false)
+            .publish(
+                broker.id,
+                &topic,
+                big.clone(),
+                QoS::AtLeastOnce,
+                false,
+                None,
+            )
             .unwrap();
 
         adapter.runtime.block_on(async {
@@ -1032,7 +1074,14 @@ mod tests {
 
         let big = vec![b'x'; MAX_IPC_PAYLOAD_BYTES * 4];
         adapter
-            .publish(broker.id, &topic, big.clone(), QoS::AtLeastOnce, false)
+            .publish(
+                broker.id,
+                &topic,
+                big.clone(),
+                QoS::AtLeastOnce,
+                false,
+                None,
+            )
             .unwrap();
 
         adapter.runtime.block_on(async {
@@ -1109,7 +1158,14 @@ mod tests {
             .subscribe(broker.id, &topic, QoS::AtLeastOnce)
             .unwrap();
         adapter
-            .publish(broker.id, &topic, b"once".to_vec(), QoS::AtLeastOnce, false)
+            .publish(
+                broker.id,
+                &topic,
+                b"once".to_vec(),
+                QoS::AtLeastOnce,
+                false,
+                None,
+            )
             .unwrap();
 
         adapter.runtime.block_on(async {

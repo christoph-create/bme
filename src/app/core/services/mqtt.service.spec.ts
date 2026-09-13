@@ -36,6 +36,33 @@ describe("MqttService", () => {
     ).resolves.toBeNull();
   });
 
+  it("sends MQTT 5 properties when given some, and no key at all otherwise", async () => {
+    const properties = {
+      content_type: "text/plain",
+      payload_is_utf8: true,
+      message_expiry_interval: null,
+      response_topic: null,
+      correlation_data: null,
+      user_properties: [{ key: "k", value: "v" }],
+    };
+    mockIPC((cmd, args) => {
+      if (cmd === "publish_message") {
+        expect(args).toEqual(expect.objectContaining({ properties }));
+        return null;
+      }
+      throw new Error(`unexpected command: ${cmd}`);
+    });
+
+    await new MqttService().publish(
+      CONNECTION_ID,
+      "t",
+      Uint8Array.of(1),
+      "AtMostOnce",
+      false,
+      properties,
+    );
+  });
+
   it("subscribes to a topic via the subscribe_topic command and resolves the persisted subscription", async () => {
     const subscription = {
       id: "22222222-2222-2222-2222-222222222222",

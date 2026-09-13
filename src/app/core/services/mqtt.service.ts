@@ -2,6 +2,7 @@ import { Injectable } from "@angular/core";
 import { invoke } from "@tauri-apps/api/core";
 
 import { Subscription } from "../models/broker-connection.model";
+import { MessageProperties } from "../models/message-properties.model";
 import { QoS } from "../models/qos";
 
 @Injectable({ providedIn: "root" })
@@ -12,6 +13,7 @@ export class MqttService {
     payload: Uint8Array,
     qos: QoS,
     retain: boolean,
+    properties: MessageProperties | null = null,
   ): Promise<void> {
     return invoke("publish_message", {
       connectionId,
@@ -19,6 +21,9 @@ export class MqttService {
       payload: Array.from(payload),
       qos,
       retain,
+      // Left out rather than sent as null: the backend reads an absent
+      // argument as `None`, and v3.1.1 connections never have any.
+      ...(properties === null ? {} : { properties }),
     });
   }
 

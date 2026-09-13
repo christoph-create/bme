@@ -57,6 +57,12 @@ button.
 publish panel's draft (`message-draft.model.ts`) lives in component state
 until you publish or save it as a template.
 
+On an MQTT 5 connection the call may carry `MessageProperties` (content type,
+response topic, correlation data, expiry, user properties). They travel as an
+optional argument the frontend leaves out entirely on v3.1.1; the session
+driver drops them with a log warning if they ever reach a v3.1.1 session.
+Templates do not store them yet, so a draft saved as a template loses them.
+
 ## 3. Subscribing
 
 `MqttService.subscribe(...)` → `subscribe_topic` → **two** effects: the
@@ -89,6 +95,12 @@ half characters per byte, so the backend caps what it sends at
 `payload_len`. Anything showing a size, deciding whether a retained topic was
 cleared, or offering to resend a message has to read `payload_len`, not
 `payload.length`.
+
+A message from an MQTT 5 broker may also carry `properties`. The session
+driver collapses a wire properties block that holds nothing we show (a
+subscription identifier the broker added, say) to `None`, so a v5 message
+with no properties reaches the store looking exactly like a v3.1.1 one:
+`StoredMessage.properties` is `null` for both.
 
 Received messages are **never written to SQLite** — close the app and the
 history is gone. Only connections, subscriptions, templates and collections
@@ -133,6 +145,8 @@ Change one side of any of these and the other breaks silently:
 | `QoS` (serialized by name: `"AtLeastOnce"`) | `qos.ts` |
 | `MessageFormat` (`"json"` / `"raw"`) | `message-format.model.ts` |
 | `BrokerScheme` (`"mqtt"` / `"mqtts"` / `"ws"` / `"wss"`) | `broker-connection.model.ts` |
+| `MqttVersion` (`"v311"` / `"v5"`) | `broker-connection.model.ts` |
+| `MessageProperties` / `UserProperty` (snake_case fields; the `properties` field on `MessageReceived` is *skipped* when `None`, and the `publish_message` argument is *omitted* rather than sent as null) | `message-properties.model.ts`, `mqtt-event.model.ts`, `mqtt.service.ts` |
 | `VariableGenerator` (internally tagged on `kind`, camelCase) | the union in `payload-variable.model.ts` |
 | command names + arg names in `commands.rs` | the `invoke()` calls in `core/services/` |
 | the exchange format in `spec/` | `template-exchange.service.ts` |
