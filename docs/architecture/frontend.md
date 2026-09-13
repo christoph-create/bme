@@ -118,8 +118,8 @@ The biggest surface in the app — one screen composed of several panels:
 
 - `subscriptions-panel/` — subscribe/unsubscribe, lists persisted subscriptions
 - `topic-tree/` — the live tree. Pure helpers next to it: `build-topic-tree.ts`, `find-updated-leaf-paths.ts`
-- `message-stream/` — the history list. Virtualized: `virtual-range.ts` + `measure-height.directive.ts`
-- `publish-panel/` — compose and publish; entry point for save/load template
+- `message-stream/` — the history list. Virtualized: `virtual-range.ts` + `measure-height.directive.ts`. `message-to-draft.ts` is what Resend hands the publish panel (properties included); `format-properties.ts` turns a message's MQTT 5 properties into the rows on its card
+- `publish-panel/` — compose and publish; entry point for save/load template. The MQTT 5 properties editor lives on its settings layer and only renders when the workspace passes `protocolVersion: "v5"`; `publish-properties.ts` is the form ↔ `MessageProperties` mapping, and the reason nothing typed there ever leaves on a 3.1.1 connection
 - `tool-panel/` — the right-hand dock, one tool at a time (a `@switch`, so Pin/Compare drop in as extra cases). `value-charts/` is the only tool today: a stack of hand-rolled SVG charts, with `numeric-fields.ts`, `sample-series.ts`, `chart-geometry.ts`, `axis-ticks.ts` and `axis-format.ts` as its pure helpers
 - `layout/dock-layout.ts` — the whole geometry of the three docks as plain functions over a plain `LayoutInput`: sizes, the two grid templates, and folding a splitter drag back in. Sizes are stored as a **fraction of the window**, so recomputing after a resize is a pure multiply rather than an increment that could drift
 - `qos-select/`, `save-template-modal/`, `load-template-modal/`

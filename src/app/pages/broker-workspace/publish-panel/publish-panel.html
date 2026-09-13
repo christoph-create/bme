@@ -87,6 +87,29 @@
         }
       }
 
+      <div class="field">
+        <span class="field-label">Variables</span>
+        <div class="variables-summary">
+          <p class="settings-note">
+            {{ variables().length }} defined, shared across every broker and
+            template.
+          </p>
+          @if (counterValues().size > 0) {
+            <p class="settings-note">
+              Counters restart when a repeat run starts, and advance on every
+              single Publish. Reset one at any time from Edit variables.
+            </p>
+          }
+          <button
+            type="button"
+            class="btn-outline"
+            (click)="openVariablesModal()"
+          >
+            Edit variables…
+          </button>
+        </div>
+      </div>
+
       @if (showsProperties()) {
         <div class="field properties">
           <span class="field-label">MQTT 5 properties</span>
@@ -187,29 +210,6 @@
           </div>
         </div>
       }
-
-      <div class="field">
-        <span class="field-label">Variables</span>
-        <div class="variables-summary">
-          <p class="settings-note">
-            {{ variables().length }} defined, shared across every broker and
-            template.
-          </p>
-          @if (counterValues().size > 0) {
-            <p class="settings-note">
-              Counters restart when a repeat run starts, and advance on every
-              single Publish. Reset one at any time from Edit variables.
-            </p>
-          }
-          <button
-            type="button"
-            class="btn-outline"
-            (click)="openVariablesModal()"
-          >
-            Edit variables…
-          </button>
-        </div>
-      </div>
     </div>
   </div>
 } @else {

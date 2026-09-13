@@ -25,6 +25,7 @@ It's built with [Tauri](https://tauri.app) (a Rust backend, SQLite for local sto
 - **Several brokers at once** — each in its own tab, with its own history, layout and publish draft.
 - **Live topic tree** — watch the hierarchy build itself as messages arrive, and click any topic for its full session history.
 - **Every transport** — `mqtt://`, `mqtts://`, `ws://` and `wss://`, with client certificates, custom CAs and ALPN.
+- **MQTT 5** — per connection, alongside 3.1.1. Set content type, response topic, correlation data, expiry and user properties on what you publish, see them on what arrives, and get the broker's own reason when it refuses or drops you.
 - **Message templates** — save any payload, group it into collections, and share it through an [open, versioned exchange format](spec/README.md) that isn't bme-specific.
 - **Simulate a device** — `{{variables}}` expand to a fresh counter, random number, UUID or timestamp on every send, and repeat publishing turns one template into a plausible data stream.
 - **Charts** — plot any numeric field in a topic's payload and watch it move.
@@ -33,7 +34,7 @@ It's built with [Tauri](https://tauri.app) (a Rust backend, SQLite for local sto
 ## Screenshots
 
 <p align="center">
-  <img src="docs/screenshots/broker-workspace.png" width="820" alt="Broker Workspace: connected to a broker, subscriptions and a live topic tree in the left dock, message history above the publish panel in the middle, and three dock-toggle buttons beside Disconnect in the header">
+  <img src="docs/screenshots/broker-workspace.png" width="820" alt="Broker Workspace: connected to a broker, subscriptions and a live topic tree in the left dock, message history above the publish panel in the middle - each message card listing its MQTT 5 properties above the JSON payload - and three dock-toggle buttons beside Disconnect in the header">
   <br>
   <em>Broker Workspace — subscriptions, a live topic tree, message history, and publish, all in one screen. Each dock hides from its own button in the header.</em>
 </p>
@@ -51,7 +52,7 @@ It's built with [Tauri](https://tauri.app) (a Rust backend, SQLite for local sto
       <br><em>Saved connections</em>
     </td>
     <td align="center" width="50%">
-      <img src="docs/screenshots/new-connection.png" width="380" alt="New Connection form with a scheme selector, host, port and WebSocket path making up the endpoint, connection settings on the left and CA and client certificate pickers, ALPN and a skip-verification toggle on the right">
+      <img src="docs/screenshots/new-connection.png" width="380" alt="New Connection form with a scheme selector, host, port and WebSocket path making up the endpoint, connection settings including an MQTT 3.1.1 / MQTT 5 protocol selector on the left, and CA and client certificate pickers, ALPN and a skip-verification toggle on the right">
       <br><em>Adding a broker</em>
     </td>
   </tr>
@@ -75,6 +76,12 @@ It's built with [Tauri](https://tauri.app) (a Rust backend, SQLite for local sto
   <em>Charts — plot any numeric value in a topic's payload and watch it move.</em>
 </p>
 
+<p align="center">
+  <img src="docs/screenshots/mqtt5-properties.png" width="820" alt="An MQTT 5 connection: the message stream shows a received message with its content type, payload format, expiry and a device user property listed above the payload, and the publish settings below have the MQTT 5 properties section filled in with a content type, expiry, response topic, correlation data, the UTF-8 switch and a user property">
+  <br>
+  <em>MQTT 5 — properties on what arrives, and an editor for what you send.</em>
+</p>
+
 <table align="center">
   <tr>
     <td align="center" width="50%">
@@ -82,7 +89,7 @@ It's built with [Tauri](https://tauri.app) (a Rust backend, SQLite for local sto
       <br><em>Variables behind <code>{{name}}</code></em>
     </td>
     <td align="center" width="50%">
-      <img src="docs/screenshots/repeat-publishing.png" width="380" alt="Publish settings view showing retain and repeat toggles, publish interval in milliseconds, number of messages, and a summary of the defined variables">
+      <img src="docs/screenshots/repeat-publishing.png" width="380" alt="Publish settings view showing retain and repeat toggles, publish interval in milliseconds, number of messages, a summary of the defined variables, and the start of the MQTT 5 properties section below">
       <br><em>Repeat publishing</em>
     </td>
   </tr>
@@ -90,10 +97,10 @@ It's built with [Tauri](https://tauri.app) (a Rust backend, SQLite for local sto
 
 ### How to use it
 
-1. **Add a broker** — `+ New Connection`, pick a scheme (`mqtt://`, `mqtts://`, `ws://`, `wss://`) and fill in host/port — plus the WebSocket path, credentials or certificates if the broker needs them — then **Save & Connect** (or **Test Connection** first to sanity-check it).
+1. **Add a broker** — `+ New Connection`, pick a scheme (`mqtt://`, `mqtts://`, `ws://`, `wss://`) and fill in host/port — plus the WebSocket path, credentials or certificates if the broker needs them — then **Save & Connect** (or **Test Connection** first to sanity-check it). The **Protocol** selector picks MQTT 3.1.1 or MQTT 5 for that connection; a broker that only speaks 3.1.1 will say so when a v5 connection is refused.
 2. **Subscribe** to a topic filter from the sidebar — subscriptions persist and are replayed automatically next time you connect.
-3. **Browse** the live topic tree as messages arrive; click any topic to see its full session history (payload, QoS, retained flag, time received).
-4. **Publish** a message from the panel below the message stream — topic is pre-filled from whatever you've selected in the tree, payload as JSON or raw text, pick a QoS, hit Publish.
+3. **Browse** the live topic tree as messages arrive; click any topic to see its full session history (payload, QoS, retained flag, time received — and on an MQTT 5 connection, whatever properties the sender attached).
+4. **Publish** a message from the panel below the message stream — topic is pre-filled from whatever you've selected in the tree, payload as JSON or raw text, pick a QoS, hit Publish. On an MQTT 5 connection the ⚙ settings also hold the message's properties (content type, expiry, response topic, correlation data, user properties); **Resend** on a received message carries its properties along.
 5. **Save frequently-used payloads as templates** — from the publish panel, "Save as Template" (broker-independent, optionally grouped into a collection) or "Load Template" to pull one back in. Manage the full set — edit any field, delete, or reorganize collections — from **Manage Templates** on the Connections page.
 6. **Share templates and collections** — from the Templates page, **Export** a single template or a whole collection (or **Export All** for everything) as copy-pasteable JSON, and **Import** to bring one back in. It's an open, versioned format, not a bme-specific blob — see [`spec/`](spec/README.md) for the full definition.
 7. **Simulate a device** — put `{{name}}` variables in the topic or payload and they expand to a fresh value on every send: a counter, a random integer or decimal in a range, a UUID, a timestamp, or a fixed string. Define them with **Edit Vars** on the publish panel, and hit **Show preview** to see exactly what the next message will carry. Turn on **Repeat** behind the ⚙ to fire the draft every N milliseconds — a fixed number of times or until you hit Stop — and one template becomes a plausible data stream instead of 500 identical messages. Counters restart when a repeat run starts and advance on every single Publish; each counter has its own **Reset** button in the variables dialog.
@@ -138,7 +145,8 @@ rather ask than be told.
 Rough order of what's next, no promises on timing:
 
 - [ ] In-app auto-update — today bme only *tells* you a release exists
-- [ ] MQTT 5.0 — user properties, response topics, and real reason codes
+- [x] MQTT 5.0 — user properties, response topics, and real reason codes
+- [ ] More of MQTT 5.0 — properties on saved templates, per-subscription options (No Local, Retain As Published, Retain Handling), persistent sessions
 
 Have an opinion on priority, or something else you'd want? Open an issue.
 
