@@ -27,13 +27,15 @@ Plain serde types, no I/O. The vocabulary of the whole app:
 | File | Role |
 | --- | --- |
 | `port.rs` | `MqttPort` trait, `MqttEvent` enum, `MqttError`. The contract. |
-| `rumqttc_adapter.rs` | The real implementation, on top of `rumqttc`. |
+| `rumqttc_adapter.rs` | The real implementation, on top of `rumqttc`: one task per connection running the reconnect loop. |
+| `session.rs` | The one place that knows rumqttc has two APIs. A `Session` is a v3.1.1 *or* a v5 client + event loop; the loop above only sees `SessionEvent`/`PollError`. |
+| `oversize.rs`, `failure.rs` | Turn a rumqttc error into banner text (each with a v3.1.1 and a v5 function, since the error enums differ). |
 | `manager.rs` | Owns the set of live connections; generic over `P: MqttPort`. |
 | `connection_registry.rs` | Which connection task currently owns each id, with a generation per task. |
 | `reconnect.rs` | The backoff schedule, as a pure function of the attempt number. |
 | `subscription_set.rs` | The topics a connection wants, replayed after every ConnAck. |
 
-Four things worth knowing before you touch this:
+Five things worth knowing before you touch this:
 
 1. **Every `MqttPort` method is fire-and-forget.** `Ok(())` means "the
    command was accepted", not "the broker did it". Real outcomes arrive
@@ -66,6 +68,17 @@ Four things worth knowing before you touch this:
    `Disconnected` doesn't land after the replacement's `Connected` and read as
    a fresh drop. `ConnectionRegistry` is generic over its value so this
    bookkeeping is tested without a socket.
+5. **MQTT 5 is a second driver, not a flag.** rumqttc implements v5 under
+   `rumqttc::v5` with its own client, event loop, options, packets, `QoS` and
+   error enums; only `Transport` is shared. `session.rs` wraps the pair in an
+   enum chosen by `BrokerConnection::protocol_version`, so `run_connection`,
+   the backoff, the oversize track and the subscription replay are written
+   once. v5 connects with `clean_start = true` and no session expiry - the
+   v5 spelling of a clean session, so the replay-on-ConnAck design holds -
+   and sends the 16 MiB limit as its Maximum Packet Size property. What v5
+   adds for the user is *reasons*: `failure.rs` turns the longer CONNACK code
+   list and a server-initiated DISCONNECT (code plus optional reason string)
+   into `Disconnected { reason }`.
 
 `MqttClientManager` is generic over the port, so tests inject a fake and
 never open a socket. The reconnect schedule and the subscription set are

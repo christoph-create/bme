@@ -5,6 +5,7 @@ pub mod oversize;
 pub mod port;
 pub mod reconnect;
 pub mod rumqttc_adapter;
+pub(crate) mod session;
 pub mod subscription_set;
 pub mod tls;
 pub mod transport;

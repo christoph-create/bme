@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use rumqttc::v5;
 use rumqttc::{ConnectionError, StateError};
 
 use crate::mqtt::reconnect::{BASE_DELAY, MAX_DELAY};
@@ -34,22 +35,48 @@ pub fn oversize_reason(err: &ConnectionError) -> Option<String> {
         // why the log for an 11 KB message read "11661".
         ConnectionError::MqttState(StateError::Deserialization(
             rumqttc::mqttbytes::Error::PayloadSizeLimitExceeded(remaining_len),
-        )) => Some(format!(
-            "A {} message was dropped: it is larger than the {} packet limit. \
-             The connection re-establishes itself, but a retained message this \
-             large will keep interrupting it until it is cleared on the broker.",
-            human_bytes(*remaining_len),
-            human_bytes(MAX_PACKET_BYTES),
-        )),
+        )) => Some(incoming_reason(*remaining_len, MAX_PACKET_BYTES)),
         ConnectionError::MqttState(StateError::OutgoingPacketTooLarge { pkt_size, max }) => {
-            Some(format!(
-                "A {} packet could not be sent: it is larger than the {} packet limit.",
-                human_bytes(*pkt_size),
-                human_bytes(*max),
-            ))
+            Some(outgoing_reason(*pkt_size, *max))
         }
         _ => None,
     }
+}
+
+/// The MQTT 5 twin of `oversize_reason`. rumqttc's v5 state reports both
+/// directions as first-class variants rather than a deserialization error,
+/// and the incoming one carries the whole packet size rather than the
+/// remaining length - close enough that the same wording serves.
+pub fn oversize_reason_v5(err: &v5::ConnectionError) -> Option<String> {
+    match err {
+        v5::ConnectionError::MqttState(v5::StateError::IncomingPacketTooLarge {
+            pkt_size,
+            max,
+        }) => Some(incoming_reason(*pkt_size, *max)),
+        v5::ConnectionError::MqttState(v5::StateError::OutgoingPacketTooLarge {
+            pkt_size,
+            max,
+        }) => Some(outgoing_reason(*pkt_size as usize, *max as usize)),
+        _ => None,
+    }
+}
+
+fn incoming_reason(bytes: usize, max: usize) -> String {
+    format!(
+        "A {} message was dropped: it is larger than the {} packet limit. \
+         The connection re-establishes itself, but a retained message this \
+         large will keep interrupting it until it is cleared on the broker.",
+        human_bytes(bytes),
+        human_bytes(max),
+    )
+}
+
+fn outgoing_reason(bytes: usize, max: usize) -> String {
+    format!(
+        "A {} packet could not be sent: it is larger than the {} packet limit.",
+        human_bytes(bytes),
+        human_bytes(max),
+    )
 }
 
 /// How long to wait before re-establishing a session an oversize packet just
@@ -103,6 +130,42 @@ mod tests {
         let reason = oversize_reason(&err).expect("classified as oversize");
 
         assert!(reason.contains("19.5 KB"), "{reason}");
+    }
+
+    #[test]
+    fn a_v5_incoming_packet_over_the_limit_is_reported_with_its_size() {
+        let err = v5::ConnectionError::MqttState(v5::StateError::IncomingPacketTooLarge {
+            pkt_size: 11661,
+            max: MAX_PACKET_BYTES,
+        });
+
+        let reason = oversize_reason_v5(&err).expect("classified as oversize");
+
+        assert!(reason.contains("11.4 KB"), "{reason}");
+        assert!(reason.contains("16.0 MB"), "{reason}");
+    }
+
+    /// In v5 the outgoing limit is the *broker's* Maximum Packet Size from the
+    /// CONNACK, so the number in the message is whatever it told us.
+    #[test]
+    fn a_v5_outgoing_packet_over_the_brokers_limit_names_that_limit() {
+        let err = v5::ConnectionError::MqttState(v5::StateError::OutgoingPacketTooLarge {
+            pkt_size: 20_000,
+            max: 10_240,
+        });
+
+        let reason = oversize_reason_v5(&err).expect("classified as oversize");
+
+        assert!(reason.contains("19.5 KB"), "{reason}");
+        assert!(reason.contains("10.0 KB"), "{reason}");
+    }
+
+    #[test]
+    fn another_v5_state_error_is_not_a_size_problem() {
+        let err = v5::ConnectionError::MqttState(v5::StateError::WrongPacket);
+
+        assert_eq!(oversize_reason_v5(&err), None);
+        assert_eq!(oversize_reason_v5(&v5::ConnectionError::RequestsDone), None);
     }
 
     #[test]
