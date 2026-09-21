@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-list-app-settings"
+description = "Enables the list_app_settings command without any pre-configured scope."
+commands.allow = ["list_app_settings"]
+
+[[permission]]
+identifier = "deny-list-app-settings"
+description = "Denies the list_app_settings command without any pre-configured scope."
+commands.deny = ["list_app_settings"]

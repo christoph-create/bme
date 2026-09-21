@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::LazyLock;
 
 use bme_core::models::{
@@ -9,7 +10,7 @@ use bme_core::models::{
 use bme_core::mqtt::manager::MqttClientManager;
 use bme_core::mqtt::port::MqttError;
 use bme_core::mqtt::rumqttc_adapter::RumqttcAdapter;
-use bme_core::storage::app_settings_repo::SqliteAppSettingsRepository;
+use bme_core::storage::app_settings_repo::{AppSettingsRepository, SqliteAppSettingsRepository};
 use bme_core::storage::connections_repo::{ConnectionsRepository, SqliteConnectionsRepository};
 use bme_core::storage::favorite_collections_repo::{
     FavoriteCollectionsRepository, SqliteFavoriteCollectionsRepository,
@@ -78,6 +79,40 @@ pub fn skip_update_version(
     checker
         .skip_version(&version)
         .map_err(|err| err.to_string())
+}
+
+/// The settings commands are a plain key/value store on purpose. The schema -
+/// which keys exist, how each value is encoded, its default and bounds - lives
+/// in the frontend (`src/app/core/settings/app-settings.ts`), which is the only
+/// side that ever reads these values. Keeping Rust ignorant means a new setting
+/// is a TypeScript-only change: no model, no mirror, no migration.
+///
+/// `list` returns the whole table, including keys owned by other subsystems
+/// (`update.*`); the frontend ignores what it doesn't recognise.
+#[tauri::command]
+pub fn list_app_settings(
+    repo: State<SqliteAppSettingsRepository>,
+) -> Result<HashMap<String, String>, String> {
+    repo.list()
+        .map(|rows| rows.into_iter().collect())
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub fn set_app_setting(
+    repo: State<SqliteAppSettingsRepository>,
+    key: String,
+    value: String,
+) -> Result<(), String> {
+    repo.set(&key, &value).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub fn remove_app_setting(
+    repo: State<SqliteAppSettingsRepository>,
+    key: String,
+) -> Result<(), String> {
+    repo.remove(&key).map_err(|err| err.to_string())
 }
 
 #[tauri::command]

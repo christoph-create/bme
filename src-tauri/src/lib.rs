@@ -161,6 +161,9 @@ pub fn run() {
             commands::get_app_version,
             commands::check_for_updates,
             commands::skip_update_version,
+            commands::list_app_settings,
+            commands::set_app_setting,
+            commands::remove_app_setting,
             commands::list_connections,
             commands::create_connection,
             commands::update_connection,
@@ -238,6 +241,9 @@ mod tests {
                 commands::get_app_version,
                 commands::check_for_updates,
                 commands::skip_update_version,
+                commands::list_app_settings,
+                commands::set_app_setting,
+                commands::remove_app_setting,
             ])
             .build(tauri::generate_context!())
             .expect("failed to build mock app");
@@ -392,6 +398,67 @@ mod tests {
         assert_eq!(
             settings.get(bme_core::update::SKIPPED_VERSION_KEY).unwrap(),
             Some("0.9.9".to_string())
+        );
+    }
+
+    #[test]
+    fn set_app_setting_then_list_round_trips_over_ipc() {
+        let app = build_test_app();
+        let webview = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+
+        invoke(
+            &webview,
+            "set_app_setting",
+            serde_json::json!({ "key": "stream.pretty_json", "value": "false" }),
+        );
+
+        let listed = invoke(&webview, "list_app_settings", serde_json::json!({}));
+        assert_eq!(listed, serde_json::json!({ "stream.pretty_json": "false" }));
+    }
+
+    #[test]
+    fn remove_app_setting_drops_the_key_over_ipc() {
+        let app = build_test_app();
+        let webview = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+
+        invoke(
+            &webview,
+            "set_app_setting",
+            serde_json::json!({ "key": "stream.pretty_json", "value": "false" }),
+        );
+        invoke(
+            &webview,
+            "remove_app_setting",
+            serde_json::json!({ "key": "stream.pretty_json" }),
+        );
+
+        let listed = invoke(&webview, "list_app_settings", serde_json::json!({}));
+        assert_eq!(listed, serde_json::json!({}));
+    }
+
+    #[test]
+    fn list_app_settings_includes_keys_owned_by_other_subsystems() {
+        // The frontend has to filter what it reads: the table is shared with
+        // the update checker, whose keys arrive in the same map.
+        let app = build_test_app();
+        let webview = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+
+        invoke(
+            &webview,
+            "skip_update_version",
+            serde_json::json!({ "version": "0.9.9" }),
+        );
+
+        let listed = invoke(&webview, "list_app_settings", serde_json::json!({}));
+        assert_eq!(
+            listed,
+            serde_json::json!({ bme_core::update::SKIPPED_VERSION_KEY: "0.9.9" })
         );
     }
 
