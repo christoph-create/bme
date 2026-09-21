@@ -107,6 +107,8 @@ class DemoState {
   readonly collections = cloneAll(DEMO_COLLECTIONS);
   readonly templates = cloneAll(DEMO_TEMPLATES);
   readonly variables = cloneAll(DEMO_VARIABLES);
+  /** Starts empty on purpose: the screenshots should show the defaults. */
+  readonly settings = new Map<string, string>();
 
   connection(id: string): BrokerConnection | null {
     return this.connections.find((c) => c.id === id) ?? null;
@@ -215,6 +217,15 @@ export function installDemoBackend(): void {
 
         case "get_app_version":
           return DEMO_APP_VERSION;
+
+        case "list_app_settings":
+          return Object.fromEntries(state.settings);
+        case "set_app_setting":
+          state.settings.set(arg(args, "key"), arg(args, "value"));
+          return null;
+        case "remove_app_setting":
+          state.settings.delete(arg(args, "key"));
+          return null;
 
         case "check_for_updates":
           // Always up to date: the notifier runs an automatic check three

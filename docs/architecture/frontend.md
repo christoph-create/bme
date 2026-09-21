@@ -57,11 +57,14 @@ Two consequences worth knowing before touching either side:
 
 Providers: `provideRouter`, `provideBrowserGlobalErrorListeners`,
 `GlobalErrorHandler` as the `ErrorHandler`, and an app initializer that
-merely instantiates `HeartbeatService` and `UpdateNotifierService`. It must
-stay **`void`-returning**: `provideAppInitializer` waits on any promise handed
-back to it, which would put a network call in front of the first paint.
+instantiates `HeartbeatService` and `UpdateNotifierService` and kicks off
+`SettingsService.load()` without awaiting it. It must stay
+**`void`-returning**: `provideAppInitializer` waits on any promise handed
+back to it, which would put a network call (or a database read) in front of
+the first paint. Consumers run on the default settings until the load lands
+and re-seed from the signal when it does.
 
-Both of those last two exist for the same reason: **diagnosing UI freezes
+`GlobalErrorHandler` and `HeartbeatService` exist for the same reason: **diagnosing UI freezes
 after the fact.** `GlobalErrorHandler` funnels every uncaught error into the
 shared Rust log file; `HeartbeatService` logs a tick every 60s from outside
 the Angular zone, so a gap in the log pins down when the main thread stopped
@@ -91,6 +94,7 @@ Rust type and you must change its mirror here. `stored-message` and
 | `template-exchange.service` | Serializes/parses the `spec/` exchange format, including version checking |
 | `json-format.service` | Pretty-print, compact, and tokenize JSON for the payload editor's highlighting |
 | `variables.service` | CRUD over the `{{name}}` variable definitions, plus a loaded-once signal cache. The cache is the point: the publish panel validates and previews on every keystroke, which an `invoke()` per keystroke can't serve. The expansion logic itself is in the plain functions under `core/variables/` |
+| `settings.service` | The app-level settings as a signal read model over the backend's `app_settings` key/value store, loaded once at startup. The schema — keys, defaults, bounds, encoding — is the plain `core/settings/app-settings.ts`; the backend never interprets the values. Writes are optimistic so a change on the settings page re-seeds every consumer immediately |
 | `logger.service` | Forwards to the Rust log file via `@tauri-apps/plugin-log` |
 | `update.service` | `invoke()` wrapper over `get_app_version` / `check_for_updates` / `skip_update_version` |
 | `update-notifier.service` | App-wide update state, and the one throttled check per launch. Its policy — silent vs. up-to-date vs. offer — lives in the plain `update-announcement.ts` next to it |
