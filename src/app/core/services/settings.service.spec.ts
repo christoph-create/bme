@@ -53,6 +53,17 @@ describe("SettingsService", () => {
     expect(calls).toEqual([]);
   });
 
+  it("hands out one memoised signal per key", async () => {
+    const s = service();
+    const qos = s.value("publishQos");
+    expect(qos).toBe(s.value("publishQos"));
+    expect(qos()).toBe("AtMostOnce");
+
+    await s.set("publishQos", "AtLeastOnce");
+
+    expect(qos()).toBe("AtLeastOnce");
+  });
+
   it("decodes what the backend holds on load", async () => {
     rows = {
       "stream.pretty_json": "false",

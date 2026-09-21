@@ -1,31 +1,34 @@
+import { signal } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
 import { Subject, firstValueFrom } from "rxjs";
 import { describe, expect, it } from "vitest";
 
 import { MqttEvent, MqttMessageReceived } from "../models/mqtt-event.model";
-import {
-  MAX_MESSAGES_PER_TOPIC,
-  MessageStoreService,
-} from "./message-store.service";
+import { AppSettings, DEFAULT_SETTINGS } from "../settings/app-settings";
+import { MessageStoreService } from "./message-store.service";
 import { MqttEventsService } from "./mqtt-events.service";
+import { SettingsService } from "./settings.service";
 
 const CONNECTION_A = "11111111-1111-1111-1111-111111111111";
 const CONNECTION_B = "22222222-2222-2222-2222-222222222222";
 
-function setup(maxMessagesPerTopic?: number): {
+function setup(maxMessagesPerTopic = DEFAULT_SETTINGS.maxMessagesPerTopic): {
   events$: Subject<MqttEvent>;
   store: MessageStoreService;
+  settings: ReturnType<typeof signal<AppSettings>>;
 } {
   const events$ = new Subject<MqttEvent>();
+  const settings = signal<AppSettings>({
+    ...DEFAULT_SETTINGS,
+    maxMessagesPerTopic,
+  });
   TestBed.configureTestingModule({
     providers: [
       { provide: MqttEventsService, useValue: { events$ } },
-      ...(maxMessagesPerTopic === undefined
-        ? []
-        : [{ provide: MAX_MESSAGES_PER_TOPIC, useValue: maxMessagesPerTopic }]),
+      { provide: SettingsService, useValue: { settings } },
     ],
   });
-  return { events$, store: TestBed.inject(MessageStoreService) };
+  return { events$, store: TestBed.inject(MessageStoreService), settings };
 }
 
 function messageReceived(
@@ -198,6 +201,26 @@ describe("MessageStoreService", () => {
       store.messagesFor(CONNECTION_A, "sensors/temp"),
     );
     expect(messages.map((m) => m.payload)).toEqual([[2], [3], [4]]);
+  });
+
+  it("applies a lowered cap on the topic's next message", async () => {
+    const { events$, store, settings } = setup(5);
+    for (const payload of [[1], [2], [3], [4]]) {
+      events$.next({ MessageReceived: messageReceived({ payload }) });
+    }
+
+    settings.update((s) => ({ ...s, maxMessagesPerTopic: 2 }));
+    // Untouched until something arrives: a quiet topic keeps its history.
+    await expect(
+      firstValueFrom(store.messagesFor(CONNECTION_A, "sensors/temp")),
+    ).resolves.toHaveLength(4);
+
+    events$.next({ MessageReceived: messageReceived({ payload: [5] }) });
+
+    const messages = await firstValueFrom(
+      store.messagesFor(CONNECTION_A, "sensors/temp"),
+    );
+    expect(messages.map((m) => m.payload)).toEqual([[4], [5]]);
   });
 
   it("clear() with no arguments empties every connection's history", async () => {

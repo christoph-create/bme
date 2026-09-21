@@ -1,4 +1,4 @@
-import { Injectable, inject, signal } from "@angular/core";
+import { Injectable, Signal, computed, inject, signal } from "@angular/core";
 import { invoke } from "@tauri-apps/api/core";
 
 import {
@@ -24,6 +24,13 @@ import { LoggerService } from "./logger.service";
  * Consumers seed their local state from the signal (`linkedSignal`), and a
  * settings-page toggle should be visible everywhere the moment it's flipped,
  * not after an IPC round trip.
+ *
+ * Consumers that seed a `linkedSignal` should do it from `value(key)`, not
+ * from `settings()`: a linkedSignal re-seeds whenever anything it read
+ * changes, so reading the whole object would reset a session override of
+ * *every* setting the moment *any* setting is changed. `value()` puts a
+ * memoised `computed` in between, which only notifies on a real change to
+ * that one key.
  */
 @Injectable({ providedIn: "root" })
 export class SettingsService {
@@ -32,6 +39,17 @@ export class SettingsService {
   private loading: Promise<void> | null = null;
 
   readonly settings = this.settingsSignal.asReadonly();
+  private readonly values = new Map<keyof AppSettings, Signal<unknown>>();
+
+  /** One memoised signal per key, shared by every caller. */
+  value<K extends keyof AppSettings>(key: K): Signal<AppSettings[K]> {
+    let cached = this.values.get(key);
+    if (cached === undefined) {
+      cached = computed(() => this.settingsSignal()[key]);
+      this.values.set(key, cached);
+    }
+    return cached as Signal<AppSettings[K]>;
+  }
 
   /** Loads once per app run unless `force`d; concurrent callers share the
    * in-flight promise. A rejected load is not cached, so a later call can

@@ -1,3 +1,4 @@
+import { computed, signal } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
 import { BehaviorSubject, of } from "rxjs";
 import { describe, expect, it, vi } from "vitest";
@@ -6,6 +7,11 @@ import { MessageDraft } from "../../../core/models/message-draft.model";
 import { StoredMessage } from "../../../core/models/stored-message.model";
 import { MessageStoreService } from "../../../core/services/message-store.service";
 import { MqttService } from "../../../core/services/mqtt.service";
+import { SettingsService } from "../../../core/services/settings.service";
+import {
+  AppSettings,
+  DEFAULT_SETTINGS,
+} from "../../../core/settings/app-settings";
 import { MessageStream } from "./message-stream";
 
 const CONNECTION_ID = "11111111-1111-1111-1111-111111111111";
@@ -32,8 +38,13 @@ async function setup(
   options: {
     publish?: ReturnType<typeof vi.fn>;
     retainedTopics?: ReadonlySet<string>;
+    settings?: Partial<AppSettings>;
   } = {},
 ) {
+  const settings = signal<AppSettings>({
+    ...DEFAULT_SETTINGS,
+    ...options.settings,
+  });
   const messagesFor = vi
     .fn()
     .mockImplementation((_connectionId: string, topic: string) =>
@@ -53,6 +64,13 @@ async function setup(
         useValue: { messagesFor, retainedTopicsFor, forgetRetained },
       },
       { provide: MqttService, useValue: { publish } },
+      {
+        provide: SettingsService,
+        useValue: {
+          settings,
+          value: (key: keyof AppSettings) => computed(() => settings()[key]),
+        },
+      },
     ],
   });
 
@@ -62,7 +80,7 @@ async function setup(
   await fixture.whenStable();
   fixture.detectChanges();
 
-  return { fixture, messagesFor, publish, forgetRetained };
+  return { fixture, messagesFor, publish, forgetRetained, settings };
 }
 
 /** Like `setup`, but the store's history is a live subject, so a test can
@@ -276,6 +294,58 @@ describe("MessageStream", () => {
 
     expect(element.querySelector(".payload")?.textContent).toBe(
       '{\n  "data1": "data",\n  "data2": "data"\n}',
+    );
+  });
+
+  it("starts in raw mode when the pretty-JSON default is off", async () => {
+    const payload = encode('{"a":1}');
+    const { fixture } = await setup(
+      { device: [message({ payload })] },
+      { settings: { prettyJson: false } },
+    );
+    await selectTopic(fixture, "device");
+
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.querySelector(".payload")?.textContent).toBe('{"a":1}');
+    expect(toggleLink(element, "Pretty JSON")).toBeTruthy();
+  });
+
+  it("starts on wall-clock time when the timestamp default is absolute", async () => {
+    const { fixture } = await setup(
+      { device: [message()] },
+      { settings: { timestampMode: "absolute" } },
+    );
+    await selectTopic(fixture, "device");
+
+    const element = fixture.nativeElement as HTMLElement;
+    expect(toggleLink(element, "Relative")).toBeTruthy();
+    expect(element.querySelector(".ts")?.textContent).toMatch(
+      /\d{2}:\d{2}:\d{2}/,
+    );
+  });
+
+  it("re-seeds a locally toggled view when the default changes", async () => {
+    const payload = encode('{"a":1}');
+    const { fixture, settings } = await setup({
+      device: [message({ payload })],
+    });
+    await selectTopic(fixture, "device");
+    const element = fixture.nativeElement as HTMLElement;
+
+    toggleLink(element, "Raw").click();
+    fixture.detectChanges();
+    expect(element.querySelector(".payload")?.textContent).toBe('{"a":1}');
+
+    // A settings-page change wins over the session override - and
+    // "same value as the default" counts, since the default itself moved.
+    settings.update((s) => ({ ...s, prettyJson: false }));
+    fixture.detectChanges();
+    expect(element.querySelector(".payload")?.textContent).toBe('{"a":1}');
+
+    settings.update((s) => ({ ...s, prettyJson: true }));
+    fixture.detectChanges();
+    expect(element.querySelector(".payload")?.textContent).toBe(
+      '{\n  "a": 1\n}',
     );
   });
 

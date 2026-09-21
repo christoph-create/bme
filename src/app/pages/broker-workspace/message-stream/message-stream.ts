@@ -10,6 +10,7 @@ import {
   effect,
   inject,
   input,
+  linkedSignal,
   model,
   output,
   signal,
@@ -24,6 +25,7 @@ import { StoredMessage } from "../../../core/models/stored-message.model";
 import { JsonFormatService } from "../../../core/services/json-format.service";
 import { MessageStoreService } from "../../../core/services/message-store.service";
 import { MqttService } from "../../../core/services/mqtt.service";
+import { SettingsService } from "../../../core/services/settings.service";
 import { ConfirmDialog } from "../../../shared/confirm-dialog/confirm-dialog";
 import { FormattedPayload } from "../../../shared/formatted-payload/formatted-payload";
 import { formatClockTime } from "../format/clock-time";
@@ -94,14 +96,22 @@ export class MessageStream {
   private readonly messageStore = inject(MessageStoreService);
   private readonly jsonFormat = inject(JsonFormatService);
   private readonly mqttService = inject(MqttService);
+  private readonly settings = inject(SettingsService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly injector = inject(Injector);
 
   readonly messages = signal<readonly StoredMessage[]>([]);
   private readonly now = signal(Date.now());
 
-  readonly prettyJson = signal(true);
-  readonly showRealTime = signal(false);
+  // linkedSignal rather than signal: the default comes from the settings
+  // page, the header links still flip it locally for this session, and
+  // changing the default re-seeds every open stream. A plain signal would
+  // only ever see the value at construction. Seeded from `value(key)`, not
+  // `settings()` - see SettingsService for why.
+  readonly prettyJson = linkedSignal(this.settings.value("prettyJson"));
+  readonly showRealTime = linkedSignal(
+    () => this.settings.value("timestampMode")() === "absolute",
+  );
 
   // Ctrl+F search - same shape as the topic tree's filter (signal query,
   // open/closed flag, closing always clears) but pruning message cards

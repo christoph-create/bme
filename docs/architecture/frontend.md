@@ -107,9 +107,10 @@ constructor params.
 
 Subscribes to `mqtt-events.service` once and accumulates received messages
 into a `BehaviorSubject` of `Map<connectionId, Map<topic, StoredMessage[]>>`.
-Everything it hands out is `readonly`, and it caps history at
-`MAX_MESSAGES_PER_TOPIC` per topic — an `InjectionToken`, so tests can shrink
-it. Consumers use `messagesFor(connectionId, topic)` or
+Everything it hands out is `readonly`, and it caps history per topic at
+`SettingsService`'s `maxMessagesPerTopic`, read on every append so a change on
+the settings page applies mid-session (a lowered cap trims a topic on its next
+message). Consumers use `messagesFor(connectionId, topic)` or
 `topicsFor(connectionId)`; both are `distinctUntilChanged()`, so an
 unrelated topic's traffic doesn't re-render your view.
 

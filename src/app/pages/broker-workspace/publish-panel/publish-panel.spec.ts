@@ -13,7 +13,12 @@ import { FavoriteCollectionsService } from "../../../core/services/favorite-coll
 import { FavoritesService } from "../../../core/services/favorites.service";
 import { MessageProperties } from "../../../core/models/message-properties.model";
 import { MqttService } from "../../../core/services/mqtt.service";
+import { SettingsService } from "../../../core/services/settings.service";
 import { VariablesService } from "../../../core/services/variables.service";
+import {
+  AppSettings,
+  DEFAULT_SETTINGS,
+} from "../../../core/settings/app-settings";
 import { PublishPanel } from "./publish-panel";
 
 const CONNECTION_ID = "11111111-1111-1111-1111-111111111111";
@@ -33,8 +38,13 @@ function variable(
 async function setup(
   publish = vi.fn().mockResolvedValue(undefined),
   variables: PayloadVariable[] = [],
+  settingsOverrides: Partial<AppSettings> = {},
 ) {
   const mqttService = { publish };
+  const settings = signal<AppSettings>({
+    ...DEFAULT_SETTINGS,
+    ...settingsOverrides,
+  });
   const favoritesService = {
     create: vi.fn().mockResolvedValue({}),
     list: vi.fn().mockResolvedValue([]),
@@ -63,6 +73,13 @@ async function setup(
         useValue: favoriteCollectionsService,
       },
       { provide: VariablesService, useValue: variablesService },
+      {
+        provide: SettingsService,
+        useValue: {
+          settings,
+          value: (key: keyof AppSettings) => computed(() => settings()[key]),
+        },
+      },
     ],
   });
 
@@ -72,7 +89,7 @@ async function setup(
   await fixture.whenStable();
   fixture.detectChanges();
 
-  return { fixture, mqttService, publish, favoritesService };
+  return { fixture, mqttService, publish, favoritesService, settings };
 }
 
 function clickSegment(
@@ -233,6 +250,34 @@ describe("PublishPanel", () => {
       false,
       null,
     );
+  });
+
+  it("starts from the configured publish defaults", async () => {
+    const publish = vi.fn().mockResolvedValue(undefined);
+    const { fixture } = await setup(publish, [], {
+      publishFormat: "raw",
+      publishQos: "ExactlyOnce",
+      publishRetain: true,
+    });
+    const component = fixture.componentInstance;
+
+    expect(component.format()).toBe("raw");
+    expect(component.qos()).toBe("ExactlyOnce");
+    expect(component.retain()).toBe(true);
+  });
+
+  it("re-seeds format/QoS/retain when a default changes, even after a local change", async () => {
+    const { fixture, settings } = await setup();
+    const component = fixture.componentInstance;
+    component.selectFormat("raw");
+    component.qos.set("AtLeastOnce");
+
+    settings.update((s) => ({ ...s, publishQos: "ExactlyOnce" }));
+
+    expect(component.qos()).toBe("ExactlyOnce");
+    // Only the changed setting's signal re-seeds; the others keep their
+    // session override.
+    expect(component.format()).toBe("raw");
   });
 
   it("does not retain by default", async () => {
