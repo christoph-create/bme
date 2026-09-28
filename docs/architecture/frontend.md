@@ -14,8 +14,9 @@ Bootstrapped from `src/main.ts` → `src/app/app.config.ts`.
 | `connections/:id/edit` | `ConnectionForm` | (same component) |
 | `broker/:id` | `BrokerRouteShell` | `pages/broker-workspace/` |
 | `templates` | `TemplatesManagement` | `pages/templates-management/` |
+| `settings` | `Settings` | `pages/settings/` |
 
-Five routes, five page directories. A page directory holds its own
+Six routes, six page directories. A page directory holds its own
 `.ts`/`.html`/`.css`/`.spec.ts` plus sub-directories for components that
 belong to that page alone.
 
@@ -39,7 +40,7 @@ AppComponent
 ├─ <app-workspace-tabs>     shell/workspace-tabs/  — one tab per open broker
 └─ .shell-body
    ├─ <app-workspace-host>  shell/workspace-host/  — every open workspace, one visible
-   └─ <router-outlet />     the five routes above
+   └─ <router-outlet />     the six routes above
 ```
 
 Two consequences worth knowing before touching either side:
@@ -57,11 +58,14 @@ Two consequences worth knowing before touching either side:
 
 Providers: `provideRouter`, `provideBrowserGlobalErrorListeners`,
 `GlobalErrorHandler` as the `ErrorHandler`, and an app initializer that
-merely instantiates `HeartbeatService` and `UpdateNotifierService`. It must
-stay **`void`-returning**: `provideAppInitializer` waits on any promise handed
-back to it, which would put a network call in front of the first paint.
+instantiates `HeartbeatService`, `UpdateNotifierService` and `UiZoomService`
+and kicks off `SettingsService.load()` without awaiting it. It must stay
+**`void`-returning**: `provideAppInitializer` waits on any promise handed
+back to it, which would put a network call (or a database read) in front of
+the first paint. Consumers run on the default settings until the load lands
+and re-seed from the signal when it does.
 
-Both of those last two exist for the same reason: **diagnosing UI freezes
+`GlobalErrorHandler` and `HeartbeatService` exist for the same reason: **diagnosing UI freezes
 after the fact.** `GlobalErrorHandler` funnels every uncaught error into the
 shared Rust log file; `HeartbeatService` logs a tick every 60s from outside
 the Angular zone, so a gap in the log pins down when the main thread stopped
@@ -91,6 +95,8 @@ Rust type and you must change its mirror here. `stored-message` and
 | `template-exchange.service` | Serializes/parses the `spec/` exchange format, including version checking |
 | `json-format.service` | Pretty-print, compact, and tokenize JSON for the payload editor's highlighting |
 | `variables.service` | CRUD over the `{{name}}` variable definitions, plus a loaded-once signal cache. The cache is the point: the publish panel validates and previews on every keystroke, which an `invoke()` per keystroke can't serve. The expansion logic itself is in the plain functions under `core/variables/` |
+| `settings.service` | The app-level settings as a signal read model over the backend's `app_settings` key/value store, loaded once at startup. The schema — keys, defaults, bounds, encoding — is the plain `core/settings/app-settings.ts`; the backend never interprets the values. Writes are optimistic so a change on the settings page re-seeds every consumer immediately |
+| `ui-zoom.service` | Holds the webview's zoom in step with the `ui.zoom` setting, and steps it for the Ctrl+`+`/`-`/`0` shortcuts. See below |
 | `logger.service` | Forwards to the Rust log file via `@tauri-apps/plugin-log` |
 | `update.service` | `invoke()` wrapper over `get_app_version` / `check_for_updates` / `skip_update_version` |
 | `update-notifier.service` | App-wide update state, and the one throttled check per launch. Its policy — silent vs. up-to-date vs. offer — lives in the plain `update-announcement.ts` next to it |
@@ -99,13 +105,33 @@ Rust type and you must change its mirror here. `stored-message` and
 Services are `providedIn: "root"` and injected with `inject()`, not
 constructor params.
 
+### `ui-zoom.service` — why zoom rather than a font size
+
+"Interface size" is the webview's own zoom (`setZoom`, the
+`core:webview:allow-set-webview-zoom` permission), not a CSS font scale.
+
+The workspace's geometry is not purely CSS: `DOCK_LIMITS`, `SPLITTER_PX` and
+`MIN_CENTRE_WIDTH` in `pages/broker-workspace/layout/dock-layout.ts` are
+JavaScript numbers, and the message stream measures and caches row heights to
+virtualise the list. Scaling only fonts would leave all of that at its
+original size — bigger text in unchanged docks, and mis-measured rows.
+Webview zoom scales the CSS pixel itself, so every one of those numbers keeps
+its meaning and the interface grows as one piece.
+
+The levels, the stepping and the snapping live in the plain
+`core/settings/zoom-levels.ts`; the keypress mapping in
+`core/settings/zoom-shortcut.ts`, bound once on `AppComponent` because zoom
+is app-wide. Applying it can fail — there is no webview in the demo build's
+plain browser — so the service logs and carries on rather than surfacing it.
+
 ### `message-store.service` — worth reading before touching the workspace
 
 Subscribes to `mqtt-events.service` once and accumulates received messages
 into a `BehaviorSubject` of `Map<connectionId, Map<topic, StoredMessage[]>>`.
-Everything it hands out is `readonly`, and it caps history at
-`MAX_MESSAGES_PER_TOPIC` per topic — an `InjectionToken`, so tests can shrink
-it. Consumers use `messagesFor(connectionId, topic)` or
+Everything it hands out is `readonly`, and it caps history per topic at
+`SettingsService`'s `maxMessagesPerTopic`, read on every append so a change on
+the settings page applies mid-session (a lowered cap trims a topic on its next
+message). Consumers use `messagesFor(connectionId, topic)` or
 `topicsFor(connectionId)`; both are `distinctUntilChanged()`, so an
 unrelated topic's traffic doesn't re-render your view.
 

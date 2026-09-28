@@ -1,6 +1,6 @@
 import { InvokeArgs } from "@tauri-apps/api/core";
 import { emit } from "@tauri-apps/api/event";
-import { mockIPC } from "@tauri-apps/api/mocks";
+import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 
 import {
   BrokerConnection,
@@ -107,6 +107,8 @@ class DemoState {
   readonly collections = cloneAll(DEMO_COLLECTIONS);
   readonly templates = cloneAll(DEMO_TEMPLATES);
   readonly variables = cloneAll(DEMO_VARIABLES);
+  /** Starts empty on purpose: the screenshots should show the defaults. */
+  readonly settings = new Map<string, string>();
 
   connection(id: string): BrokerConnection | null {
     return this.connections.find((c) => c.id === id) ?? null;
@@ -201,20 +203,36 @@ function encodePayload(text: string): number[] {
 
 export function installDemoBackend(): void {
   installDemoClock();
+  // `getCurrentWebview()` reads the label straight off the Tauri metadata,
+  // which `mockIPC` alone does not provide - without this the zoom service
+  // throws instead of reaching the mocked command below.
+  mockWindows("main");
   const state = new DemoState();
 
   mockIPC(
     (cmd, args) => {
       switch (cmd) {
-        // Fire-and-forget side effects the UI never reads back.
+        // Fire-and-forget side effects the UI never reads back. Zoom is one
+        // of them here: there is no webview to scale in a plain browser tab,
+        // the call only has to resolve.
         case "plugin:log|log":
         case "plugin:opener|open_url":
+        case "plugin:webview|set_webview_zoom":
         case "open_log_dir":
         case "skip_update_version":
           return null;
 
         case "get_app_version":
           return DEMO_APP_VERSION;
+
+        case "list_app_settings":
+          return Object.fromEntries(state.settings);
+        case "set_app_setting":
+          state.settings.set(arg(args, "key"), arg(args, "value"));
+          return null;
+        case "remove_app_setting":
+          state.settings.delete(arg(args, "key"));
+          return null;
 
         case "check_for_updates":
           // Always up to date: the notifier runs an automatic check three

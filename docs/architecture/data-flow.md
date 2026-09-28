@@ -165,7 +165,11 @@ never *expands* a placeholder — that happens in `core/variables/` in the
 frontend, because the preview needs it live per keystroke — so there is no
 expansion logic duplicated across the boundary, only the definition shape.
 
-The `app_settings` key strings (`update.skipped_version`,
-`update.last_checked_at`, defined in `core/src/update/mod.rs`) are a contract
-too, just an internal one: renaming a key silently orphans whatever users had
-already saved under the old name.
+The `app_settings` key strings are a contract too, just an internal one:
+renaming a key silently orphans whatever users had already saved under the
+old name. `update.skipped_version` and `update.last_checked_at` are defined
+in `core/src/update/mod.rs`; the user-facing settings (`ui.*`, `stream.*`,
+`store.*`, `publish.*`, `subscribe.*`) are `SETTING_KEYS` in
+`src/app/core/settings/app-settings.ts`, and only the frontend ever decodes
+those — `list_app_settings` hands back the whole table and the frontend
+ignores keys it doesn't own.

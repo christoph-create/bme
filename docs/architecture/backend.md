@@ -110,9 +110,11 @@ Four repositories, each a trait + a `Sqlite*` impl over a shared
   `isoDate` and `counter`; they're ordinary rows, editable and deletable.
 - `app_settings_repo.rs` — a generic `key`/`value` table for app-level
   settings (migration `0009`). Not domain data: no model type, no ids, just
-  `get`/`set`/`remove` on namespaced `area.name` keys, with each consumer
-  owning the encoding of its own value string. Deliberately generic so a
-  settings screen doesn't need a migration per setting.
+  `get`/`set`/`remove`/`list` on namespaced `area.name` keys, with each
+  consumer owning the encoding of its own value string. Deliberately generic
+  so the settings screen doesn't need a migration per setting — its schema
+  (keys, defaults, bounds) lives entirely in the frontend, in
+  `src/app/core/settings/app-settings.ts`.
 
 ### Migrations
 
@@ -225,6 +227,10 @@ Current commands, by area:
   be: a network call in a plain `#[tauri::command]` runs on the main thread
   and would freeze the window for the request timeout. Async commands need
   the explicit `State<'_, …>` lifetime and a `Result` return.
+- **settings** — `list_app_settings`, `set_app_setting`, `remove_app_setting`.
+  A raw key/value pass-through over `app_settings_repo`; the backend never
+  interprets these values. `list` returns the whole table, so the `update.*`
+  keys come along and the frontend filters.
 - **connections** — `list_connections`, `create_connection`,
   `update_connection`, `delete_connection`, `get_connection`
 - **broker** — `connect_broker`, `disconnect_broker`, `test_connection`,

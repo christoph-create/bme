@@ -1,0 +1,208 @@
+<div class="top-bar">
+  <a class="back-link" routerLink="/connections">‹ Connections</a>
+</div>
+
+<div class="content">
+  <header class="page-header">
+    <div>
+      <h1>Settings</h1>
+      <p class="subtitle">
+        Defaults for every workspace. Changes save as you make them.
+      </p>
+    </div>
+    <div class="header-actions">
+      <button class="btn-secondary" type="button" (click)="resetAll()">
+        Reset to defaults
+      </button>
+    </div>
+  </header>
+
+  @if (error(); as message) {
+  <p class="status-text error">{{ message }}</p>
+  }
+
+  <section class="group">
+    <h2 class="group-title">Appearance</h2>
+
+    <div class="setting">
+      <div class="setting-text">
+        <span class="setting-label">Interface size</span>
+        <span class="setting-hint">
+          Scales everything - text, controls and spacing - for displays where
+          the default is too small. <kbd>Ctrl</kbd> with <kbd>+</kbd> or
+          <kbd>&minus;</kbd> steps it, <kbd>Ctrl</kbd>+<kbd>0</kbd> resets it.
+        </span>
+      </div>
+      <div class="stepper">
+        <button
+          type="button"
+          class="stepper-btn"
+          aria-label="Smaller"
+          [disabled]="atMinZoom()"
+          (click)="stepZoomOut()"
+        >
+          &minus;
+        </button>
+        <span class="stepper-value">{{ formatZoomPercent(settings().uiZoom) }}</span>
+        <button
+          type="button"
+          class="stepper-btn"
+          aria-label="Bigger"
+          [disabled]="atMaxZoom()"
+          (click)="stepZoomIn()"
+        >
+          &plus;
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <section class="group">
+    <h2 class="group-title">Message stream</h2>
+
+    <div class="setting">
+      <div class="setting-text">
+        <span class="setting-label" id="timestampsLabel">Timestamps</span>
+        <span class="setting-hint">
+          How a message's receive time is labelled. The stream header can still
+          switch per topic.
+        </span>
+      </div>
+      <div class="segmented" role="group" aria-labelledby="timestampsLabel">
+        @for (mode of timestampModes; track mode.value) {
+        <div
+          class="segment"
+          [class.selected]="settings().timestampMode === mode.value"
+          (click)="set('timestampMode', mode.value)"
+          (keydown.enter)="set('timestampMode', mode.value)"
+          role="button"
+          tabindex="0"
+        >
+          {{ mode.label }}
+        </div>
+        }
+      </div>
+    </div>
+
+    <label class="setting">
+      <div class="setting-text">
+        <span class="setting-label">Pretty-print JSON</span>
+        <span class="setting-hint">
+          Indent JSON payloads in the stream. The stream header can still switch
+          per topic.
+        </span>
+      </div>
+      <span class="switch">
+        <input
+          type="checkbox"
+          class="pretty-json-checkbox"
+          [checked]="settings().prettyJson"
+          (change)="onPrettyJsonChange($event)"
+        />
+        <span class="switch-track"></span>
+      </span>
+    </label>
+
+    <div class="setting">
+      <div class="setting-text">
+        <label class="setting-label" for="maxMessages">
+          Max messages per topic
+        </label>
+        <span class="setting-hint">
+          {{ minMessages }}–{{ maxMessages }}. The oldest are dropped first; a
+          lower cap takes effect as new messages arrive.
+        </span>
+      </div>
+      <input
+        type="number"
+        id="maxMessages"
+        class="number-input"
+        [min]="minMessages"
+        [max]="maxMessages"
+        step="1"
+        [value]="settings().maxMessagesPerTopic"
+        (change)="onMaxMessagesChange($event)"
+      />
+    </div>
+  </section>
+
+  <section class="group">
+    <h2 class="group-title">Publish defaults</h2>
+
+    <div class="setting">
+      <div class="setting-text">
+        <span class="setting-label" id="formatLabel">Payload format</span>
+        <span class="setting-hint">
+          What a fresh publish panel starts with. JSON is validated and
+          compacted before sending; raw goes out untouched.
+        </span>
+      </div>
+      <div class="segmented" role="group" aria-labelledby="formatLabel">
+        @for (opt of formatOptions; track opt) {
+        <div
+          class="segment"
+          [class.selected]="settings().publishFormat === opt"
+          (click)="set('publishFormat', opt)"
+          (keydown.enter)="set('publishFormat', opt)"
+          role="button"
+          tabindex="0"
+        >
+          {{ opt.toUpperCase() }}
+        </div>
+        }
+      </div>
+    </div>
+
+    <div class="setting">
+      <div class="setting-text">
+        <span class="setting-label">QoS</span>
+        <span class="setting-hint">
+          Loading a template or resending a message still uses that message's
+          own QoS.
+        </span>
+      </div>
+      <app-qos-select
+        class="publish-qos"
+        [value]="settings().publishQos"
+        (valueChange)="set('publishQos', $event)"
+      />
+    </div>
+
+    <label class="setting">
+      <div class="setting-text">
+        <span class="setting-label">Retain</span>
+        <span class="setting-hint">
+          Start with the retain flag on. Easy to forget, so off is the safer
+          default.
+        </span>
+      </div>
+      <span class="switch">
+        <input
+          type="checkbox"
+          class="retain-checkbox"
+          [checked]="settings().publishRetain"
+          (change)="onRetainChange($event)"
+        />
+        <span class="switch-track"></span>
+      </span>
+    </label>
+  </section>
+
+  <section class="group">
+    <h2 class="group-title">Subscribe defaults</h2>
+
+    <div class="setting">
+      <div class="setting-text">
+        <span class="setting-label">QoS</span>
+        <span class="setting-hint">
+          Pre-selected when adding a subscription in a workspace.
+        </span>
+      </div>
+      <app-qos-select
+        class="subscribe-qos"
+        [value]="settings().subscribeQos"
+        (valueChange)="set('subscribeQos', $event)"
+      />
+    </div>
+  </section>
+</div>

@@ -36,6 +36,21 @@ describe("installDemoBackend", () => {
     );
   });
 
+  it("round-trips app settings and starts with none", async () => {
+    expect(await invoke("list_app_settings")).toEqual({});
+
+    await invoke("set_app_setting", {
+      key: "stream.pretty_json",
+      value: "false",
+    });
+    expect(await invoke("list_app_settings")).toEqual({
+      "stream.pretty_json": "false",
+    });
+
+    await invoke("remove_app_setting", { key: "stream.pretty_json" });
+    expect(await invoke("list_app_settings")).toEqual({});
+  });
+
   it("persists a created template into subsequent listings", async () => {
     const before = await invoke<FavoriteMessage[]>("list_favorites");
 
@@ -60,7 +75,9 @@ describe("installDemoBackend", () => {
   it("replays the timeline as mqtt-events on the given connection", async () => {
     const { listen } = await import("@tauri-apps/api/event");
     const received: MqttEvent[] = [];
-    await listen<MqttEvent>("mqtt-event", (event) => received.push(event.payload));
+    await listen<MqttEvent>("mqtt-event", (event) =>
+      received.push(event.payload),
+    );
     await flushMicrotasks();
 
     await window.__bmeDemo.playTimeline(HOME_CONNECTION_ID);
@@ -94,7 +111,9 @@ describe("installDemoBackend", () => {
   it("falls back to the home timeline for a connection with none of its own", async () => {
     const { listen } = await import("@tauri-apps/api/event");
     const received: MqttEvent[] = [];
-    await listen<MqttEvent>("mqtt-event", (event) => received.push(event.payload));
+    await listen<MqttEvent>("mqtt-event", (event) =>
+      received.push(event.payload),
+    );
     await flushMicrotasks();
 
     await window.__bmeDemo.playTimeline("no-timeline-of-its-own");

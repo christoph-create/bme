@@ -16,6 +16,9 @@ pub trait AppSettingsRepository: Send + Sync {
     fn get(&self, key: &str) -> Result<Option<String>, StorageError>;
     fn set(&self, key: &str, value: &str) -> Result<(), StorageError>;
     fn remove(&self, key: &str) -> Result<(), StorageError>;
+    /// Every stored key/value pair, in key order. The settings screen reads the
+    /// whole table in one call rather than one `get` per key it knows about.
+    fn list(&self) -> Result<Vec<(String, String)>, StorageError>;
 }
 
 /// `Clone` is an `Arc` bump: the update checker owns a handle to the same
@@ -61,6 +64,14 @@ impl AppSettingsRepository for SqliteAppSettingsRepository {
         let conn = self.conn.lock().unwrap();
         conn.execute("DELETE FROM app_settings WHERE key = ?1", params![key])?;
         Ok(())
+    }
+
+    fn list(&self) -> Result<Vec<(String, String)>, StorageError> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare("SELECT key, value FROM app_settings ORDER BY key")?;
+        let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(StorageError::from)
     }
 }
 
@@ -133,6 +144,40 @@ mod tests {
         let repo = repo();
         repo.remove("nothing.here").unwrap();
         assert_eq!(repo.get("nothing.here").unwrap(), None);
+    }
+
+    #[test]
+    fn list_is_empty_on_a_fresh_db() {
+        assert_eq!(repo().list().unwrap(), Vec::<(String, String)>::new());
+    }
+
+    #[test]
+    fn list_returns_every_key_in_key_order() {
+        let repo = repo();
+        repo.set("stream.pretty_json", "false").unwrap();
+        repo.set("publish.default_qos", "AtLeastOnce").unwrap();
+
+        assert_eq!(
+            repo.list().unwrap(),
+            vec![
+                ("publish.default_qos".to_string(), "AtLeastOnce".to_string()),
+                ("stream.pretty_json".to_string(), "false".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn list_reflects_a_remove() {
+        let repo = repo();
+        repo.set("a.one", "first").unwrap();
+        repo.set("b.two", "second").unwrap();
+
+        repo.remove("a.one").unwrap();
+
+        assert_eq!(
+            repo.list().unwrap(),
+            vec![("b.two".to_string(), "second".to_string())]
+        );
     }
 
     #[test]

@@ -1,20 +1,14 @@
-import { Injectable, InjectionToken, inject } from "@angular/core";
+import { Injectable, inject } from "@angular/core";
 import { BehaviorSubject, Observable, distinctUntilChanged, map } from "rxjs";
 
 import { MqttMessageReceived } from "../models/mqtt-event.model";
 import { StoredMessage } from "../models/stored-message.model";
 import { LoggerService } from "./logger.service";
 import { MqttEventsService } from "./mqtt-events.service";
+import { SettingsService } from "./settings.service";
 
-const DEFAULT_MAX_MESSAGES_PER_TOPIC = 500;
 const EMPTY_MESSAGES: readonly StoredMessage[] = [];
 const EMPTY_TOPICS: ReadonlyMap<string, readonly StoredMessage[]> = new Map();
-
-/** How many messages to retain per connection/topic before dropping the oldest. */
-export const MAX_MESSAGES_PER_TOPIC = new InjectionToken<number>(
-  "MAX_MESSAGES_PER_TOPIC",
-  { providedIn: "root", factory: () => DEFAULT_MAX_MESSAGES_PER_TOPIC },
-);
 
 type TopicHistory = ReadonlyMap<string, readonly StoredMessage[]>;
 type StoreState = ReadonlyMap<string, TopicHistory>;
@@ -28,7 +22,7 @@ const EMPTY_RETAINED: ReadonlySet<string> = new Set();
  */
 @Injectable({ providedIn: "root" })
 export class MessageStoreService {
-  private readonly maxMessagesPerTopic = inject(MAX_MESSAGES_PER_TOPIC);
+  private readonly settings = inject(SettingsService);
   private readonly logger = inject(LoggerService);
   private readonly state$ = new BehaviorSubject<StoreState>(new Map());
 
@@ -156,7 +150,11 @@ export class MessageStoreService {
         properties: message.properties ?? null,
         receivedAt: Date.now(),
       },
-    ].slice(-this.maxMessagesPerTopic);
+      // Read per append rather than once at construction so a change on the
+      // settings page applies to a running session. Lowering the cap trims a
+      // topic on its next message, not immediately - a topic that has gone
+      // quiet keeps what it has, which is the history you'd want to read.
+    ].slice(-this.settings.settings().maxMessagesPerTopic);
 
     const updatedConnectionHistory = new Map(connectionHistory);
     updatedConnectionHistory.set(message.topic, updatedTopicHistory);

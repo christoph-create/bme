@@ -47,7 +47,12 @@ async function setup(openIds: string[] = [A, B]) {
   TestBed.configureTestingModule({
     imports: [WorkspaceTabs],
     providers: [
-      provideRouter([]),
+      // Empty child-less routes so the real router can land on them: the
+      // settings tests navigate for real to see the active state follow.
+      provideRouter([
+        { path: "connections", children: [] },
+        { path: "settings", children: [] },
+      ]),
       {
         provide: ConnectionsService,
         useValue: { get: vi.fn((id: string) => Promise.resolve(connection(id))) },
@@ -73,6 +78,7 @@ async function setup(openIds: string[] = [A, B]) {
     fixture,
     workspaces,
     navigate,
+    router,
     events$,
     element,
     tabs: () => [...element.querySelectorAll<HTMLElement>(".tab")],
@@ -144,6 +150,33 @@ describe("WorkspaceTabs", () => {
     workspaces.deactivate();
     fixture.detectChanges();
 
+    expect(element.querySelector(".home")?.classList).toContain("active");
+  });
+
+  it("goes to settings from the gear", async () => {
+    const { element, navigate } = await setup();
+
+    element.querySelector<HTMLElement>(".settings")?.click();
+
+    expect(navigate).toHaveBeenCalledWith(["/settings"]);
+  });
+
+  it("marks the gear, not home, as active on the settings page", async () => {
+    const { element, workspaces, fixture, router } = await setup();
+
+    workspaces.deactivate();
+    await router.navigateByUrl("/settings");
+    fixture.detectChanges();
+
+    expect(element.querySelector(".settings")?.classList).toContain("active");
+    expect(element.querySelector(".home")?.classList).not.toContain("active");
+
+    await router.navigateByUrl("/connections");
+    fixture.detectChanges();
+
+    expect(element.querySelector(".settings")?.classList).not.toContain(
+      "active",
+    );
     expect(element.querySelector(".home")?.classList).toContain("active");
   });
 

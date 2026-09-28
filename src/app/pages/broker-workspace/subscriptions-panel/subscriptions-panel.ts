@@ -5,6 +5,7 @@ import {
   effect,
   inject,
   input,
+  linkedSignal,
   signal,
   viewChild,
 } from "@angular/core";
@@ -14,6 +15,7 @@ import { Subscription } from "../../../core/models/broker-connection.model";
 import { QoS, qosNumber } from "../../../core/models/qos";
 import { ConnectionsService } from "../../../core/services/connections.service";
 import { MqttService } from "../../../core/services/mqtt.service";
+import { SettingsService } from "../../../core/services/settings.service";
 import { QosSelect } from "../qos-select/qos-select";
 
 @Component({
@@ -28,6 +30,7 @@ export class SubscriptionsPanel implements OnInit {
 
   private readonly connectionsService = inject(ConnectionsService);
   private readonly mqttService = inject(MqttService);
+  private readonly settings = inject(SettingsService);
   private readonly formBuilder = inject(FormBuilder);
 
   readonly subscriptions = signal<Subscription[]>([]);
@@ -35,7 +38,8 @@ export class SubscriptionsPanel implements OnInit {
   readonly error = signal<string | null>(null);
   readonly actionError = signal<string | null>(null);
   readonly adding = signal(false);
-  readonly qos = signal<QoS>("AtMostOnce");
+  // Seeded from the settings page; the row's own select overrides locally.
+  readonly qos = linkedSignal<QoS>(this.settings.value("subscribeQos"));
 
   readonly form = this.formBuilder.nonNullable.group({
     topic: ["", Validators.required],
@@ -73,7 +77,7 @@ export class SubscriptionsPanel implements OnInit {
       );
       this.subscriptions.update((subs) => [...subs, subscription]);
       this.form.reset();
-      this.qos.set("AtMostOnce");
+      this.qos.set(this.settings.value("subscribeQos")());
       this.adding.set(false);
     } catch (err) {
       this.actionError.set(err instanceof Error ? err.message : String(err));

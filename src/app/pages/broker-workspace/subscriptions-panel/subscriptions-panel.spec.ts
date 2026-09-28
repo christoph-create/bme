@@ -1,9 +1,15 @@
+import { computed, signal } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { BrokerConnection } from "../../../core/models/broker-connection.model";
 import { ConnectionsService } from "../../../core/services/connections.service";
 import { MqttService } from "../../../core/services/mqtt.service";
+import { SettingsService } from "../../../core/services/settings.service";
+import {
+  AppSettings,
+  DEFAULT_SETTINGS,
+} from "../../../core/settings/app-settings";
 import { SubscriptionsPanel } from "./subscriptions-panel";
 
 const CONNECTION_ID = "11111111-1111-1111-1111-111111111111";
@@ -35,7 +41,14 @@ function sampleConnection(
   };
 }
 
-async function setup(connection: BrokerConnection) {
+async function setup(
+  connection: BrokerConnection,
+  settingsOverrides: Partial<AppSettings> = {},
+) {
+  const settings = signal<AppSettings>({
+    ...DEFAULT_SETTINGS,
+    ...settingsOverrides,
+  });
   const connectionsService = {
     get: vi.fn().mockResolvedValue(connection),
   };
@@ -49,6 +62,13 @@ async function setup(connection: BrokerConnection) {
     providers: [
       { provide: ConnectionsService, useValue: connectionsService },
       { provide: MqttService, useValue: mqttService },
+      {
+        provide: SettingsService,
+        useValue: {
+          settings,
+          value: (key: keyof AppSettings) => computed(() => settings()[key]),
+        },
+      },
     ],
   });
 
@@ -115,6 +135,31 @@ describe("SubscriptionsPanel", () => {
       "AtMostOnce",
     );
     expect(component.subscriptions()).toContainEqual(created);
+  });
+
+  it("subscribes with the configured default QoS and returns to it after adding", async () => {
+    const { fixture, mqttService } = await setup(sampleConnection(), {
+      subscribeQos: "ExactlyOnce",
+    });
+    mqttService.subscribe.mockResolvedValue({
+      id: "s2",
+      connection_id: CONNECTION_ID,
+      topic: "home/#",
+      qos: "ExactlyOnce",
+    });
+    const component = fixture.componentInstance;
+    expect(component.qos()).toBe("ExactlyOnce");
+
+    component.qos.set("AtMostOnce");
+    component.form.controls.topic.setValue("home/#");
+    await component.subscribe();
+
+    expect(mqttService.subscribe).toHaveBeenCalledWith(
+      CONNECTION_ID,
+      "home/#",
+      "AtMostOnce",
+    );
+    expect(component.qos()).toBe("ExactlyOnce");
   });
 
   it("does not subscribe when the topic field is empty", async () => {

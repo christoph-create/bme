@@ -4,6 +4,7 @@ import {
   computed,
   inject,
   input,
+  linkedSignal,
   signal,
   viewChild,
 } from "@angular/core";
@@ -18,6 +19,7 @@ import { QoS } from "../../../core/models/qos";
 import { JsonFormatService } from "../../../core/services/json-format.service";
 import { LoggerService } from "../../../core/services/logger.service";
 import { MqttService } from "../../../core/services/mqtt.service";
+import { SettingsService } from "../../../core/services/settings.service";
 import { VariablesService } from "../../../core/services/variables.service";
 import {
   hasPlaceholders,
@@ -87,6 +89,7 @@ export class PublishPanel {
   private readonly mqttService = inject(MqttService);
   private readonly jsonFormat = inject(JsonFormatService);
   private readonly variablesService = inject(VariablesService);
+  private readonly settings = inject(SettingsService);
   private readonly logger = inject(LoggerService);
   private readonly formBuilder = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
@@ -96,9 +99,13 @@ export class PublishPanel {
     payload: ["", Validators.required],
   });
 
-  readonly format = signal<MessageFormat>("json");
-  readonly qos = signal<QoS>("AtMostOnce");
-  readonly retain = signal(false);
+  // Seeded from the settings page and re-seeded when that default changes;
+  // the panel's own controls (and a loaded draft) still override locally.
+  readonly format = linkedSignal<MessageFormat>(
+    this.settings.value("publishFormat"),
+  );
+  readonly qos = linkedSignal<QoS>(this.settings.value("publishQos"));
+  readonly retain = linkedSignal(this.settings.value("publishRetain"));
   readonly publishedFlash = signal(false);
   readonly publishError = signal<string | null>(null);
   readonly templateSaved = signal(false);

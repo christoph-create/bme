@@ -29,6 +29,10 @@ const SELECTED_TOPIC = "home/livingroom/climate";
  * without one being a different shape from the next. Resist per-shot sizes:
  * a screen with room to spare reads as a screen with room to spare, which is
  * true, whereas a set of mismatched crops just looks unfinished.
+ *
+ * A shot may set `fullPage` to keep the width but grow past this height.
+ * That is for a page that genuinely scrolls - the settings list - where the
+ * alternative is an image that cuts off mid-row and reads as broken.
  */
 const VIEWPORT = { width: 1400, height: 900 };
 
@@ -290,6 +294,17 @@ const SHOTS = [
       await page.getByText("Temperature reading").waitFor();
     },
   },
+
+  {
+    name: "settings",
+    // Taller than the viewport, and every group matters - a crop would hide
+    // whole settings rather than just some empty space.
+    fullPage: true,
+    async setup(page) {
+      await page.goto("/settings");
+      await page.getByRole("heading", { name: "Settings" }).waitFor();
+    },
+  },
 ];
 
 /**
@@ -391,7 +406,7 @@ async function main() {
       await assertRenderedApp(page, shot.name);
 
       const file = join(outputDir, `${shot.name}.png`);
-      await page.screenshot({ path: file });
+      await page.screenshot({ path: file, fullPage: shot.fullPage ?? false });
       console.log(`  ✓ ${shot.name}.png`);
       await context.close();
     }

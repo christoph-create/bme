@@ -5,6 +5,7 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
+    "core:webview:allow-set-webview-zoom",
     "opener:default",
     "log:default",
     "dialog:allow-open",
@@ -13,6 +14,9 @@
     "allow-get-app-version",
     "allow-check-for-updates",
     "allow-skip-update-version",
+    "allow-list-app-settings",
+    "allow-set-app-setting",
+    "allow-remove-app-setting",
     "allow-list-connections",
     "allow-create-connection",
     "allow-update-connection",
