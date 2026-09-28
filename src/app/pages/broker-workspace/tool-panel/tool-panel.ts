@@ -1,15 +1,19 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  ElementRef,
   input,
   signal,
+  viewChildren,
 } from "@angular/core";
 
+import { BrokerStats } from "./broker-stats/broker-stats";
+import { stepForKey, nextTool } from "./tool-switcher";
 import { ValueCharts } from "./value-charts/value-charts";
 
 /** Tools that can occupy the panel. "pin" and "compare" are the planned
  * additions; each is a union member, a `tools` entry and a `@case`. */
-export type WorkspaceTool = "charts";
+export type WorkspaceTool = "charts" | "broker";
 
 interface ToolTab {
   readonly id: WorkspaceTool;
@@ -27,7 +31,7 @@ interface ToolTab {
  */
 @Component({
   selector: "app-tool-panel",
-  imports: [ValueCharts],
+  imports: [BrokerStats, ValueCharts],
   templateUrl: "./tool-panel.html",
   styleUrl: "./tool-panel.css",
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -35,16 +39,43 @@ interface ToolTab {
 export class ToolPanel {
   readonly connectionId = input.required<string>();
   readonly selectedTopic = input<string | null>(null);
+  /** Whether there is a live session. The broker panel needs it to tell
+   * "nothing has arrived yet" apart from "there is nothing to arrive over". */
+  readonly connected = input(false);
   /** Wide enough for two columns of charts. Decided by the workspace from the
    * dock's measured width, since it is the one that owns the grid. */
   readonly wide = input(false);
   /** The message stream's Pause, forwarded so the charts freeze with it. */
   readonly paused = input(false);
 
-  readonly tools: readonly ToolTab[] = [{ id: "charts", label: "Charts" }];
+  readonly tools: readonly ToolTab[] = [
+    { id: "charts", label: "Charts" },
+    { id: "broker", label: "Broker" },
+  ];
   readonly activeTool = signal<WorkspaceTool>("charts");
+
+  private readonly tabs = viewChildren<ElementRef<HTMLElement>>("tab");
 
   selectTool(id: WorkspaceTool): void {
     this.activeTool.set(id);
+  }
+
+  /**
+   * Arrow keys move between tools, per the ARIA tabs pattern.
+   *
+   * Focus has to be moved by hand: only the selected tab is in the tab order
+   * (a roving tabindex), so the element the key press came from stops being
+   * focusable the moment the selection changes.
+   */
+  onSwitcherKeydown(event: KeyboardEvent): void {
+    const step = stepForKey(event.key);
+    if (step === null) {
+      return;
+    }
+    event.preventDefault();
+    const ids = this.tools.map((tool) => tool.id);
+    const target = nextTool(ids, this.activeTool(), step);
+    this.selectTool(target);
+    this.tabs()[ids.indexOf(target)]?.nativeElement.focus();
   }
 }

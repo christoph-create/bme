@@ -326,6 +326,11 @@ function reading(
   return { topic, payload, qos, retain: false, gapMs };
 }
 
+/** A `$SYS` value. QoS 0 and unretained, as mosquitto publishes them. */
+function sysReading(topic: string, payload: string, gapMs = 0): DemoMessage {
+  return { topic, payload, qos: "AtMostOnce", retain: false, gapMs };
+}
+
 /** A reading from a device that speaks MQTT 5 and says so: the properties a
  * well-behaved sensor firmware would attach to every publish. */
 function climateReading(payload: string, gapMs: number): DemoMessage {
@@ -445,6 +450,65 @@ export const DEMO_TIMELINES: Readonly<Record<string, readonly DemoMessage[]>> =
     [HOME_CONNECTION_ID]: DEMO_TIMELINE,
     [OFFICE_CONNECTION_ID]: OFFICE_TIMELINE,
   };
+
+/**
+ * What a monitored broker publishes under `$SYS`, replayed when the broker
+ * panel's Monitor switch is used.
+ *
+ * Topic names and value shapes are taken verbatim from an
+ * `eclipse-mosquitto` 2.1.2 capture - including `retained messages/count`
+ * with its literal space, and `uptime` carrying a unit word rather than a
+ * bare number, both of which the catalogue in `sys-topics.ts` has to match
+ * exactly. The magnitudes are dressed up into a plausible household broker;
+ * the awkward spellings are not.
+ *
+ * Three topics here are deliberately *not* in the catalogue, so the shot
+ * shows the "Other $SYS topics" fallback doing its job - the thing that
+ * keeps a non-mosquitto broker from looking broken.
+ *
+ * Fixed values, never generated: the screenshots are byte-identical between
+ * runs, and that is the only signal that a UI change was intentional.
+ *
+ * A real mosquitto publishes all three load averages; this one publishes two,
+ * purely so the panel's last group lands inside the capture viewport rather
+ * than being sliced through the middle.
+ */
+export const DEMO_SYS_TIMELINE: readonly DemoMessage[] = [
+  sysReading("$SYS/broker/version", "mosquitto version 2.1.2"),
+  sysReading("$SYS/broker/uptime", "91240 seconds"),
+  sysReading("$SYS/broker/clients/connected", "17"),
+  sysReading("$SYS/broker/clients/active", "16"),
+  sysReading("$SYS/broker/clients/total", "24"),
+  sysReading("$SYS/broker/clients/maximum", "31"),
+  sysReading("$SYS/broker/subscriptions/count", "84"),
+  sysReading("$SYS/broker/retained messages/count", "31"),
+  sysReading("$SYS/broker/messages/received", "184320"),
+  sysReading("$SYS/broker/messages/sent", "902411"),
+  sysReading("$SYS/broker/messages/stored", "55"),
+  sysReading("$SYS/broker/publish/messages/dropped", "0"),
+  sysReading("$SYS/broker/bytes/received", "9112384"),
+  sysReading("$SYS/broker/bytes/sent", "41220096"),
+  sysReading("$SYS/broker/load/messages/received/1min", "57.69"),
+  sysReading("$SYS/broker/load/messages/received/5min", "14.16"),
+  sysReading("$SYS/broker/heap/current", "840119"),
+  sysReading("$SYS/broker/heap/maximum", "846732"),
+
+  // Not in the catalogue, on purpose - these are what the "Other $SYS
+  // topics" table is for.
+  sysReading("$SYS/broker/store/messages/count", "55"),
+  sysReading("$SYS/broker/packet/out/count", "0"),
+  sysReading("$SYS/broker/load/sockets/1min", "0.78"),
+
+  // A second and third round of the two readings the panel sparklines, so
+  // the charts have a shape rather than a dot. A real broker republishes its
+  // whole tree every `sys_interval`; only these two are worth the rows.
+  sysReading("$SYS/broker/clients/connected", "19", 1_000),
+  sysReading("$SYS/broker/load/messages/received/1min", "62.40", 0),
+  sysReading("$SYS/broker/clients/connected", "18", 1_000),
+  sysReading("$SYS/broker/load/messages/received/1min", "49.12", 0),
+  sysReading("$SYS/broker/clients/connected", "21", 1_000),
+  sysReading("$SYS/broker/load/messages/received/1min", "57.69", 0),
+];
 
 /** Templates the capture script loads into the publish panel. The payload
  * editor is a CodeMirror instance, so driving it through the app's own "Load

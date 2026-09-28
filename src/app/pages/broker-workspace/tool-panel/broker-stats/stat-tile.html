@@ -1,0 +1,22 @@
+<span class="tile-label">{{ label() }}</span>
+<span class="tile-value" [title]="value()">{{ value() }}</span>
+@if (hasShape()) {
+<svg
+  class="spark"
+  aria-hidden="true"
+  [attr.viewBox]="'0 0 ' + viewWidth + ' ' + viewHeight"
+  [style.height.px]="viewHeight"
+  preserveAspectRatio="none"
+>
+  @if (geometry().area) {
+  <path class="spark-area" [attr.d]="geometry().area" />
+  }
+  <polyline
+    class="spark-line"
+    [attr.points]="geometry().polyline"
+    vector-effect="non-scaling-stroke"
+  />
+</svg>
+} @if (hint(); as text) {
+<span class="tile-hint">{{ text }}</span>
+}

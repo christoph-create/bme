@@ -175,6 +175,8 @@ pub fn run() {
             commands::publish_message,
             commands::subscribe_topic,
             commands::unsubscribe_topic,
+            commands::subscribe_system_topics,
+            commands::unsubscribe_system_topics,
             commands::list_favorites,
             commands::create_favorite,
             commands::get_favorite,
@@ -222,6 +224,8 @@ mod tests {
                 commands::publish_message,
                 commands::subscribe_topic,
                 commands::unsubscribe_topic,
+                commands::subscribe_system_topics,
+                commands::unsubscribe_system_topics,
                 commands::test_connection,
                 commands::list_favorites,
                 commands::create_favorite,
@@ -1088,6 +1092,117 @@ mod tests {
         assert_eq!(subscriptions.len(), 1);
         assert_eq!(subscriptions[0]["topic"], "sensors/#");
         assert_eq!(subscriptions[0]["qos"], "AtLeastOnce");
+    }
+
+    /// The broker panel's `$SYS` subscription is the app's own doing, not
+    /// something the user asked to keep - so it must never reach the
+    /// subscription list they see and edit. Also the cheapest proof that both
+    /// handler registrations and both capability entries landed: the ACL
+    /// rejects the command otherwise.
+    #[test]
+    fn subscribing_to_system_topics_never_persists_anything() {
+        let app = build_test_app();
+        let webview = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+
+        let created = invoke(
+            &webview,
+            "create_connection",
+            serde_json::json!({
+                "newConnection": {
+                    "name": "Local",
+                    "host": "localhost",
+                    "port": 1883,
+                    "client_id": "bme-sys-subscribe-test",
+                    "username": null,
+                    "password": null,
+                    "scheme": "mqtt",
+                    "protocol_version": "v311",
+                    "ws_path": null,
+                    "ca_cert_path": null,
+                    "client_cert_path": null,
+                    "client_key_path": null,
+                    "alpn": null,
+                    "skip_cert_verification": false,
+                    "keep_alive_secs": 30,
+                    "auto_reconnect": true,
+                    "max_reconnect_attempts": 10,
+                    "subscriptions": []
+                }
+            }),
+        );
+        let id = created["id"].clone();
+
+        invoke(&webview, "connect_broker", serde_json::json!({ "id": id }));
+        invoke(
+            &webview,
+            "subscribe_system_topics",
+            serde_json::json!({ "connectionId": id }),
+        );
+        invoke(
+            &webview,
+            "unsubscribe_system_topics",
+            serde_json::json!({ "connectionId": id }),
+        );
+
+        let connection = invoke(&webview, "get_connection", serde_json::json!({ "id": id }));
+        assert_eq!(
+            connection["subscriptions"].as_array().unwrap().len(),
+            0,
+            "$SYS must not appear in the user's saved subscriptions"
+        );
+    }
+
+    /// Deliberately unlike `subscribe_topic`, which succeeds while offline
+    /// because it still has a row to write. This pair has no such fallback,
+    /// and answering `Ok` for a session that does not exist would leave the
+    /// broker panel switched on with nothing behind it.
+    #[test]
+    fn subscribing_to_system_topics_without_a_session_reports_the_error() {
+        let app = build_test_app();
+        let webview = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+
+        let created = invoke(
+            &webview,
+            "create_connection",
+            serde_json::json!({
+                "newConnection": {
+                    "name": "Local",
+                    "host": "localhost",
+                    "port": 1883,
+                    "client_id": "bme-sys-offline-test",
+                    "username": null,
+                    "password": null,
+                    "scheme": "mqtt",
+                    "protocol_version": "v311",
+                    "ws_path": null,
+                    "ca_cert_path": null,
+                    "client_cert_path": null,
+                    "client_key_path": null,
+                    "alpn": null,
+                    "skip_cert_verification": false,
+                    "keep_alive_secs": 30,
+                    "auto_reconnect": true,
+                    "max_reconnect_attempts": 10,
+                    "subscriptions": []
+                }
+            }),
+        );
+        let id = created["id"].clone();
+
+        let error = invoke_err(
+            &webview,
+            "subscribe_system_topics",
+            serde_json::json!({ "connectionId": id }),
+        );
+
+        assert!(
+            error.contains("Not connected"),
+            "expected a not-connected error, got: {error}"
+        );
     }
 
     #[test]

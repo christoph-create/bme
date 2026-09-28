@@ -8,6 +8,7 @@ import { BrokerConnection } from "../../core/models/broker-connection.model";
 import { MqttEvent } from "../../core/models/mqtt-event.model";
 import { ConnectionsService } from "../../core/services/connections.service";
 import { MqttEventsService } from "../../core/services/mqtt-events.service";
+import { SystemMonitorService } from "../../core/services/system-monitor.service";
 import { UpdateAnnouncement } from "../../core/services/update-announcement";
 import { UpdateNotifierService } from "../../core/services/update-notifier.service";
 import { Connections } from "./connections";
@@ -62,6 +63,7 @@ async function setup(
     list: vi.fn().mockResolvedValue(connections),
     delete: vi.fn().mockResolvedValue(undefined),
   };
+  const forgetMonitoring = vi.fn().mockResolvedValue(undefined);
   const events$ = new Subject<MqttEvent>();
 
   TestBed.configureTestingModule({
@@ -73,6 +75,11 @@ async function setup(
       // The status dots pull in ConnectionStatusService, which would otherwise
       // reach for the Tauri bridge to listen for events.
       { provide: MqttEventsService, useValue: { events$ } },
+      // Deleting clears the broker's `$SYS` monitoring row, which is IPC.
+      {
+        provide: SystemMonitorService,
+        useValue: { forget: forgetMonitoring },
+      },
     ],
   });
 
@@ -81,7 +88,7 @@ async function setup(
   await fixture.whenStable();
   fixture.detectChanges();
 
-  return { fixture, fake, notifier };
+  return { fixture, fake, notifier, forgetMonitoring };
 }
 
 describe("Connections", () => {
@@ -125,6 +132,20 @@ describe("Connections", () => {
     );
 
     expect(fake.delete).toHaveBeenCalledWith(connection.id);
+  });
+
+  /** Its `sys.monitor.<id>` row has no foreign key to cascade from, so it
+   * would outlive the broker unless deleting clears it. */
+  it("clears the deleted broker's $SYS monitoring row", async () => {
+    const connection = sampleConnection();
+    const { fixture, forgetMonitoring } = await setup([connection]);
+
+    await fixture.componentInstance.deleteConnection(
+      connection.id,
+      new Event("click"),
+    );
+
+    expect(forgetMonitoring).toHaveBeenCalledWith(connection.id);
   });
 
   it("closes the open menu on a click anywhere outside it", async () => {

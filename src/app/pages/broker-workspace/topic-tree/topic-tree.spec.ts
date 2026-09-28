@@ -88,9 +88,7 @@ describe("TopicTree", () => {
   });
 
   it("starts with folders collapsed, and expanding one reveals its children", async () => {
-    const { fixture } = await setup(
-      new Map([["sensors/temp", [message()]]]),
-    );
+    const { fixture } = await setup(new Map([["sensors/temp", [message()]]]));
     const component = fixture.componentInstance;
 
     let text = (fixture.nativeElement as HTMLElement).textContent ?? "";
@@ -540,5 +538,93 @@ describe("TopicTree", () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? "";
     expect(text).toContain("No topics match");
     expect(text).not.toContain("humidity");
+  });
+});
+
+describe("TopicTree and $SYS", () => {
+  const SYS_TOPICS = new Map([
+    ["home/livingroom/climate", [message()]],
+    ["$SYS/broker/uptime", [message()]],
+    ["$SYS/broker/clients/connected", [message()]],
+  ]);
+
+  function rowNames(fixture: { nativeElement: HTMLElement }): string[] {
+    return [...fixture.nativeElement.querySelectorAll(".name")].map((el) =>
+      (el as HTMLElement).textContent!.trim(),
+    );
+  }
+
+  function sysToggle(fixture: { nativeElement: HTMLElement }) {
+    return [...fixture.nativeElement.querySelectorAll(".toggle-link")].find(
+      (el) => (el as HTMLElement).textContent!.includes("$SYS"),
+    ) as HTMLElement | undefined;
+  }
+
+  it("keeps the broker's own topics out of the tree by default", async () => {
+    const { fixture } = await setup(SYS_TOPICS);
+
+    expect(rowNames(fixture)).toEqual(["home"]);
+    expect(fixture.nativeElement.textContent).not.toContain("$SYS/");
+  });
+
+  /** The count has to describe what is on screen, or the header claims
+   * topics the user cannot reach. */
+  it("counts only what it is showing", async () => {
+    const { fixture } = await setup(SYS_TOPICS);
+
+    expect(fixture.nativeElement.textContent).toContain("Topics · 1");
+  });
+
+  /** Forty silently swallowed topics is a bug report. */
+  it("says how many it is holding back", async () => {
+    const { fixture } = await setup(SYS_TOPICS);
+
+    expect(sysToggle(fixture)?.textContent).toContain("$SYS (2)");
+  });
+
+  it("shows them when asked, and counts them then", async () => {
+    const { fixture } = await setup(SYS_TOPICS);
+
+    sysToggle(fixture)!.click();
+    fixture.detectChanges();
+
+    expect(rowNames(fixture)).toEqual(["$SYS", "home"]);
+    expect(fixture.nativeElement.textContent).toContain("Topics · 3");
+    expect(sysToggle(fixture)!.classList).toContain("active");
+  });
+
+  it("hides them again", async () => {
+    const { fixture } = await setup(SYS_TOPICS);
+
+    sysToggle(fixture)!.click();
+    fixture.detectChanges();
+    sysToggle(fixture)!.click();
+    fixture.detectChanges();
+
+    expect(rowNames(fixture)).toEqual(["home"]);
+  });
+
+  /** Nothing to hide, nothing to offer - the link only earns its place in a
+   * three-control header once there is something behind it. */
+  it("offers no toggle on a broker that publishes no $SYS", async () => {
+    const { fixture } = await setup(
+      new Map([["home/livingroom/climate", [message()]]]),
+    );
+
+    expect(sysToggle(fixture)).toBeUndefined();
+  });
+
+  /** Every row appearing is the toggle's doing, not a message arriving, and
+   * forty rows lighting up at once says the opposite of what a flash means.
+   *
+   * Asserted on the flash set rather than on the DOM: the revealed leaves sit
+   * inside a collapsed folder, so a rendered check passes either way. */
+  it("does not flash the rows the toggle reveals", async () => {
+    const { fixture } = await setup(SYS_TOPICS);
+
+    sysToggle(fixture)!.click();
+    fixture.detectChanges();
+
+    expect([...fixture.componentInstance.flashingPaths()]).toEqual([]);
   });
 });

@@ -29,7 +29,11 @@
 }
 
 /* Matches the publish panel's format switcher - this is the app's tab strip,
-   and it only appears once there is a second tool to switch to. */
+   and it only appears once there is a second tool to switch to.
+
+   It scrolls rather than shrinks past what fits: the dock goes down to 240px
+   (see `dock-layout.ts`), which four tools will not fit, and a strip that
+   ellipses every label equally leaves none of them readable. */
 .segmented {
   display: flex;
   height: 26px;
@@ -37,7 +41,13 @@
   border: 1px solid var(--color-input-border);
   border-radius: var(--radius-input);
   padding: 2px;
-  flex-shrink: 0;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.segmented::-webkit-scrollbar {
+  display: none;
 }
 
 .segment {
@@ -51,6 +61,21 @@
   cursor: pointer;
   background: transparent;
   color: var(--color-text-secondary);
+  /* A label may ellipse, but only once the strip has run out of room to
+     scroll - without this, flex would shrink them all on the first tool that
+     doesn't fit. */
+  flex: 0 0 auto;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The strip is keyboard-navigable and the app has no global focus ring, so
+   it brings its own. Inset, or it would be clipped by the track. */
+.segment:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
 }
 
 .segment.selected {

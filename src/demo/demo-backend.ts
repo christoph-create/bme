@@ -32,6 +32,7 @@ import {
   DEMO_APP_VERSION,
   DEMO_COLLECTIONS,
   DEMO_CONNECTIONS,
+  DEMO_SYS_TIMELINE,
   DEMO_TEMPLATES,
   DEMO_TIMELINE,
   DEMO_TIMELINES,
@@ -197,6 +198,27 @@ function emitMqtt(event: MqttEvent): Promise<void> {
   return emit("mqtt-event", event);
 }
 
+/** Replays `DEMO_SYS_TIMELINE`, exactly as `playTimeline` replays a
+ * connection's own traffic. Awaited by nothing - the switch returns as soon
+ * as the real command would, and the readings arrive after it, which is what
+ * the panel's "waiting" state is for. */
+async function playSysTimeline(connectionId: string): Promise<void> {
+  for (const message of DEMO_SYS_TIMELINE) {
+    advanceDemoClock(message.gapMs);
+    const payload = encodePayload(message.payload);
+    await emitMqtt({
+      MessageReceived: {
+        connection_id: connectionId,
+        topic: message.topic,
+        payload,
+        payload_len: payload.length,
+        qos: message.qos,
+        retain: message.retain,
+      },
+    });
+  }
+}
+
 function encodePayload(text: string): number[] {
   return Array.from(new TextEncoder().encode(text));
 }
@@ -337,6 +359,19 @@ export function installDemoBackend(): void {
           }
           return null;
         }
+        // Nothing is written, which is the faithful mock: the real pair
+        // deliberately persists nothing, because `$SYS` is the broker panel's
+        // own subscription rather than one the user saved. What it does do is
+        // start the traffic, so the demo exercises the real switch-then-data
+        // path instead of the panel being pre-seeded behind its own switch.
+        case "subscribe_system_topics": {
+          const connectionId = arg<string>(args, "connectionId");
+          void playSysTimeline(connectionId);
+          return null;
+        }
+        case "unsubscribe_system_topics":
+          // The panel clears the history itself, so there is nothing to undo.
+          return null;
 
         case "list_favorites":
           return cloneAll(state.templates);

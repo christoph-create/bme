@@ -8,6 +8,7 @@ import {
 } from "../status/connection-status";
 import { ConnectionsService } from "./connections.service";
 import { MqttEventsService } from "./mqtt-events.service";
+import { SessionStatsService } from "./session-stats.service";
 
 /** What a connection the app has never touched this session looks like. */
 const UNKNOWN: ConnectionStatus = { kind: "disconnected", error: null };
@@ -23,6 +24,7 @@ const UNKNOWN: ConnectionStatus = { kind: "disconnected", error: null };
 @Injectable({ providedIn: "root" })
 export class ConnectionStatusService {
   private readonly connectionsService = inject(ConnectionsService);
+  private readonly sessionStats = inject(SessionStatsService);
 
   private readonly state = signal<ReadonlyMap<string, ConnectionStatus>>(
     new Map(),
@@ -106,6 +108,10 @@ export class ConnectionStatusService {
     // wipe it before it could be read.
     this.dismissWarning(connectionId);
     this.stopped.delete(connectionId);
+    // A fresh story for the counters too: they measure this session, and an
+    // auto-reconnect deliberately doesn't come through here, so a blip leaves
+    // the totals standing while pressing Connect starts them over.
+    this.sessionStats.reset(connectionId);
     this.set(connectionId, { kind: "connecting" });
     try {
       await this.connectionsService.connect(connectionId);
@@ -157,6 +163,7 @@ export class ConnectionStatusService {
   forget(connectionId: string): void {
     this.dismissWarning(connectionId);
     this.stopped.delete(connectionId);
+    this.sessionStats.forget(connectionId);
     this.state.update((current) => {
       if (!current.has(connectionId)) return current;
       const next = new Map(current);

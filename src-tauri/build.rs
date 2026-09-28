@@ -20,6 +20,8 @@ fn main() {
             "publish_message",
             "subscribe_topic",
             "unsubscribe_topic",
+            "subscribe_system_topics",
+            "unsubscribe_system_topics",
             "list_favorites",
             "create_favorite",
             "get_favorite",

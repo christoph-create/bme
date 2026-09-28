@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { BrokerConnection } from "../models/broker-connection.model";
 import { ConnectionsService } from "./connections.service";
 import { MessageStoreService } from "./message-store.service";
+import { SessionStatsService } from "./session-stats.service";
 import { ValueChartsService } from "./value-charts.service";
 import { WorkspacesService } from "./workspaces.service";
 
@@ -38,12 +39,14 @@ function connection(id: string, name: string): BrokerConnection {
 function setup(get = vi.fn().mockResolvedValue(null)) {
   const clear = vi.fn();
   const removeAllFor = vi.fn();
+  const forgetStats = vi.fn();
 
   TestBed.configureTestingModule({
     providers: [
       { provide: ConnectionsService, useValue: { get } },
       { provide: MessageStoreService, useValue: { clear } },
       { provide: ValueChartsService, useValue: { removeAllFor } },
+      { provide: SessionStatsService, useValue: { forget: forgetStats } },
     ],
   });
 
@@ -52,6 +55,7 @@ function setup(get = vi.fn().mockResolvedValue(null)) {
     get,
     clear,
     removeAllFor,
+    forgetStats,
   };
 }
 
@@ -176,5 +180,16 @@ describe("WorkspacesService", () => {
     service.close(A);
 
     expect(service.connectionFor(A)).toBeNull();
+  });
+
+  /** Nothing about a workspace is persisted, so its counters go with its
+   * history and its charts rather than outliving the tab. */
+  it("drops the session counters when the tab closes", () => {
+    const { service, forgetStats } = setup();
+    service.open(A);
+
+    service.close(A);
+
+    expect(forgetStats).toHaveBeenCalledWith(A);
   });
 });

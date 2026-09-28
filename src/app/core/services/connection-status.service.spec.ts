@@ -7,6 +7,7 @@ import { DISCONNECTED_BY_BROKER } from "../status/connection-status";
 import { ConnectionStatusService } from "./connection-status.service";
 import { ConnectionsService } from "./connections.service";
 import { MqttEventsService } from "./mqtt-events.service";
+import { SessionStatsService } from "./session-stats.service";
 
 const ID = "11111111-1111-1111-1111-111111111111";
 const OTHER_ID = "22222222-2222-2222-2222-222222222222";
@@ -20,11 +21,13 @@ function setup(
   const connect = options.connect ?? vi.fn().mockResolvedValue(undefined);
   const disconnect = options.disconnect ?? vi.fn().mockResolvedValue(undefined);
   const events$ = new Subject<MqttEvent>();
+  const sessionStats = { reset: vi.fn(), forget: vi.fn() };
 
   TestBed.configureTestingModule({
     providers: [
       { provide: ConnectionsService, useValue: { connect, disconnect } },
       { provide: MqttEventsService, useValue: { events$ } },
+      { provide: SessionStatsService, useValue: sessionStats },
     ],
   });
 
@@ -33,6 +36,7 @@ function setup(
     connect,
     disconnect,
     events$,
+    sessionStats,
   };
 }
 
@@ -293,5 +297,18 @@ describe("ConnectionStatusService", () => {
 
       expect(service.warningOf(ID)).toBeNull();
     });
+  });
+
+  /** Pressing Connect starts a fresh story for the counters as well as for
+   * the status - an auto-reconnect doesn't come through here, so a blip
+   * leaves the totals standing. */
+  it("starts the session counters over on connect, and drops them on forget", async () => {
+    const { service, sessionStats } = setup();
+
+    await service.connect(ID);
+    expect(sessionStats.reset).toHaveBeenCalledWith(ID);
+
+    service.forget(ID);
+    expect(sessionStats.forget).toHaveBeenCalledWith(ID);
   });
 });

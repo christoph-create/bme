@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-subscribe-system-topics"
+description = "Enables the subscribe_system_topics command without any pre-configured scope."
+commands.allow = ["subscribe_system_topics"]
+
+[[permission]]
+identifier = "deny-subscribe-system-topics"
+description = "Denies the subscribe_system_topics command without any pre-configured scope."
+commands.deny = ["subscribe_system_topics"]

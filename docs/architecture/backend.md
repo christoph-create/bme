@@ -234,7 +234,10 @@ Current commands, by area:
 - **connections** — `list_connections`, `create_connection`,
   `update_connection`, `delete_connection`, `get_connection`
 - **broker** — `connect_broker`, `disconnect_broker`, `test_connection`,
-  `publish_message`, `subscribe_topic`, `unsubscribe_topic`
+  `publish_message`, `subscribe_topic`, `unsubscribe_topic`,
+  `subscribe_system_topics`, `unsubscribe_system_topics` (the `$SYS` pair —
+  see data-flow §3, they deliberately persist nothing and, unlike
+  `subscribe_topic`, fail when there is no live session)
 - **templates** — `list_favorites`, `create_favorite`, `get_favorite`,
   `update_favorite`, `delete_favorite`
 - **collections** — `list_favorite_collections`,

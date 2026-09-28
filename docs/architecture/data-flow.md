@@ -72,19 +72,48 @@ saved list correctly even when you were never connected (there's a test for
 exactly that in `src-tauri/src/lib.rs`). Unsubscribing takes both the
 `subscriptionId` and the `topic` for the same reason.
 
+### The `$SYS` pair is the exception
+
+`subscribe_system_topics` / `unsubscribe_system_topics` have only the second
+effect. The filter is `SYSTEM_TOPIC_FILTER` in
+`core/src/mqtt/system_topics.rs` — owned by the backend, mirrored in
+`src/app/core/mqtt/system-topics.ts` — so the frontend cannot push an
+arbitrary topic through the door that skips persistence. Three consequences
+worth knowing:
+
+- Nothing reaches the `subscriptions` table, so `$SYS/#` never appears in the
+  user's subscription list or survives a restart on its own. What the user
+  wants remembered lives in an `app_settings` row, `sys.monitor.<uuid>`.
+- They are **not** wrapped in `ignore_if_unknown_connection`, unlike every
+  other subscription command. There is no row to write as a fallback, so
+  answering `Ok` for a dead session would leave the broker panel switched on
+  with nothing behind it — indistinguishable from a broker with no `$SYS`.
+- The adapter's `SubscriptionSet` replays the filter across an
+  *auto*-reconnect, but `connect_broker` spawns a fresh connection task seeded
+  from the database (`SubscriptionSet::from_broker`), where `$SYS/#` is not.
+  So the caller re-issues the subscribe on every `Connected` event.
+
+MQTT forbids a wildcard from matching a leading `$` (3.1.1 §4.7.2), which is
+why a separate filter is needed at all and why `$SYS` traffic can safely be
+treated as the app's own rather than the user's — no `#` subscription of
+theirs can carry it.
+
 ## 4. Receiving
 
 The adapter's event loop pushes `MqttEvent`s into an unbounded `tokio::mpsc`
 channel. `lib.rs`'s spawned task drains it and `emit`s each one to the
 webview under the single event name `"mqtt-event"`.
 `MqttEventsService.events$` wraps that listener as an Observable, `share()`d
-so N subscribers still mean one listener. Two subscribers keep state, and they
+so N subscribers still mean one listener. Four subscribers keep state, and they
 split the stream by what it is about: `MessageStoreService` folds
 `MessageReceived` into its per-connection/per-topic map (capped per topic),
 and `ConnectionStatusService` folds `Connected`/`Reconnecting`/`Disconnected`
 into its per-connection status map, keeping `Warning` in a second map beside
 it — a warning is something the session survived, so it must not touch the
-status. Every variant carries a `connection_id`,
+status. `SessionStatsService` counts throughput per connection (skipping
+`$SYS`, which is the broker panel's own subscription), and
+`SystemMonitorService` watches for `Connected` to re-issue the `$SYS`
+subscribe. Every variant carries a `connection_id`,
 which is the only thing separating one broker's traffic from another's on this
 single shared channel.
 

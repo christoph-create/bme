@@ -7,6 +7,7 @@ import { BrokerConnection } from "../../core/models/broker-connection.model";
 import { ConnectionStatusService } from "../../core/services/connection-status.service";
 import { ConnectionsService } from "../../core/services/connections.service";
 import { UpdateNotifierService } from "../../core/services/update-notifier.service";
+import { SystemMonitorService } from "../../core/services/system-monitor.service";
 import { WorkspacesService } from "../../core/services/workspaces.service";
 import { StatusDot } from "../../shared/status-dot/status-dot";
 
@@ -20,6 +21,7 @@ export class Connections {
   private readonly connectionsService = inject(ConnectionsService);
   private readonly status = inject(ConnectionStatusService);
   private readonly workspaces = inject(WorkspacesService);
+  private readonly systemMonitor = inject(SystemMonitorService);
   private readonly router = inject(Router);
   readonly notifier = inject(UpdateNotifierService);
 
@@ -96,6 +98,9 @@ export class Connections {
     // this id left behind is now about a broker that no longer exists.
     this.workspaces.close(id);
     this.status.forget(id);
+    // Its `sys.monitor.<id>` row has no foreign key to cascade from, so it
+    // would outlive the broker unless it is cleared here.
+    await this.systemMonitor.forget(id);
     await this.refresh();
   }
 

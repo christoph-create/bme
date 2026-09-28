@@ -1,13 +1,33 @@
+import { TestBed } from "@angular/core/testing";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MqttService } from "./mqtt.service";
+import { SessionStatsService } from "./session-stats.service";
 
 const CONNECTION_ID = "11111111-1111-1111-1111-111111111111";
 
+const recordPublish = vi.fn();
+
+/** Through the injector rather than `new`: the service counts what it sends,
+ * so it has a dependency now. */
+function service(): MqttService {
+  return TestBed.inject(MqttService);
+}
+
 describe("MqttService", () => {
+  beforeEach(() => {
+    recordPublish.mockClear();
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: SessionStatsService, useValue: { recordPublish } },
+      ],
+    });
+  });
+
   afterEach(() => {
     clearMocks();
+    TestBed.resetTestingModule();
   });
 
   it("publishes a message via the publish_message command, sending the payload as bytes", async () => {
@@ -26,14 +46,14 @@ describe("MqttService", () => {
     });
 
     await expect(
-      new MqttService().publish(
+      service().publish(
         CONNECTION_ID,
         "sensors/temp",
         Uint8Array.of(1, 2, 3),
         "AtLeastOnce",
         true,
       ),
-    ).resolves.toBeNull();
+    ).resolves.toBeUndefined();
   });
 
   it("sends MQTT 5 properties when given some, and no key at all otherwise", async () => {
@@ -53,7 +73,7 @@ describe("MqttService", () => {
       throw new Error(`unexpected command: ${cmd}`);
     });
 
-    await new MqttService().publish(
+    await service().publish(
       CONNECTION_ID,
       "t",
       Uint8Array.of(1),
@@ -83,7 +103,7 @@ describe("MqttService", () => {
     });
 
     await expect(
-      new MqttService().subscribe(CONNECTION_ID, "sensors/#", "ExactlyOnce"),
+      service().subscribe(CONNECTION_ID, "sensors/#", "ExactlyOnce"),
     ).resolves.toEqual(subscription);
   });
 
@@ -102,7 +122,7 @@ describe("MqttService", () => {
     });
 
     await expect(
-      new MqttService().unsubscribe(CONNECTION_ID, subscriptionId, "sensors/#"),
+      service().unsubscribe(CONNECTION_ID, subscriptionId, "sensors/#"),
     ).resolves.toBeNull();
   });
 
@@ -115,7 +135,7 @@ describe("MqttService", () => {
     });
 
     await expect(
-      new MqttService().publish(
+      service().publish(
         CONNECTION_ID,
         "t",
         Uint8Array.of(),
@@ -123,5 +143,76 @@ describe("MqttService", () => {
         false,
       ),
     ).rejects.toThrow("not connected");
+  });
+
+  /** The one door everything the app sends goes through, so the counter sits
+   * here rather than at each call site. */
+  it("counts what it published, in payload bytes", async () => {
+    mockIPC(() => null);
+
+    await service().publish(
+      CONNECTION_ID,
+      "sensors/temp",
+      Uint8Array.of(1, 2, 3, 4),
+      "AtMostOnce",
+      false,
+    );
+
+    expect(recordPublish).toHaveBeenCalledWith(CONNECTION_ID, 4);
+  });
+
+  it("does not count a publish the backend rejected", async () => {
+    mockIPC(() => {
+      throw new Error("not connected");
+    });
+
+    await expect(
+      service().publish(
+        CONNECTION_ID,
+        "t",
+        Uint8Array.of(1),
+        "AtMostOnce",
+        false,
+      ),
+    ).rejects.toThrow("not connected");
+    expect(recordPublish).not.toHaveBeenCalled();
+  });
+
+  /** Its own command, not `subscribe` with a `$SYS/#` filter: that path
+   * persists, and this filter must never reach the user's saved
+   * subscriptions. The topic lives in Rust, so nothing is sent for it. */
+  it("subscribes to and unsubscribes from $SYS by connection alone", async () => {
+    const calls: { cmd: string; args: unknown }[] = [];
+    mockIPC((cmd, args) => {
+      calls.push({ cmd, args });
+      return null;
+    });
+
+    await service().subscribeSystemTopics(CONNECTION_ID);
+    await service().unsubscribeSystemTopics(CONNECTION_ID);
+
+    expect(calls).toEqual([
+      {
+        cmd: "subscribe_system_topics",
+        args: { connectionId: CONNECTION_ID },
+      },
+      {
+        cmd: "unsubscribe_system_topics",
+        args: { connectionId: CONNECTION_ID },
+      },
+    ]);
+  });
+
+  /** Unlike `subscribe`, there is no saved list to fall back on, so the
+   * backend refuses when there is no session - and the caller has to hear it
+   * rather than leave the panel switched on with nothing behind it. */
+  it("passes on the backend's refusal when there is no session", async () => {
+    mockIPC(() => {
+      throw new Error("Not connected to the broker");
+    });
+
+    await expect(
+      service().subscribeSystemTopics(CONNECTION_ID),
+    ).rejects.toThrow("Not connected");
   });
 });
