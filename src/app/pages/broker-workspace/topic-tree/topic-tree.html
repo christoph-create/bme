@@ -1,10 +1,7 @@
 <div class="section-header">
   <span class="section-label">
-    @if (filtering()) {
-      Topics · {{ matchedTopics() }} of {{ totalTopics() }}
-    } @else {
-      Topics · {{ totalTopics() }}
-    }
+    @if (filtering()) { Topics · {{ matchedTopics() }} of {{ totalTopics() }} }
+    @else { Topics · {{ totalTopics() }} }
   </span>
   <div class="header-actions">
     <span
@@ -18,6 +15,23 @@
     >
       Filter
     </span>
+    @if (systemTopicCount() > 0) {
+    <span
+      class="toggle-link"
+      [class.active]="showSystemTopics()"
+      (click)="toggleSystemTopics()"
+      (keydown.enter)="toggleSystemTopics()"
+      role="button"
+      tabindex="0"
+      [title]="
+          showSystemTopics()
+            ? 'Hide the broker\'s own $SYS topics'
+            : 'Show the broker\'s own $SYS topics, hidden so they don\'t bury yours'
+        "
+    >
+      $SYS ({{ systemTopicCount() }})
+    </span>
+    }
     <span
       class="toggle-link"
       (click)="toggleExpandAll()"
@@ -31,34 +45,34 @@
 </div>
 
 @if (filterOpen()) {
-  <div class="filter-row">
-    <input
-      #filterInput
-      type="text"
-      class="filter-input"
-      placeholder="Filter topics…"
-      aria-label="Filter topics"
-      [value]="filter()"
-      (input)="onFilterInput($event)"
-      (keydown.escape)="closeFilter()"
-    />
-    @if (filtering()) {
-      <span
-        class="filter-clear"
-        (click)="clearFilter()"
-        (keydown.enter)="clearFilter()"
-        role="button"
-        tabindex="0"
-        aria-label="Clear filter"
-        >×</span
-      >
-    }
-  </div>
+<div class="filter-row">
+  <input
+    #filterInput
+    type="text"
+    class="filter-input"
+    placeholder="Filter topics…"
+    aria-label="Filter topics"
+    [value]="filter()"
+    (input)="onFilterInput($event)"
+    (keydown.escape)="closeFilter()"
+  />
+  @if (filtering()) {
+  <span
+    class="filter-clear"
+    (click)="clearFilter()"
+    (keydown.enter)="clearFilter()"
+    role="button"
+    tabindex="0"
+    aria-label="Clear filter"
+    >×</span
+  >
+  }
+</div>
 }
 
 <div class="tree">
   @if (filtering() && matchedTopics() === 0) {
-    <div class="empty-state">No topics match “{{ filter().trim() }}”</div>
+  <div class="empty-state">No topics match “{{ filter().trim() }}”</div>
   }
   <ng-container
     *ngTemplateOutlet="nodeList; context: { nodes: visibleNodes(), depth: 0 }"
@@ -67,65 +81,65 @@
 
 <ng-template #nodeList let-nodes="nodes" let-depth="depth">
   @for (node of nodes; track node.path) {
-    <ng-container
-      *ngTemplateOutlet="nodeTpl; context: { node: node, depth: depth }"
-    ></ng-container>
+  <ng-container
+    *ngTemplateOutlet="nodeTpl; context: { node: node, depth: depth }"
+  ></ng-container>
   }
 </ng-template>
 
 <ng-template #nodeTpl let-node="node" let-depth="depth">
   @if (node.kind === "folder") {
-    <div
-      class="tree-row folder"
-      [style.padding-left.px]="10 + depth * 16"
-      (click)="toggleFolder(node.path)"
-      (keydown.enter)="toggleFolder(node.path)"
-      role="button"
-      tabindex="0"
-    >
-      <span class="chevron" [class.expanded]="isExpanded(node.path)">›</span>
-      <span class="name folder-name">{{ node.name }}</span>
-      <span class="folder-count">({{ node.leafCount }})</span>
-    </div>
-    @if (isExpanded(node.path)) {
-      <ng-container
-        *ngTemplateOutlet="
+  <div
+    class="tree-row folder"
+    [style.padding-left.px]="10 + depth * 16"
+    (click)="toggleFolder(node.path)"
+    (keydown.enter)="toggleFolder(node.path)"
+    role="button"
+    tabindex="0"
+  >
+    <span class="chevron" [class.expanded]="isExpanded(node.path)">›</span>
+    <span class="name folder-name">{{ node.name }}</span>
+    <span class="folder-count">({{ node.leafCount }})</span>
+  </div>
+  @if (isExpanded(node.path)) {
+  <ng-container
+    *ngTemplateOutlet="
           nodeList;
           context: { nodes: node.children, depth: depth + 1 }
         "
-      ></ng-container>
-    }
-  } @else {
-    <div
-      class="tree-row leaf"
-      [class.selected]="selectedTopic() === node.path"
-      [style.padding-left.px]="10 + depth * 16"
-      (click)="selectTopic(node.path)"
-      (dblclick)="publishTopic(node.path)"
-      (keydown.enter)="selectTopic(node.path)"
-      title="Click to open the stream · Double-click to use as publish topic"
-      role="button"
-      tabindex="0"
-    >
-      <div class="row-main">
-        <span class="dot" [class.selected]="selectedTopic() === node.path"></span>
-        <span class="name leaf-name">{{ node.name }}</span>
-        @if (isRetained(node.path)) {
-          <span
-            class="retained-mark"
-            title="This topic holds a retained message on the broker"
-            aria-label="Has a retained message"
-            >R</span
-          >
-        }
-        <span class="msg-count">{{ node.messageCount }}</span>
-      </div>
-      <div class="row-detail">
-        <span class="preview" [class.flash]="isFlashing(node.path)">{{
-          payloadPreview(node.lastMessage.payload, node.lastMessage.payloadLen)
-        }}</span>
-        <span class="time">{{ timeAgo(node.lastMessage.receivedAt) }}</span>
-      </div>
+  ></ng-container>
+  } } @else {
+  <div
+    class="tree-row leaf"
+    [class.selected]="selectedTopic() === node.path"
+    [style.padding-left.px]="10 + depth * 16"
+    (click)="selectTopic(node.path)"
+    (dblclick)="publishTopic(node.path)"
+    (keydown.enter)="selectTopic(node.path)"
+    title="Click to open the stream · Double-click to use as publish topic"
+    role="button"
+    tabindex="0"
+  >
+    <div class="row-main">
+      <span class="dot" [class.selected]="selectedTopic() === node.path"></span>
+      <span class="name leaf-name">{{ node.name }}</span>
+      @if (isRetained(node.path)) {
+      <span
+        class="retained-mark"
+        title="This topic holds a retained message on the broker"
+        aria-label="Has a retained message"
+        >R</span
+      >
+      }
+      <span class="msg-count">{{ node.messageCount }}</span>
     </div>
+    <div class="row-detail">
+      <span class="preview" [class.flash]="isFlashing(node.path)"
+        >{{ payloadPreview(node.lastMessage.payload,
+        node.lastMessage.payloadLen) }}</span
+      >
+      <span class="time">{{ timeAgo(node.lastMessage.receivedAt) }}</span>
+    </div>
+  </div>
   }
 </ng-template>

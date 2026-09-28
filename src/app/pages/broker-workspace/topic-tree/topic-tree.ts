@@ -14,6 +14,7 @@ import {
   viewChild,
 } from "@angular/core";
 
+import { StoredMessage } from "../../../core/models/stored-message.model";
 import { MessageStoreService } from "../../../core/services/message-store.service";
 import {
   TopicNode,
@@ -25,6 +26,7 @@ import { formatPayloadPreview } from "../format/payload-text";
 import { formatTimeAgo } from "../format/time-ago";
 import { filterTopicTree } from "./filter-topic-tree";
 import { findUpdatedLeafPaths } from "./find-updated-leaf-paths";
+import { splitSystemTopics } from "./split-system-topics";
 
 const TICK_INTERVAL_MS = 1000;
 const FLASH_DURATION_MS = 400;
@@ -56,11 +58,23 @@ export class TopicTree implements OnInit {
   readonly filter = signal("");
   readonly filterOpen = signal(false);
   readonly retainedTopics = signal<ReadonlySet<string>>(new Set());
+  /** Whether the broker's own `$SYS` tree is shown alongside the user's
+   * topics. Per workspace and per session, not a setting: `$SYS` is only in
+   * the store at all because of a decision made in the broker panel, and the
+   * tree is a view of a session-only store either way. */
+  readonly showSystemTopics = signal(false);
+  /** How many `$SYS` topics are being held back, so the toggle can say. A
+   * silently swallowed forty topics is a bug report. */
+  readonly systemTopicCount = signal(0);
 
   private readonly filterInput =
     viewChild<ElementRef<HTMLInputElement>>("filterInput");
 
   private previousNodes: TopicNode[] | null = null;
+  /** The last thing the store said, kept so the `$SYS` toggle can rebuild
+   * without waiting for the next message to arrive. */
+  private latestTopics: ReadonlyMap<string, readonly StoredMessage[]> =
+    new Map();
   private readonly flashTimeouts = new Map<
     string,
     ReturnType<typeof setTimeout>
@@ -103,15 +117,8 @@ export class TopicTree implements OnInit {
     const subscription = this.messageStore
       .topicsFor(this.connectionId())
       .subscribe((topics) => {
-        const nextNodes = buildTopicTree(topics);
-        if (this.allExpanded()) {
-          this.expandNewFolders(nextNodes);
-        }
-        if (this.previousNodes !== null) {
-          this.flashPaths(findUpdatedLeafPaths(this.previousNodes, nextNodes));
-        }
-        this.previousNodes = nextNodes;
-        this.nodes.set(nextNodes);
+        this.latestTopics = topics;
+        this.rebuild({ flash: true });
       });
     const retainedSubscription = this.messageStore
       .retainedTopicsFor(this.connectionId())
@@ -203,6 +210,16 @@ export class TopicTree implements OnInit {
     this.expandedPaths.set(next);
   }
 
+  /** Shows or hides the broker's `$SYS` tree.
+   *
+   * Rebuilds without flashing: every row appearing or disappearing is the
+   * toggle's doing, not a message arriving, and forty rows lighting up at
+   * once says the opposite of what the flash means. */
+  toggleSystemTopics(): void {
+    this.showSystemTopics.update((shown) => !shown);
+    this.rebuild({ flash: false });
+  }
+
   toggleExpandAll(): void {
     const next = !this.allExpanded();
     this.allExpanded.set(next);
@@ -218,6 +235,23 @@ export class TopicTree implements OnInit {
    * first, so the stream has already opened by the time this runs. */
   publishTopic(path: string): void {
     this.publishTopicRequested.emit(path);
+  }
+
+  private rebuild(options: { flash: boolean }): void {
+    const { user, system } = splitSystemTopics(this.latestTopics);
+    this.systemTopicCount.set(system.size);
+
+    const nextNodes = buildTopicTree(
+      this.showSystemTopics() ? this.latestTopics : user,
+    );
+    if (this.allExpanded()) {
+      this.expandNewFolders(nextNodes);
+    }
+    if (options.flash && this.previousNodes !== null) {
+      this.flashPaths(findUpdatedLeafPaths(this.previousNodes, nextNodes));
+    }
+    this.previousNodes = nextNodes;
+    this.nodes.set(nextNodes);
   }
 
   timeAgo(receivedAt: number): string {
