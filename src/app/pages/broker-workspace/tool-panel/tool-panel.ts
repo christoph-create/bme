@@ -1,10 +1,13 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  ElementRef,
   input,
   signal,
+  viewChildren,
 } from "@angular/core";
 
+import { stepForKey, nextTool } from "./tool-switcher";
 import { ValueCharts } from "./value-charts/value-charts";
 
 /** Tools that can occupy the panel. "pin" and "compare" are the planned
@@ -44,7 +47,28 @@ export class ToolPanel {
   readonly tools: readonly ToolTab[] = [{ id: "charts", label: "Charts" }];
   readonly activeTool = signal<WorkspaceTool>("charts");
 
+  private readonly tabs = viewChildren<ElementRef<HTMLElement>>("tab");
+
   selectTool(id: WorkspaceTool): void {
     this.activeTool.set(id);
+  }
+
+  /**
+   * Arrow keys move between tools, per the ARIA tabs pattern.
+   *
+   * Focus has to be moved by hand: only the selected tab is in the tab order
+   * (a roving tabindex), so the element the key press came from stops being
+   * focusable the moment the selection changes.
+   */
+  onSwitcherKeydown(event: KeyboardEvent): void {
+    const step = stepForKey(event.key);
+    if (step === null) {
+      return;
+    }
+    event.preventDefault();
+    const ids = this.tools.map((tool) => tool.id);
+    const target = nextTool(ids, this.activeTool(), step);
+    this.selectTool(target);
+    this.tabs()[ids.indexOf(target)]?.nativeElement.focus();
   }
 }

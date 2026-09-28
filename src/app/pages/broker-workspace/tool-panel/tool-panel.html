@@ -1,14 +1,17 @@
 <header class="panel-header">
   @if (tools.length > 1) {
-    <div class="segmented">
+    <div class="segmented" role="tablist" aria-label="Workspace tools">
       @for (tool of tools; track tool.id) {
         <div
+          #tab
           class="segment"
           [class.selected]="activeTool() === tool.id"
           (click)="selectTool(tool.id)"
-          (keydown.enter)="selectTool(tool.id)"
-          role="button"
-          tabindex="0"
+          (keydown)="onSwitcherKeydown($event)"
+          role="tab"
+          [attr.aria-selected]="activeTool() === tool.id"
+          [tabindex]="activeTool() === tool.id ? 0 : -1"
+          [title]="tool.label"
         >
           {{ tool.label }}
         </div>
