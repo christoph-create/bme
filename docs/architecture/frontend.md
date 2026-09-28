@@ -58,8 +58,8 @@ Two consequences worth knowing before touching either side:
 
 Providers: `provideRouter`, `provideBrowserGlobalErrorListeners`,
 `GlobalErrorHandler` as the `ErrorHandler`, and an app initializer that
-instantiates `HeartbeatService` and `UpdateNotifierService` and kicks off
-`SettingsService.load()` without awaiting it. It must stay
+instantiates `HeartbeatService`, `UpdateNotifierService` and `UiZoomService`
+and kicks off `SettingsService.load()` without awaiting it. It must stay
 **`void`-returning**: `provideAppInitializer` waits on any promise handed
 back to it, which would put a network call (or a database read) in front of
 the first paint. Consumers run on the default settings until the load lands
@@ -96,6 +96,7 @@ Rust type and you must change its mirror here. `stored-message` and
 | `json-format.service` | Pretty-print, compact, and tokenize JSON for the payload editor's highlighting |
 | `variables.service` | CRUD over the `{{name}}` variable definitions, plus a loaded-once signal cache. The cache is the point: the publish panel validates and previews on every keystroke, which an `invoke()` per keystroke can't serve. The expansion logic itself is in the plain functions under `core/variables/` |
 | `settings.service` | The app-level settings as a signal read model over the backend's `app_settings` key/value store, loaded once at startup. The schema — keys, defaults, bounds, encoding — is the plain `core/settings/app-settings.ts`; the backend never interprets the values. Writes are optimistic so a change on the settings page re-seeds every consumer immediately |
+| `ui-zoom.service` | Holds the webview's zoom in step with the `ui.zoom` setting, and steps it for the Ctrl+`+`/`-`/`0` shortcuts. See below |
 | `logger.service` | Forwards to the Rust log file via `@tauri-apps/plugin-log` |
 | `update.service` | `invoke()` wrapper over `get_app_version` / `check_for_updates` / `skip_update_version` |
 | `update-notifier.service` | App-wide update state, and the one throttled check per launch. Its policy — silent vs. up-to-date vs. offer — lives in the plain `update-announcement.ts` next to it |
@@ -103,6 +104,25 @@ Rust type and you must change its mirror here. `stored-message` and
 
 Services are `providedIn: "root"` and injected with `inject()`, not
 constructor params.
+
+### `ui-zoom.service` — why zoom rather than a font size
+
+"Interface size" is the webview's own zoom (`setZoom`, the
+`core:webview:allow-set-webview-zoom` permission), not a CSS font scale.
+
+The workspace's geometry is not purely CSS: `DOCK_LIMITS`, `SPLITTER_PX` and
+`MIN_CENTRE_WIDTH` in `pages/broker-workspace/layout/dock-layout.ts` are
+JavaScript numbers, and the message stream measures and caches row heights to
+virtualise the list. Scaling only fonts would leave all of that at its
+original size — bigger text in unchanged docks, and mis-measured rows.
+Webview zoom scales the CSS pixel itself, so every one of those numbers keeps
+its meaning and the interface grows as one piece.
+
+The levels, the stepping and the snapping live in the plain
+`core/settings/zoom-levels.ts`; the keypress mapping in
+`core/settings/zoom-shortcut.ts`, bound once on `AppComponent` because zoom
+is app-wide. Applying it can fail — there is no webview in the demo build's
+plain browser — so the service logs and carries on rather than surfacing it.
 
 ### `message-store.service` — worth reading before touching the workspace
 

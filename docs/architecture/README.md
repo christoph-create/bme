@@ -72,6 +72,7 @@ bme/
 | App startup, logging, window quirks | `src-tauri/src/lib.rs` |
 | Whether the app tells you a new version exists | `core/src/update/checker.rs`, then `src/app/core/services/update-notifier.service.ts` |
 | A user-facing app setting (the Settings page) | `src/app/core/settings/app-settings.ts` for the key/default/bounds, `src/app/pages/settings/` for the control; the backend is a pass-through |
+| How big the interface is drawn | `src/app/core/settings/zoom-levels.ts` for the steps, `src/app/core/services/ui-zoom.service.ts` for applying them — it is webview zoom, not a CSS font scale |
 | Internal app-level state (not per-connection, not user-facing) | `core/src/storage/app_settings_repo.rs`, with the key constants next to whatever owns the setting (e.g. `core/src/update/`) |
 | The README's screenshots, or the example data in them | `src/demo/demo-data.ts` for what's on screen, `scripts/screenshots.mjs` for the shot list — then `npm run screenshots` |
 

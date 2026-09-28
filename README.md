@@ -65,9 +65,9 @@ It's built with [Tauri](https://tauri.app) (a Rust backend, SQLite for local sto
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/settings.png" width="820" alt="Settings page with three groups: Message stream (a Relative / Real time timestamp selector, a pretty-print JSON switch and a max-messages-per-topic field), Publish defaults (JSON / RAW format, a Q0 / Q1 / Q2 QoS selector and a retain switch) and Subscribe defaults (QoS), plus a Reset to defaults button in the header">
+  <img src="docs/screenshots/settings.png" width="820" alt="Settings page with four groups: Appearance (an Interface size stepper showing 100%), Message stream (a Relative / Real time timestamp selector, a pretty-print JSON switch and a max-messages-per-topic field), Publish defaults (JSON / RAW format, a Q0 / Q1 / Q2 QoS selector and a retain switch) and Subscribe defaults (QoS), plus a Reset to defaults button in the header">
   <br>
-  <em>Settings — what every workspace starts with. Each control saves as you change it.</em>
+  <em>Settings — how big the interface is drawn, and what every workspace starts with. Each control saves as you change it.</em>
 </p>
 
 <p align="center">
@@ -114,6 +114,7 @@ It's built with [Tauri](https://tauri.app) (a Rust backend, SQLite for local sto
 9. **Get the space back** — those three header buttons show and hide the workspace's three docks (subscriptions on the left, publish along the bottom, tools on the right) independently, and every divider between them can be dragged.
 10. **Work on several brokers at once** — opening another broker adds a tab above the header instead of replacing what you had. Each tab keeps its own history, panel layout and publish draft, and a repeating publish keeps running while you're looking at another one. **Disconnect** ends the session and closes the tab.
 11. **Set your defaults** — **Settings** (on the Connections page, or the ⚙ at the end of the tab bar) holds what every workspace starts with: relative or wall-clock timestamps and pretty-printed JSON in the message stream, how many messages to keep per topic, and the format, QoS and retain flag a fresh publish panel opens with, plus the QoS for new subscriptions. Every control saves as you change it, and the per-topic toggles in a workspace still override for that session.
+12. **Make it bigger** — if the interface is too small on your display, **Interface size** at the top of Settings scales the whole thing — text, controls and spacing together — from 80% to 200%. <kbd>Ctrl</kbd> with <kbd>+</kbd> or <kbd>-</kbd> steps it from anywhere in the app and <kbd>Ctrl</kbd>+<kbd>0</kbd> puts it back to 100%, the same as in a browser.
 
 ## Download
 
