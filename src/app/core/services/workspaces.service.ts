@@ -4,6 +4,7 @@ import { BrokerConnection } from "../models/broker-connection.model";
 import { nextActiveId } from "../workspaces/next-active-tab";
 import { ConnectionsService } from "./connections.service";
 import { MessageStoreService } from "./message-store.service";
+import { SessionStatsService } from "./session-stats.service";
 import { ValueChartsService } from "./value-charts.service";
 
 /**
@@ -16,6 +17,7 @@ import { ValueChartsService } from "./value-charts.service";
 export class WorkspacesService {
   private readonly connectionsService = inject(ConnectionsService);
   private readonly messageStore = inject(MessageStoreService);
+  private readonly sessionStats = inject(SessionStatsService);
   private readonly valueCharts = inject(ValueChartsService);
 
   private readonly ids = signal<readonly string[]>([]);
@@ -75,6 +77,7 @@ export class WorkspacesService {
     this.active.set(next);
     this.messageStore.clear(connectionId);
     this.valueCharts.removeAllFor(connectionId);
+    this.sessionStats.forget(connectionId);
 
     return next;
   }
