@@ -337,6 +337,13 @@ export function installDemoBackend(): void {
           }
           return null;
         }
+        // The real pair deliberately writes nothing: `$SYS` is the broker
+        // panel's own subscription, not one the user saved. Doing nothing
+        // here is therefore the faithful mock - the demo's `$SYS` messages
+        // are replayed from the timeline instead.
+        case "subscribe_system_topics":
+        case "unsubscribe_system_topics":
+          return null;
 
         case "list_favorites":
           return cloneAll(state.templates);

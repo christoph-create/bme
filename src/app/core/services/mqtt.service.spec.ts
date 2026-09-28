@@ -177,4 +177,42 @@ describe("MqttService", () => {
     ).rejects.toThrow("not connected");
     expect(recordPublish).not.toHaveBeenCalled();
   });
+
+  /** Its own command, not `subscribe` with a `$SYS/#` filter: that path
+   * persists, and this filter must never reach the user's saved
+   * subscriptions. The topic lives in Rust, so nothing is sent for it. */
+  it("subscribes to and unsubscribes from $SYS by connection alone", async () => {
+    const calls: { cmd: string; args: unknown }[] = [];
+    mockIPC((cmd, args) => {
+      calls.push({ cmd, args });
+      return null;
+    });
+
+    await service().subscribeSystemTopics(CONNECTION_ID);
+    await service().unsubscribeSystemTopics(CONNECTION_ID);
+
+    expect(calls).toEqual([
+      {
+        cmd: "subscribe_system_topics",
+        args: { connectionId: CONNECTION_ID },
+      },
+      {
+        cmd: "unsubscribe_system_topics",
+        args: { connectionId: CONNECTION_ID },
+      },
+    ]);
+  });
+
+  /** Unlike `subscribe`, there is no saved list to fall back on, so the
+   * backend refuses when there is no session - and the caller has to hear it
+   * rather than leave the panel switched on with nothing behind it. */
+  it("passes on the backend's refusal when there is no session", async () => {
+    mockIPC(() => {
+      throw new Error("Not connected to the broker");
+    });
+
+    await expect(
+      service().subscribeSystemTopics(CONNECTION_ID),
+    ).rejects.toThrow("Not connected");
+  });
 });

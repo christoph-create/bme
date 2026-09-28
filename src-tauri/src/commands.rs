@@ -10,6 +10,7 @@ use bme_core::models::{
 use bme_core::mqtt::manager::MqttClientManager;
 use bme_core::mqtt::port::MqttError;
 use bme_core::mqtt::rumqttc_adapter::RumqttcAdapter;
+use bme_core::mqtt::system_topics::SYSTEM_TOPIC_FILTER;
 use bme_core::storage::app_settings_repo::{AppSettingsRepository, SqliteAppSettingsRepository};
 use bme_core::storage::connections_repo::{ConnectionsRepository, SqliteConnectionsRepository};
 use bme_core::storage::favorite_collections_repo::{
@@ -287,6 +288,43 @@ pub fn unsubscribe_topic(
 ) -> Result<(), String> {
     ignore_if_unknown_connection(manager.unsubscribe(connection_id, &topic))?;
     repo.remove_subscription(subscription_id)
+        .map_err(|err| err.to_string())
+}
+
+/// Subscribes to the broker's own `$SYS` tree, without saving it.
+///
+/// Deliberately *not* wrapped in `ignore_if_unknown_connection`, unlike the
+/// two commands above. That helper exists because managing the persisted
+/// subscription list has to work offline - there is a database row to write
+/// either way. This pair has no such fallback: swallowing `UnknownConnection`
+/// would answer `Ok` for a session that does not exist and leave the broker
+/// panel switched on with nothing behind it, which looks exactly like a
+/// broker that publishes no `$SYS`.
+///
+/// Nothing is written to `subscriptions`: the filter is the app's own doing,
+/// not something the user asked to keep, and it must not show up in their
+/// subscription list or in the topic tree's saved state. The connection
+/// task's in-memory `SubscriptionSet` still replays it across an
+/// auto-reconnect; a fresh `connect_broker` seeds that set from the database,
+/// so the caller re-issues this after every `Connected`.
+#[tauri::command]
+pub fn subscribe_system_topics(
+    manager: State<MqttManagerState>,
+    connection_id: Uuid,
+) -> Result<(), String> {
+    manager
+        .subscribe(connection_id, SYSTEM_TOPIC_FILTER, QoS::AtMostOnce)
+        .map_err(|err| err.to_string())
+}
+
+/// Stops reading the broker's `$SYS` tree. See `subscribe_system_topics`.
+#[tauri::command]
+pub fn unsubscribe_system_topics(
+    manager: State<MqttManagerState>,
+    connection_id: Uuid,
+) -> Result<(), String> {
+    manager
+        .unsubscribe(connection_id, SYSTEM_TOPIC_FILTER)
         .map_err(|err| err.to_string())
 }
 

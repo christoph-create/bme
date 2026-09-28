@@ -28,6 +28,8 @@
     "allow-publish-message",
     "allow-subscribe-topic",
     "allow-unsubscribe-topic",
+    "allow-subscribe-system-topics",
+    "allow-unsubscribe-system-topics",
     "allow-list-favorites",
     "allow-create-favorite",
     "allow-get-favorite",

@@ -50,4 +50,24 @@ export class MqttService {
   ): Promise<void> {
     return invoke("unsubscribe_topic", { connectionId, subscriptionId, topic });
   }
+
+  /**
+   * Subscribes to the broker's own `$SYS` tree for the broker panel.
+   *
+   * A command of its own rather than `subscribe` with a `$SYS/#` filter,
+   * because that path persists what it subscribes to: this filter is the
+   * app's doing and must not turn up in the user's saved subscriptions. The
+   * backend owns the topic string, so nothing arbitrary can slip through the
+   * door that skips persistence.
+   *
+   * Unlike `subscribe`, this rejects when there is no live session - there is
+   * no saved list for it to fall back on, so "accepted" would be a lie.
+   */
+  subscribeSystemTopics(connectionId: string): Promise<void> {
+    return invoke("subscribe_system_topics", { connectionId });
+  }
+
+  unsubscribeSystemTopics(connectionId: string): Promise<void> {
+    return invoke("unsubscribe_system_topics", { connectionId });
+  }
 }
