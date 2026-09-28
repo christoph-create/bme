@@ -104,13 +104,16 @@ The adapter's event loop pushes `MqttEvent`s into an unbounded `tokio::mpsc`
 channel. `lib.rs`'s spawned task drains it and `emit`s each one to the
 webview under the single event name `"mqtt-event"`.
 `MqttEventsService.events$` wraps that listener as an Observable, `share()`d
-so N subscribers still mean one listener. Two subscribers keep state, and they
+so N subscribers still mean one listener. Four subscribers keep state, and they
 split the stream by what it is about: `MessageStoreService` folds
 `MessageReceived` into its per-connection/per-topic map (capped per topic),
 and `ConnectionStatusService` folds `Connected`/`Reconnecting`/`Disconnected`
 into its per-connection status map, keeping `Warning` in a second map beside
 it — a warning is something the session survived, so it must not touch the
-status. Every variant carries a `connection_id`,
+status. `SessionStatsService` counts throughput per connection (skipping
+`$SYS`, which is the broker panel's own subscription), and
+`SystemMonitorService` watches for `Connected` to re-issue the `$SYS`
+subscribe. Every variant carries a `connection_id`,
 which is the only thing separating one broker's traffic from another's on this
 single shared channel.
 
