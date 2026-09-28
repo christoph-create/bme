@@ -32,5 +32,8 @@
         [paused]="paused()"
       />
     }
+    @case ("broker") {
+      <app-broker-stats [connectionId]="connectionId()" [wide]="wide()" />
+    }
   }
 </div>

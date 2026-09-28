@@ -1,0 +1,70 @@
+/* The workspace's card surface, as used by the chart cards, the message cards
+   and the subscription chips. A tile is one more card on the same
+   background. */
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  padding: 8px 10px 9px;
+  border: 1px solid var(--color-border-faint);
+  border-radius: var(--radius-md);
+  background: var(--color-input-bg);
+}
+
+/* A reading that is real but has stopped moving, e.g. an uptime with no link
+   behind it. Dimmed rather than hidden: the last known value is still the
+   answer to "how long did it run". */
+:host(.stale) {
+  opacity: 0.55;
+}
+
+.tile-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--color-text-quaternary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tile-value {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Pushed to the foot of the tile, so hints line up across a row whose tiles
+   have been stretched to a common height. */
+.tile-hint {
+  margin-top: auto;
+  padding-top: 2px;
+  font-size: 10px;
+  color: var(--color-text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spark {
+  display: block;
+  width: 100%;
+  margin-top: 3px;
+}
+
+.spark-line {
+  fill: none;
+  stroke: var(--color-chart-line);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.spark-area {
+  fill: var(--color-chart-fill);
+  stroke: none;
+}

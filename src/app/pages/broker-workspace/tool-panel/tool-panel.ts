@@ -7,12 +7,13 @@ import {
   viewChildren,
 } from "@angular/core";
 
+import { BrokerStats } from "./broker-stats/broker-stats";
 import { stepForKey, nextTool } from "./tool-switcher";
 import { ValueCharts } from "./value-charts/value-charts";
 
 /** Tools that can occupy the panel. "pin" and "compare" are the planned
  * additions; each is a union member, a `tools` entry and a `@case`. */
-export type WorkspaceTool = "charts";
+export type WorkspaceTool = "charts" | "broker";
 
 interface ToolTab {
   readonly id: WorkspaceTool;
@@ -30,7 +31,7 @@ interface ToolTab {
  */
 @Component({
   selector: "app-tool-panel",
-  imports: [ValueCharts],
+  imports: [BrokerStats, ValueCharts],
   templateUrl: "./tool-panel.html",
   styleUrl: "./tool-panel.css",
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -44,7 +45,10 @@ export class ToolPanel {
   /** The message stream's Pause, forwarded so the charts freeze with it. */
   readonly paused = input(false);
 
-  readonly tools: readonly ToolTab[] = [{ id: "charts", label: "Charts" }];
+  readonly tools: readonly ToolTab[] = [
+    { id: "charts", label: "Charts" },
+    { id: "broker", label: "Broker" },
+  ];
   readonly activeTool = signal<WorkspaceTool>("charts");
 
   private readonly tabs = viewChildren<ElementRef<HTMLElement>>("tab");

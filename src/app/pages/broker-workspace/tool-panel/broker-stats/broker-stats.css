@@ -1,0 +1,107 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  height: 100%;
+  overflow: auto;
+  padding: 10px 12px 14px;
+}
+
+.stats-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* The app's section label, as used by SUBSCRIPTIONS, TOPICS and PUBLISH. */
+.section-label {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text-quaternary);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+/* Reflows on its own rather than switching layout at a breakpoint: the dock
+   is draggable to any width between 240px and 1600px, and a two-column rule
+   would leave everything between the steps looking half-empty. */
+.tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+  /* Stretched, not `start`: the tile carrying a sparkline is taller than the
+     rest, and leaving each one its natural height makes every row ragged. */
+  align-items: stretch;
+}
+
+/* The two readings with something to show beyond a number get the full row
+   when the dock is wide enough to have rows to spare. */
+.tile-grid.wide .uptime,
+.tile-grid.wide .rate {
+  grid-column: span 2;
+}
+
+.busiest {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Proportional rather than a fixed bar width: given the leftover space the
+   topic column would push the bars to the far edge of a wide dock, where
+   they read as a separate column rather than as this row's reading. */
+.busiest-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.busiest-topic {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  /* Ellipsed at the front: topics differ at the leaf, and `home/livingr…`
+     five times over says nothing. */
+  direction: rtl;
+  text-align: left;
+  text-overflow: ellipsis;
+}
+
+.busiest-bar {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--color-badge-bg);
+  overflow: hidden;
+}
+
+.busiest-fill {
+  display: block;
+  height: 100%;
+  background: var(--color-accent);
+}
+
+.busiest-count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-quaternary);
+}
+
+.empty {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--color-text-quaternary);
+}
+
+.empty strong {
+  color: var(--color-text-tertiary);
+  font-weight: 600;
+}
