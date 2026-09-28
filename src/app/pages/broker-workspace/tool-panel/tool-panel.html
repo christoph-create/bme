@@ -33,7 +33,11 @@
       />
     }
     @case ("broker") {
-      <app-broker-stats [connectionId]="connectionId()" [wide]="wide()" />
+      <app-broker-stats
+        [connectionId]="connectionId()"
+        [connected]="connected()"
+        [wide]="wide()"
+      />
     }
   }
 </div>

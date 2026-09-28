@@ -1,5 +1,5 @@
 <span class="tile-label">{{ label() }}</span>
-<span class="tile-value">{{ value() }}</span>
+<span class="tile-value" [title]="value()">{{ value() }}</span>
 @if (hasShape()) {
 <svg
   class="spark"

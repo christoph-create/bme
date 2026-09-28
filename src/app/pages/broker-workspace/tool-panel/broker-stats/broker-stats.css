@@ -8,10 +8,26 @@
   padding: 10px 12px 14px;
 }
 
+.sections {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Side by side only once the dock has taken over the message stream's width -
+   the tile grids inside already reflow, so this is the coarser call. */
+.sections.wide {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 14px;
+}
+
 .stats-section {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-width: 0;
 }
 
 /* The app's section label, as used by SUBSCRIPTIONS, TOPICS and PUBLISH. */

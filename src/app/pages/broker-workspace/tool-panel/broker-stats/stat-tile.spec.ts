@@ -37,6 +37,19 @@ describe("StatTile", () => {
     ).toContain("12,481");
   });
 
+  /** A broker version string does not fit a 150px tile, and the reading is
+   * no use half-shown. */
+  it("keeps the full value reachable when it has to be ellipsed", async () => {
+    const fixture = await setup({
+      label: "Version",
+      value: "mosquitto version 2.1.2",
+    });
+
+    expect(
+      fixture.nativeElement.querySelector(".tile-value").getAttribute("title"),
+    ).toBe("mosquitto version 2.1.2");
+  });
+
   it("leaves the hint out when there isn't one", async () => {
     const fixture = await setup({ label: "Reconnects", value: "0" });
 

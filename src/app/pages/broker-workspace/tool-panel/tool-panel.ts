@@ -39,6 +39,9 @@ interface ToolTab {
 export class ToolPanel {
   readonly connectionId = input.required<string>();
   readonly selectedTopic = input<string | null>(null);
+  /** Whether there is a live session. The broker panel needs it to tell
+   * "nothing has arrived yet" apart from "there is nothing to arrive over". */
+  readonly connected = input(false);
   /** Wide enough for two columns of charts. Decided by the workspace from the
    * dock's measured width, since it is the one that owns the grid. */
   readonly wide = input(false);

@@ -4,6 +4,8 @@ import { of } from "rxjs";
 import { describe, expect, it, vi } from "vitest";
 
 import { MessageStoreService } from "../../../core/services/message-store.service";
+import { SessionStatsService } from "../../../core/services/session-stats.service";
+import { SystemMonitorService } from "../../../core/services/system-monitor.service";
 import { ToolPanel } from "./tool-panel";
 import { ValueCharts } from "./value-charts/value-charts";
 
@@ -15,7 +17,19 @@ async function setup() {
     providers: [
       {
         provide: MessageStoreService,
-        useValue: { messagesFor: vi.fn().mockReturnValue(of([])) },
+        useValue: {
+          messagesFor: vi.fn().mockReturnValue(of([])),
+          // The broker tool reads the whole topic map to pick $SYS out of it.
+          topicsFor: vi.fn().mockReturnValue(of(new Map())),
+        },
+      },
+      {
+        provide: SessionStatsService,
+        useValue: { statsOf: () => null },
+      },
+      {
+        provide: SystemMonitorService,
+        useValue: { isMonitoring: () => false },
       },
     ],
   });

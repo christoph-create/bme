@@ -1,0 +1,66 @@
+<div class="sys-header">
+  <h3 class="section-label">Broker ($SYS)</h3>
+  <span
+    class="toggle-link"
+    [class.active]="monitoring()"
+    [class.disabled]="busy() || (!monitoring() && !connected())"
+    (click)="toggleMonitoring()"
+    (keydown.enter)="toggleMonitoring()"
+    role="button"
+    tabindex="0"
+    [attr.aria-pressed]="monitoring()"
+  >
+    {{ monitoring() ? "Monitoring" : "Monitor" }}
+  </span>
+</div>
+
+@if (error(); as message) {
+<p class="sys-error">{{ message }}</p>
+} @switch (state()) { @case ("off") {
+<p class="empty">
+  Subscribes to <code>$SYS/#</code> to read this broker's own health. Not saved
+  to your subscriptions, and hidden from the topic tree.
+</p>
+} @case ("disconnected") {
+<p class="empty">Connect to read this broker's <code>$SYS</code> topics.</p>
+} @case ("waiting") {
+<p class="empty">Waiting for <code>$SYS</code>…</p>
+} @case ("unsupported") {
+<p class="empty">
+  Nothing on <code>$SYS</code> yet. This broker may not publish it, or your user
+  may not be permitted to read it.
+</p>
+} @case ("ready") { @for (group of groups(); track group.group) {
+<h4 class="group-label">{{ group.group }}</h4>
+<div class="tile-grid">
+  @for (reading of group.readings; track reading.topic) {
+  <app-stat-tile
+    [label]="reading.label"
+    [value]="reading.value"
+    [series]="sparklineFor(reading.topic)"
+  />
+  }
+</div>
+} @if (others().length > 0) {
+<div
+  class="others-toggle"
+  [class.open]="othersOpen()"
+  (click)="othersOpen.set(!othersOpen())"
+  (keydown.enter)="othersOpen.set(!othersOpen())"
+  role="button"
+  tabindex="0"
+  [attr.aria-expanded]="othersOpen()"
+>
+  <span class="chevron">›</span>
+  Other $SYS topics ({{ others().length }})
+</div>
+@if (othersOpen()) {
+<ul class="others">
+  @for (entry of others(); track entry.topic) {
+  <li class="other-row">
+    <span class="other-topic" [title]="entry.topic">{{ entry.topic }}</span>
+    <span class="other-value">{{ entry.value }}</span>
+  </li>
+  }
+</ul>
+} } } }

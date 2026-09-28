@@ -20,6 +20,7 @@ import {
   formatRate,
 } from "./format-stat";
 import { StatTile } from "./stat-tile";
+import { SysStats } from "./sys-stats";
 
 /** Matches the topic tree's own clock: a readout that moves once a second
  * reads as live, and moving faster than that just burns repaints. */
@@ -37,16 +38,18 @@ const BUSIEST_TOPIC_COUNT = 5;
  */
 @Component({
   selector: "app-broker-stats",
-  imports: [StatTile],
+  imports: [StatTile, SysStats],
   templateUrl: "./broker-stats.html",
   styleUrl: "./broker-stats.css",
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class BrokerStats {
   readonly connectionId = input.required<string>();
-  /** Wide enough to put more than a couple of tiles on a row. The grid
-   * reflows on its own; this only decides the coarser layout. */
+  /** Wide enough to put the two sections side by side. The tile grids reflow
+   * on their own, so this only decides the coarser layout. */
   readonly wide = input(false);
+  /** Whether there is a live session, for the `$SYS` section's states. */
+  readonly connected = input(false);
 
   private readonly sessionStats = inject(SessionStatsService);
 

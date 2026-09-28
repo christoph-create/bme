@@ -6,6 +6,7 @@ import {
   formatBytes,
   formatCount,
   formatDuration,
+  formatPerMinute,
   formatRate,
 } from "./format-stat";
 
@@ -113,5 +114,19 @@ describe("formatByteRate", () => {
 
   it("has nothing to say when there is no reading", () => {
     expect(formatByteRate(null)).toBe(NO_VALUE);
+  });
+});
+
+describe("formatPerMinute", () => {
+  /** Mosquitto's load averages are per minute, not per second - showing them
+   * with a `/s` would be off by sixty. */
+  it("says per minute, because that is what it is", () => {
+    expect(formatPerMinute(4.31)).toBe("4.31/min");
+    expect(formatPerMinute(1284.6)).toBe("1,285/min");
+  });
+
+  it("has nothing to say when there is no reading", () => {
+    expect(formatPerMinute(null)).toBe(NO_VALUE);
+    expect(formatPerMinute(-1)).toBe(NO_VALUE);
   });
 });

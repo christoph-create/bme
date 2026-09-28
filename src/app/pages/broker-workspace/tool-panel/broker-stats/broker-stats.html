@@ -1,57 +1,65 @@
-<section class="stats-section">
-  <h3 class="section-label">This session</h3>
+<div class="sections" [class.wide]="wide()">
+  <section class="stats-section">
+    <h3 class="section-label">This session</h3>
 
-  @if (hasSession()) {
-  <div class="tile-grid" [class.wide]="wide()">
-    <app-stat-tile
-      class="uptime"
-      label="Uptime"
-      [value]="uptime()"
-      [hint]="linkDown() ? 'link down' : null"
-      [class.stale]="linkDown()"
-    />
-    <app-stat-tile label="Messages in" [value]="messagesIn()" />
-    <app-stat-tile
-      label="Payload in"
-      [value]="payloadIn()"
-      hint="payload bytes only"
-    />
-    <app-stat-tile
-      class="rate"
-      label="Messages in/s"
-      [value]="messageRate()"
-      [hint]="byteRate()"
-      [series]="rateSeries()"
-    />
-    <app-stat-tile
-      label="Published"
-      [value]="messagesOut()"
-      [hint]="payloadOut()"
-    />
-    <app-stat-tile label="Reconnects" [value]="reconnects()" />
-  </div>
+    @if (hasSession()) {
+    <div class="tile-grid" [class.wide]="wide()">
+      <app-stat-tile
+        class="uptime"
+        label="Uptime"
+        [value]="uptime()"
+        [hint]="linkDown() ? 'link down' : null"
+        [class.stale]="linkDown()"
+      />
+      <app-stat-tile label="Messages in" [value]="messagesIn()" />
+      <app-stat-tile
+        label="Payload in"
+        [value]="payloadIn()"
+        hint="payload bytes only"
+      />
+      <app-stat-tile
+        class="rate"
+        label="Messages in/s"
+        [value]="messageRate()"
+        [hint]="byteRate()"
+        [series]="rateSeries()"
+      />
+      <app-stat-tile
+        label="Published"
+        [value]="messagesOut()"
+        [hint]="payloadOut()"
+      />
+      <app-stat-tile label="Reconnects" [value]="reconnects()" />
+    </div>
 
-  <h3 class="section-label">Busiest topics</h3>
-  @if (busiest().length > 0) {
-  <ul class="busiest">
-    @for (entry of busiest(); track entry.topic) {
-    <li class="busiest-row">
-      <span class="busiest-topic" [title]="entry.topic">{{ entry.topic }}</span>
-      <span class="busiest-bar" aria-hidden="true">
-        <span class="busiest-fill" [style.width.%]="entry.share"></span>
-      </span>
-      <span class="busiest-count">{{ entry.count }}</span>
-    </li>
+    <h3 class="section-label">Busiest topics</h3>
+    @if (busiest().length > 0) {
+    <ul class="busiest">
+      @for (entry of busiest(); track entry.topic) {
+      <li class="busiest-row">
+        <span class="busiest-topic" [title]="entry.topic"
+          >{{ entry.topic }}</span
+        >
+        <span class="busiest-bar" aria-hidden="true">
+          <span class="busiest-fill" [style.width.%]="entry.share"></span>
+        </span>
+        <span class="busiest-count">{{ entry.count }}</span>
+      </li>
+      }
+    </ul>
+    } @else {
+    <p class="empty">
+      No messages yet. Subscribe to a topic to see traffic here.
+    </p>
+    } } @else {
+    <p class="empty">
+      Nothing counted yet. Counting starts when you <strong>connect</strong>,
+      and keeps running while you are on another tab.
+    </p>
     }
-  </ul>
-  } @else {
-  <p class="empty">
-    No messages yet. Subscribe to a topic to see traffic here.
-  </p>
-  } } @else {
-  <p class="empty">
-    Nothing counted yet. Counting starts when you <strong>connect</strong>, and
-    keeps running while you are on another tab.
-  </p>
-  }
-</section>
+  </section>
+
+  <section class="stats-section">
+    <app-sys-stats [connectionId]="connectionId()" [connected]="connected()" />
+  </section>
+</div>

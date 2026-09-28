@@ -94,6 +94,22 @@ export function formatRate(perSecond: number | null): string {
     : `${Math.round(perSecond).toLocaleString("en-US")}/s`;
 }
 
+/**
+ * A per-minute rate.
+ *
+ * Mosquitto's `$SYS/broker/load/**` averages are per *minute*, not per second
+ * (see its `sys_interval` documentation), so showing them with a `/s` would
+ * be off by sixty.
+ */
+export function formatPerMinute(perMinute: number | null): string {
+  if (perMinute === null || !Number.isFinite(perMinute) || perMinute < 0) {
+    return NO_VALUE;
+  }
+  return perMinute < 10
+    ? `${perMinute.toFixed(2)}/min`
+    : `${Math.round(perMinute).toLocaleString("en-US")}/min`;
+}
+
 /** A per-second byte rate, sharing {@link formatBytes}' units. */
 export function formatByteRate(bytesPerSecond: number | null): string {
   if (
