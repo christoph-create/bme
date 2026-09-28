@@ -12,6 +12,7 @@ import { GlobalErrorHandler } from "./core/global-error-handler";
 import { HeartbeatService } from "./core/services/heartbeat.service";
 import { LoggerService } from "./core/services/logger.service";
 import { SettingsService } from "./core/services/settings.service";
+import { UiZoomService } from "./core/services/ui-zoom.service";
 import { UpdateNotifierService } from "./core/services/update-notifier.service";
 
 export const appConfig: ApplicationConfig = {
@@ -26,6 +27,7 @@ export const appConfig: ApplicationConfig = {
     provideAppInitializer(() => {
       inject(HeartbeatService);
       inject(UpdateNotifierService);
+      inject(UiZoomService);
       const logger = inject(LoggerService);
       inject(SettingsService)
         .load()

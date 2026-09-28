@@ -144,45 +144,12 @@ label.setting {
   color: var(--color-text-tertiary);
 }
 
-.number-input {
-  width: 110px;
-  flex-shrink: 0;
+kbd {
   font-family: var(--font-mono);
-}
-
-/* Same segmented control as the publish panel's format selector. */
-.segmented {
-  display: flex;
-  height: var(--control-height);
-  background: var(--color-input-bg);
-  border: 1px solid var(--color-input-border);
-  border-radius: var(--radius-input);
-  padding: 2px;
-  flex-shrink: 0;
-}
-
-.segment {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 12px;
-  border-radius: 5px;
-  font-size: 11.5px;
-  font-weight: 600;
-  cursor: pointer;
-  background: transparent;
+  font-size: 11px;
+  padding: 1px 4px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
   color: var(--color-text-secondary);
-}
-
-.segment.selected {
-  background: var(--color-accent);
-  color: var(--color-accent-ink);
-}
-
-.segment:not(.selected):hover {
-  background: var(--color-surface-hover);
-}
-
-app-qos-select {
-  flex-shrink: 0;
+  white-space: nowrap;
 }

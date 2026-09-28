@@ -1,5 +1,6 @@
 import { MessageFormat } from "../models/message-format.model";
 import { QoS } from "../models/qos";
+import { DEFAULT_ZOOM, snapZoom } from "./zoom-levels";
 
 /**
  * The app-level settings, as the UI sees them.
@@ -13,6 +14,8 @@ import { QoS } from "../models/qos";
 export type TimestampMode = "relative" | "absolute";
 
 export interface AppSettings {
+  /** Webview zoom factor for the whole interface - see `zoom-levels.ts`. */
+  uiZoom: number;
   /** How the message stream labels a message's receive time by default. */
   timestampMode: TimestampMode;
   /** Whether the message stream pretty-prints JSON payloads by default. */
@@ -29,6 +32,7 @@ export const MIN_MESSAGES_PER_TOPIC = 10;
 export const MAX_MESSAGES_PER_TOPIC = 10_000;
 
 export const DEFAULT_SETTINGS: Readonly<AppSettings> = Object.freeze({
+  uiZoom: DEFAULT_ZOOM,
   timestampMode: "relative",
   prettyJson: true,
   maxMessagesPerTopic: 500,
@@ -42,6 +46,7 @@ export const DEFAULT_SETTINGS: Readonly<AppSettings> = Object.freeze({
  * the storage convention. These are a persisted contract: renaming one
  * silently resets that setting for every existing install. */
 export const SETTING_KEYS: Readonly<Record<keyof AppSettings, string>> = {
+  uiZoom: "ui.zoom",
   timestampMode: "stream.timestamp_mode",
   prettyJson: "stream.pretty_json",
   maxMessagesPerTopic: "store.max_messages_per_topic",
@@ -89,6 +94,13 @@ function integer(raw: string | undefined, fallback: number): number {
   return Number(raw);
 }
 
+function decimal(raw: string | undefined, fallback: number): number {
+  if (raw === undefined || !/^-?\d*\.?\d+$/.test(raw.trim())) {
+    return fallback;
+  }
+  return Number(raw);
+}
+
 /**
  * Builds the settings from whatever the `app_settings` table holds. Tolerant
  * by design: a missing key, a value from a newer version, or a hand-edited
@@ -101,6 +113,9 @@ export function decodeSettings(
 ): AppSettings {
   const d = DEFAULT_SETTINGS;
   return {
+    // Snapped rather than clamped: a value between steps would leave the
+    // settings page with nothing selected.
+    uiZoom: snapZoom(decimal(rows[SETTING_KEYS.uiZoom], d.uiZoom)),
     timestampMode: oneOf(
       TIMESTAMP_MODES,
       rows[SETTING_KEYS.timestampMode],

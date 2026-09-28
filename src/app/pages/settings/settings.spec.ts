@@ -65,6 +65,7 @@ describe("Settings", () => {
 
   it("renders the current values", async () => {
     const { element, segment } = await setup({
+      uiZoom: 1.25,
       timestampMode: "absolute",
       prettyJson: false,
       maxMessagesPerTopic: 250,
@@ -74,6 +75,9 @@ describe("Settings", () => {
       subscribeQos: "ExactlyOnce",
     });
 
+    expect(element.querySelector(".stepper-value")?.textContent?.trim()).toBe(
+      "125%",
+    );
     expect(segment("timestampsLabel", "Real time").classList).toContain(
       "selected",
     );
@@ -135,6 +139,42 @@ describe("Settings", () => {
       "selected",
     );
   });
+
+  it("steps the interface size up and down", async () => {
+    const { element, fixture, service } = await setup();
+    const stepper = (label: string) =>
+      [...element.querySelectorAll<HTMLButtonElement>(".stepper-btn")].find(
+        (el) => el.getAttribute("aria-label") === label,
+      )!;
+
+    stepper("Bigger").click();
+    expect(service.set).toHaveBeenCalledWith("uiZoom", 1.1);
+
+    fixture.detectChanges();
+    expect(element.querySelector(".stepper-value")?.textContent?.trim()).toBe(
+      "110%",
+    );
+
+    stepper("Smaller").click();
+    expect(service.set).toHaveBeenLastCalledWith("uiZoom", 1);
+  });
+
+  it.each([
+    [0.8, "Smaller", "Bigger"],
+    [2, "Bigger", "Smaller"],
+  ])(
+    "disables the step button at %d% and leaves the other one live",
+    async (uiZoom, disabled, enabled) => {
+      const { element } = await setup({ uiZoom });
+      const stepper = (label: string) =>
+        [...element.querySelectorAll<HTMLButtonElement>(".stepper-btn")].find(
+          (el) => el.getAttribute("aria-label") === label,
+        )!;
+
+      expect(stepper(disabled).disabled).toBe(true);
+      expect(stepper(enabled).disabled).toBe(false);
+    },
+  );
 
   it("commits the message cap on change and shows what the service kept", async () => {
     const { element, service } = await setup();

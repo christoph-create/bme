@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from "@angular/core";
+import { Component, OnInit, computed, inject, signal } from "@angular/core";
 import { RouterLink } from "@angular/router";
 
 import { MessageFormat } from "../../core/models/message-format.model";
@@ -9,6 +9,12 @@ import {
   MIN_MESSAGES_PER_TOPIC,
   TimestampMode,
 } from "../../core/settings/app-settings";
+import {
+  ZOOM_LEVELS,
+  formatZoomPercent,
+  zoomIn,
+  zoomOut,
+} from "../../core/settings/zoom-levels";
 import { QosSelect } from "../broker-workspace/qos-select/qos-select";
 
 const TIMESTAMP_MODES: readonly { value: TimestampMode; label: string }[] = [
@@ -27,13 +33,18 @@ const FORMAT_OPTIONS: readonly MessageFormat[] = ["json", "raw"];
   selector: "app-settings",
   imports: [RouterLink, QosSelect],
   templateUrl: "./settings.html",
-  styleUrl: "./settings.css",
+  styleUrls: ["./settings.css", "./settings-controls.css"],
 })
 export class Settings implements OnInit {
   private readonly settingsService = inject(SettingsService);
 
   readonly settings = this.settingsService.settings;
   readonly timestampModes = TIMESTAMP_MODES;
+  readonly formatZoomPercent = formatZoomPercent;
+  readonly atMinZoom = computed(() => this.settings().uiZoom === ZOOM_LEVELS[0]);
+  readonly atMaxZoom = computed(
+    () => this.settings().uiZoom === ZOOM_LEVELS[ZOOM_LEVELS.length - 1],
+  );
   readonly formatOptions = FORMAT_OPTIONS;
   readonly minMessages = MIN_MESSAGES_PER_TOPIC;
   readonly maxMessages = MAX_MESSAGES_PER_TOPIC;
@@ -68,6 +79,14 @@ export class Settings implements OnInit {
     }
     this.set("maxMessagesPerTopic", typed);
     input.value = String(this.settings().maxMessagesPerTopic);
+  }
+
+  stepZoomIn(): void {
+    this.set("uiZoom", zoomIn(this.settings().uiZoom));
+  }
+
+  stepZoomOut(): void {
+    this.set("uiZoom", zoomOut(this.settings().uiZoom));
   }
 
   onPrettyJsonChange(event: Event): void {

@@ -19,6 +19,7 @@ describe("decodeSettings", () => {
 
   it("reads every known key", () => {
     const decoded = decodeSettings({
+      "ui.zoom": "1.25",
       "stream.timestamp_mode": "absolute",
       "stream.pretty_json": "false",
       "store.max_messages_per_topic": "42",
@@ -29,6 +30,7 @@ describe("decodeSettings", () => {
     });
 
     expect(decoded).toEqual<AppSettings>({
+      uiZoom: 1.25,
       timestampMode: "absolute",
       prettyJson: false,
       maxMessagesPerTopic: 42,
@@ -68,6 +70,21 @@ describe("decodeSettings", () => {
     ).toBe(expected);
   });
 
+  it.each([
+    ["1.5", 1.5],
+    ["0.8", 0.8],
+    ["2", 2],
+    // Snapped to the nearest step, so the settings page always has a
+    // matching option to show as selected.
+    ["1.2", 1.25],
+    ["0.3", 0.8],
+    ["9", 2],
+    ["huge", DEFAULT_SETTINGS.uiZoom],
+    ["", DEFAULT_SETTINGS.uiZoom],
+  ])("decodes a ui.zoom of %j as %d", (raw, expected) => {
+    expect(decodeSettings({ "ui.zoom": raw }).uiZoom).toBe(expected);
+  });
+
   it("ignores keys owned by other subsystems", () => {
     expect(
       decodeSettings({
@@ -80,6 +97,7 @@ describe("decodeSettings", () => {
 
 describe("encodeSetting / decodeSettings round trip", () => {
   const nonDefault: AppSettings = {
+    uiZoom: 1.5,
     timestampMode: "absolute",
     prettyJson: false,
     maxMessagesPerTopic: 1234,
@@ -96,6 +114,13 @@ describe("encodeSetting / decodeSettings round trip", () => {
       expect(decodeSettings(rows)[key]).toBe(nonDefault[key]);
     },
   );
+
+  it("round-trips a zoom factor through its decimal string", () => {
+    expect(encodeSetting("uiZoom", 1.25)).toBe("1.25");
+    expect(normalizeSetting("uiZoom", 1.25)).toBe(1.25);
+    // A value the shortcuts could never produce still lands on a step.
+    expect(normalizeSetting("uiZoom", 1.37)).toBe(1.25);
+  });
 
   it("stores every key under a distinct area.name string", () => {
     const keys = Object.values(SETTING_KEYS);

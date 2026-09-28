@@ -22,6 +22,42 @@
   }
 
   <section class="group">
+    <h2 class="group-title">Appearance</h2>
+
+    <div class="setting">
+      <div class="setting-text">
+        <span class="setting-label">Interface size</span>
+        <span class="setting-hint">
+          Scales everything - text, controls and spacing - for displays where
+          the default is too small. <kbd>Ctrl</kbd> with <kbd>+</kbd> or
+          <kbd>&minus;</kbd> steps it, <kbd>Ctrl</kbd>+<kbd>0</kbd> resets it.
+        </span>
+      </div>
+      <div class="stepper">
+        <button
+          type="button"
+          class="stepper-btn"
+          aria-label="Smaller"
+          [disabled]="atMinZoom()"
+          (click)="stepZoomOut()"
+        >
+          &minus;
+        </button>
+        <span class="stepper-value">{{ formatZoomPercent(settings().uiZoom) }}</span>
+        <button
+          type="button"
+          class="stepper-btn"
+          aria-label="Bigger"
+          [disabled]="atMaxZoom()"
+          (click)="stepZoomIn()"
+        >
+          &plus;
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <section class="group">
     <h2 class="group-title">Message stream</h2>
 
     <div class="setting">
