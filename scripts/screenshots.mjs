@@ -190,6 +190,32 @@ const SHOTS = [
   },
 
   {
+    name: "broker-dashboard",
+    async setup(page) {
+      await openWorkspace(page);
+      await toggleDock(page, "Tools panel");
+      await page.getByRole("tab", { name: "Broker" }).click();
+      // Through the switch rather than pre-seeded, so the shot shows the
+      // state a user actually arrives at - and proves the whole
+      // subscribe-then-receive path still works.
+      await page.locator("app-sys-stats .toggle-link").click();
+      // Left collapsed: the row and its count are what advertise the
+      // fallback, and expanding it only pushes the readings off the bottom.
+      await page.locator("app-sys-stats .others-toggle").waitFor();
+      // Both sections side by side, which needs the width the subscriptions
+      // dock is holding - the same trick the charts shot uses.
+      await toggleDock(page, "Subscriptions panel");
+      await growToolPanel(page, 300);
+      // Clicking inside a scrollable dock leaves it scrolled to whatever was
+      // clicked, which would crop the session tiles off the top.
+      await page
+        .locator("app-broker-stats")
+        .evaluate((panel) => panel.scrollTo(0, 0));
+      await blurFocus(page);
+    },
+  },
+
+  {
     name: "save-template-modal",
     async setup(page) {
       await openWorkspace(page);

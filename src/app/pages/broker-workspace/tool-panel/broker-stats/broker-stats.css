@@ -85,8 +85,11 @@
   white-space: nowrap;
   overflow: hidden;
   /* Ellipsed at the front: topics differ at the leaf, and `home/livingr…`
-     five times over says nothing. */
+     five times over says nothing. `plaintext` keeps a leading neutral
+     character (a `$`, say) from being reordered to the end - see
+     `sys-stats.css`. */
   direction: rtl;
+  unicode-bidi: plaintext;
   text-align: left;
   text-overflow: ellipsis;
 }

@@ -136,8 +136,13 @@
   white-space: nowrap;
   overflow: hidden;
   /* Ellipsed at the front: these topics differ at the leaf, and a column of
-     `$SYS/brokers/emqx@127.0…` says nothing. */
+     `$SYS/brokers/emqx@127.0…` says nothing. `plaintext` is load-bearing -
+     `direction: rtl` alone moves a leading neutral character to the end, so
+     `$SYS/...` renders as `SYS/...$`. It lets the run's own first strong
+     character decide the text direction while the ellipsis still follows the
+     box's. */
   direction: rtl;
+  unicode-bidi: plaintext;
   text-align: left;
   text-overflow: ellipsis;
 }
