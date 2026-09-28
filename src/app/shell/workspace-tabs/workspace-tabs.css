@@ -15,6 +15,7 @@
 }
 
 .home,
+.settings,
 .tab {
   display: flex;
   align-items: center;
@@ -38,6 +39,12 @@
   border-right: 1px solid var(--color-border-faint);
 }
 
+.settings {
+  padding: 0 10px;
+  margin-left: auto;
+  border-left: 1px solid var(--color-border-faint);
+}
+
 .tab {
   border-right: 1px solid var(--color-border-faint);
   max-width: 200px;
@@ -50,12 +57,14 @@
 }
 
 .home:hover,
+.settings:hover,
 .tab:hover {
   color: var(--color-text);
   background: var(--color-surface-hover);
 }
 
 .home.active,
+.settings.active,
 .tab.active {
   color: var(--color-text);
   background: var(--color-surface-hover);

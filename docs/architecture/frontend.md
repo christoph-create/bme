@@ -14,8 +14,9 @@ Bootstrapped from `src/main.ts` → `src/app/app.config.ts`.
 | `connections/:id/edit` | `ConnectionForm` | (same component) |
 | `broker/:id` | `BrokerRouteShell` | `pages/broker-workspace/` |
 | `templates` | `TemplatesManagement` | `pages/templates-management/` |
+| `settings` | `Settings` | `pages/settings/` |
 
-Five routes, five page directories. A page directory holds its own
+Six routes, six page directories. A page directory holds its own
 `.ts`/`.html`/`.css`/`.spec.ts` plus sub-directories for components that
 belong to that page alone.
 
@@ -39,7 +40,7 @@ AppComponent
 ├─ <app-workspace-tabs>     shell/workspace-tabs/  — one tab per open broker
 └─ .shell-body
    ├─ <app-workspace-host>  shell/workspace-host/  — every open workspace, one visible
-   └─ <router-outlet />     the five routes above
+   └─ <router-outlet />     the six routes above
 ```
 
 Two consequences worth knowing before touching either side:

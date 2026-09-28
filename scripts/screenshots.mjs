@@ -290,6 +290,14 @@ const SHOTS = [
       await page.getByText("Temperature reading").waitFor();
     },
   },
+
+  {
+    name: "settings",
+    async setup(page) {
+      await page.goto("/settings");
+      await page.getByRole("heading", { name: "Settings" }).waitFor();
+    },
+  },
 ];
 
 /**

@@ -66,7 +66,7 @@ start at Y" table. Summary:
   UI can run in a plain browser with no broker and no database, which is what
   makes the screenshots reproducible. Not part of any release build.
 - **`src/app/`** (Angular, standalone components, signals for component
-  state) — five routes (`app.routes.ts`), each a directory under `pages/`.
+  state) — six routes (`app.routes.ts`), each a directory under `pages/`.
   `core/models/` are hand-maintained TypeScript mirrors of the Rust types in
   `core/src/models.rs`; `core/services/` wrap `invoke()` calls and hold
   cross-page state (notably `message-store.service.ts`, the in-memory,

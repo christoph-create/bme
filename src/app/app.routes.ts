@@ -3,6 +3,7 @@ import { Routes } from "@angular/router";
 import { BrokerRouteShell } from "./pages/broker-workspace/broker-route-shell";
 import { ConnectionForm } from "./pages/connection-form/connection-form";
 import { Connections } from "./pages/connections/connections";
+import { Settings } from "./pages/settings/settings";
 import { TemplatesManagement } from "./pages/templates-management/templates-management";
 
 export const routes: Routes = [
@@ -14,4 +15,5 @@ export const routes: Routes = [
   // cannot destroy them. See BrokerRouteShell.
   { path: "broker/:id", component: BrokerRouteShell },
   { path: "templates", component: TemplatesManagement },
+  { path: "settings", component: Settings },
 ];

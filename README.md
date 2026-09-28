@@ -48,7 +48,7 @@ It's built with [Tauri](https://tauri.app) (a Rust backend, SQLite for local sto
 <table align="center">
   <tr>
     <td align="center" width="50%">
-      <img src="docs/screenshots/connections.png" width="380" alt="Connections list showing five saved broker connections, each with a status dot, plus a Manage Templates button in the header and the app version and a Check for updates button in the footer">
+      <img src="docs/screenshots/connections.png" width="380" alt="Connections list showing five saved broker connections, each with a status dot, plus Settings and Manage Templates buttons in the header and the app version and a Check for updates button in the footer">
       <br><em>Saved connections</em>
     </td>
     <td align="center" width="50%">
@@ -62,6 +62,12 @@ It's built with [Tauri](https://tauri.app) (a Rust backend, SQLite for local sto
   <img src="docs/screenshots/templates-management.png" width="820" alt="Templates page listing saved message templates grouped into Sensors and Actuators collections, each showing topic, description, formatted JSON or raw payload, QoS, retain and format">
   <br>
   <em>Templates — every saved message in one place, with collections, search, and full edit/delete.</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/settings.png" width="820" alt="Settings page with three groups: Message stream (a Relative / Real time timestamp selector, a pretty-print JSON switch and a max-messages-per-topic field), Publish defaults (JSON / RAW format, a Q0 / Q1 / Q2 QoS selector and a retain switch) and Subscribe defaults (QoS), plus a Reset to defaults button in the header">
+  <br>
+  <em>Settings — what every workspace starts with. Each control saves as you change it.</em>
 </p>
 
 <p align="center">
@@ -107,6 +113,7 @@ It's built with [Tauri](https://tauri.app) (a Rust backend, SQLite for local sto
 8. **Chart a value** — open the Tools dock from the icon buttons in the workspace header, then add any numeric field from the selected topic's payloads. Each one plots as it arrives; **Pause** freezes the stream and the charts together so you can read them.
 9. **Get the space back** — those three header buttons show and hide the workspace's three docks (subscriptions on the left, publish along the bottom, tools on the right) independently, and every divider between them can be dragged.
 10. **Work on several brokers at once** — opening another broker adds a tab above the header instead of replacing what you had. Each tab keeps its own history, panel layout and publish draft, and a repeating publish keeps running while you're looking at another one. **Disconnect** ends the session and closes the tab.
+11. **Set your defaults** — **Settings** (on the Connections page, or the ⚙ at the end of the tab bar) holds what every workspace starts with: relative or wall-clock timestamps and pretty-printed JSON in the message stream, how many messages to keep per topic, and the format, QoS and retain flag a fresh publish panel opens with, plus the QoS for new subscriptions. Every control saves as you change it, and the per-topic toggles in a workspace still override for that session.
 
 ## Download
 
