@@ -37,7 +37,8 @@ button working exactly as they did when the workspace *was* the route.
 
 ```
 AppComponent
-├─ <app-workspace-tabs>     shell/workspace-tabs/  — one tab per open broker
+├─ <app-workspace-tabs>     shell/workspace-tabs/  — one tab per open broker,
+│                                                  dragged to reorder
 └─ .shell-body
    ├─ <app-workspace-host>  shell/workspace-host/  — every open workspace, one visible
    └─ <router-outlet />     the six routes above
@@ -90,7 +91,7 @@ Rust type and you must change its mirror here. `stored-message` and
 | `mqtt.service` | `publish` / `subscribe` / `unsubscribe`. `publish` is also where outbound messages are counted for `session-stats.service` — the one door everything the app sends goes through |
 | `mqtt-events.service` | `events$` — one `Observable<MqttEvent>` over the Tauri `"mqtt-event"` listener. `share()`d, so N subscribers still mean one listener |
 | `connection-status.service` | Every broker's connection status, keyed by id, folded from `events$` by the pure `core/status/connection-status.ts`. App-wide because status outlives whatever is showing it — a broker stays connected after you leave its workspace, and the tab bar and the connections list both say so |
-| `workspaces.service` | Which broker workspaces are open, in tab order, and which is active. Owns tab closing, including dropping that broker's history, charts and counters. Tab-selection logic is the pure `core/workspaces/next-active-tab.ts` |
+| `workspaces.service` | Which broker workspaces are open, in tab order, and which is active. Owns tab closing, including dropping that broker's history, charts and counters, and tab reordering. Tab-selection logic is the pure `core/workspaces/next-active-tab.ts`, drag arithmetic the pure `core/workspaces/reorder-tabs.ts` |
 | `message-store.service` | The in-memory message history (see below) |
 | `session-stats.service` | How much each connection has moved this session — uptime, messages and payload bytes in and out, QoS split, reconnects, a rolling one-minute rate and a per-topic tally. The third consumer of `events$`, folded by the pure `core/stats/session-stats.ts` over `core/stats/rate-window.ts`. `$SYS` traffic is excluded, or the broker panel would be counting itself. Counters start over when Connect is pressed and survive an auto-reconnect; nothing is persisted. Deliberately timerless — whoever shows uptime or a rate ticks on its own |
 | `system-monitor.service` | Which brokers the app is reading `$SYS` from, remembered per connection in an `app_settings` row `sys.monitor.<uuid>` — per-broker state, so deliberately not part of the global `AppSettings` schema. Off by default: subscribing is traffic the user did not ask for, and a `$SYS` ACL can refuse or log it. **Re-issues the subscribe on every `Connected`** — the connection task replays its own set across an auto-reconnect, but `connect_broker` spawns a fresh one seeded from the database where `$SYS/#` is not, so without this the panel freezes silently after a manual reconnect |
