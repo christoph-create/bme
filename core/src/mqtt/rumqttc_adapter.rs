@@ -490,6 +490,7 @@ enum BackoffOutcome {
 mod tests {
     use super::*;
     use crate::models::{BrokerScheme, MqttVersion};
+    use std::net::TcpListener;
     use tokio::time::timeout;
 
     fn sample_broker(host: &str, port: u16) -> BrokerConnection {
@@ -514,6 +515,26 @@ mod tests {
             max_reconnect_attempts: 0,
             subscriptions: vec![],
         }
+    }
+
+    /// A socket that completes the TCP handshake and then says nothing.
+    ///
+    /// The tests below are about the adapter's own bookkeeping, not about
+    /// MQTT: what they need is a connection that stays registered long enough
+    /// to be inspected. Pointed at a port with nothing on it, the connection
+    /// task is refused immediately and - `sample_broker` has `auto_reconnect`
+    /// off - unregisters itself and exits, racing every assertion here. That
+    /// race is why this suite used to pass only on a machine that happened to
+    /// have a broker on 1883, and fail in CI.
+    ///
+    /// The kernel completes the handshake from the accept backlog, so nothing
+    /// has to call `accept`. Hold the listener for as long as the connection
+    /// is wanted; dropping it closes the socket.
+    fn silent_broker() -> (TcpListener, BrokerConnection) {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind a test socket");
+        let port = listener.local_addr().expect("local addr").port();
+        // Not "localhost", which can resolve to ::1 first and miss this.
+        (listener, sample_broker("127.0.0.1", port))
     }
 
     async fn wait_for(
@@ -649,7 +670,7 @@ mod tests {
     fn disconnecting_the_same_connection_twice_succeeds_both_times() {
         let (events_tx, _events_rx) = mpsc::unbounded_channel();
         let adapter = RumqttcAdapter::new(events_tx);
-        let broker = sample_broker("localhost", 1883);
+        let (_socket, broker) = silent_broker();
 
         adapter.connect(broker.id, &broker).unwrap();
 
@@ -663,7 +684,7 @@ mod tests {
     fn connecting_an_already_connected_id_leaves_exactly_one_live_connection() {
         let (events_tx, _events_rx) = mpsc::unbounded_channel();
         let adapter = RumqttcAdapter::new(events_tx);
-        let broker = sample_broker("localhost", 1883);
+        let (_socket, broker) = silent_broker();
 
         adapter.connect(broker.id, &broker).unwrap();
         let first = adapter.connections.get(broker.id).expect("registered");
@@ -685,7 +706,7 @@ mod tests {
     fn publishing_more_than_the_packet_limit_is_refused_without_touching_the_session() {
         let (events_tx, _events_rx) = mpsc::unbounded_channel();
         let adapter = RumqttcAdapter::new(events_tx);
-        let broker = sample_broker("localhost", 1883);
+        let (_socket, broker) = silent_broker();
         adapter.connect(broker.id, &broker).unwrap();
 
         let too_big = vec![0u8; MAX_PACKET_BYTES];
@@ -715,7 +736,7 @@ mod tests {
     fn a_connection_is_reachable_the_moment_connect_returns() {
         let (events_tx, _events_rx) = mpsc::unbounded_channel();
         let adapter = RumqttcAdapter::new(events_tx);
-        let broker = sample_broker("localhost", 1883);
+        let (_socket, broker) = silent_broker();
 
         adapter.connect(broker.id, &broker).unwrap();
 
