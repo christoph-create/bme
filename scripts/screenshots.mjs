@@ -199,9 +199,9 @@ const SHOTS = [
       // state a user actually arrives at - and proves the whole
       // subscribe-then-receive path still works.
       await page.locator("app-sys-stats .toggle-link").click();
-      // Left collapsed: the row and its count are what advertise the
-      // fallback, and expanding it only pushes the readings off the bottom.
-      await page.locator("app-sys-stats .others-toggle").waitFor();
+      // Left collapsed: the group rows and their counts are what advertise
+      // the detail, and expanding one only pushes the tiles off the bottom.
+      await page.locator("app-sys-stats .group-toggle").first().waitFor();
       // Both sections side by side, which needs the width the subscriptions
       // dock is holding - the same trick the charts shot uses.
       await toggleDock(page, "Subscriptions panel");

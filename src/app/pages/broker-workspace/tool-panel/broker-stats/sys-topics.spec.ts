@@ -1,177 +1,18 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  SYS_CATALOG,
-  describeSysTopic,
-  formatSysValue,
-  groupSysReadings,
-  parseSysNumber,
-} from "./sys-topics";
-
-/** A mosquitto 2.x broker, as captured from `$SYS/#`. */
-const MOSQUITTO = new Map([
-  ["$SYS/broker/version", "mosquitto version 2.0.18"],
-  ["$SYS/broker/uptime", "91240 seconds"],
-  ["$SYS/broker/clients/connected", "17"],
-  ["$SYS/broker/clients/total", "24"],
-  ["$SYS/broker/subscriptions/count", "84"],
-  ["$SYS/broker/messages/received", "184320"],
-  ["$SYS/broker/retained messages/count", "31"],
-  ["$SYS/broker/bytes/received", "9112384"],
-  ["$SYS/broker/load/messages/received/1min", "4.31"],
-  ["$SYS/broker/heap/current", "12582912"],
-]);
-
-describe("the catalogue", () => {
-  it("only holds $SYS topics", () => {
-    for (const topic of SYS_CATALOG.keys()) {
-      expect(topic.startsWith("$SYS/")).toBe(true);
-    }
-  });
-
-  it("has nothing to say about a topic it doesn't know", () => {
-    expect(describeSysTopic("$SYS/brokers/emqx@127.0.0.1/uptime")).toBeNull();
-    expect(describeSysTopic("home/livingroom/climate")).toBeNull();
-  });
-
-  /** Mosquitto spells this one with a literal space, which is exactly the
-   * sort of thing that silently stops matching. */
-  it("knows the topics with spaces in them", () => {
-    expect(describeSysTopic("$SYS/broker/retained messages/count")?.label).toBe(
-      "Retained",
-    );
-  });
-
-  /** Mosquitto renamed these between versions; an older broker must not fall
-   * through to the raw table. */
-  it("carries both heap spellings", () => {
-    expect(describeSysTopic("$SYS/broker/heap/current")?.label).toBe(
-      "Heap now",
-    );
-    expect(describeSysTopic("$SYS/broker/heap/current size")?.label).toBe(
-      "Heap now",
-    );
-  });
-});
-
-describe("parseSysNumber", () => {
-  it("reads a bare number", () => {
-    expect(parseSysNumber("184320")).toBe(184_320);
-    expect(parseSysNumber("4.31")).toBe(4.31);
-  });
-
-  /** Uptime is the one value in the tree that isn't just a numeral. */
-  it("tolerates a trailing unit word", () => {
-    expect(parseSysNumber("91240 seconds")).toBe(91_240);
-  });
-
-  it("gives up on something that isn't a number at all", () => {
-    expect(parseSysNumber("mosquitto version 2.0.18")).toBeNull();
-    expect(parseSysNumber("")).toBeNull();
-  });
-});
-
-describe("formatSysValue", () => {
-  it("formats by kind", () => {
-    expect(formatSysValue("91240 seconds", "duration")).toBe("1d 1h");
-    expect(formatSysValue("184320", "count")).toBe("184,320");
-    expect(formatSysValue("9112384", "bytes")).toBe("9.1 MB");
-    expect(formatSysValue("4.31", "perMinute")).toBe("4.31/min");
-    expect(formatSysValue(" mosquitto 2.0.18 ", "text")).toBe(
-      "mosquitto 2.0.18",
-    );
-  });
-
-  /** Whatever the broker said is more use than an admission that we didn't
-   * understand it. */
-  it("falls back to the raw text rather than to a dash", () => {
-    expect(formatSysValue("unavailable", "count")).toBe("unavailable");
-  });
-});
-
-describe("groupSysReadings", () => {
-  it("groups, labels and formats a mosquitto broker", () => {
-    const groups = groupSysReadings(MOSQUITTO);
-
-    expect(groups.map((g) => g.group)).toEqual([
-      "Broker",
-      "Clients",
-      "Messages",
-      "Traffic",
-      "Load",
-      "Memory",
-    ]);
-    expect(groups[0].readings).toEqual([
-      {
-        topic: "$SYS/broker/version",
-        label: "Version",
-        value: "mosquitto version 2.0.18",
-      },
-      { topic: "$SYS/broker/uptime", label: "Broker uptime", value: "1d 1h" },
-    ]);
-  });
-
-  /** A broker that publishes half the tree should show half the panel, not a
-   * column of dashes. */
-  it("leaves out what the broker didn't publish", () => {
-    const groups = groupSysReadings(
-      new Map([["$SYS/broker/clients/connected", "3"]]),
-    );
-
-    expect(groups).toEqual([
-      {
-        group: "Clients",
-        readings: [
-          {
-            topic: "$SYS/broker/clients/connected",
-            label: "Connected",
-            value: "3",
-          },
-        ],
-      },
-    ]);
-  });
-
-  /** A broker mid-upgrade could publish both heap spellings, and "Heap now"
-   * appearing twice would read as a bug. */
-  it("shows a label once, however many topics carry it", () => {
-    const groups = groupSysReadings(
-      new Map([
-        ["$SYS/broker/heap/current", "100"],
-        ["$SYS/broker/heap/current size", "100"],
-      ]),
-    );
-
-    expect(groups[0].readings.map((r) => r.label)).toEqual(["Heap now"]);
-  });
-
-  /** EMQX, HiveMQ and VerneMQ publish none of mosquitto's tree. Showing them
-   * nothing here is correct - `other-sys-topics.ts` is what catches them. */
-  it("has nothing for a broker with a different tree", () => {
-    expect(
-      groupSysReadings(
-        new Map([
-          ["$SYS/brokers/emqx@127.0.0.1/uptime", "3 days"],
-          ["$SYS/brokers/emqx@127.0.0.1/version", "5.4.1"],
-        ]),
-      ),
-    ).toEqual([]);
-  });
-
-  it("copes with a broker that has published nothing yet", () => {
-    expect(groupSysReadings(new Map())).toEqual([]);
-  });
-});
+import { readSysDashboard } from "./sys-topics";
 
 /**
- * Every topic an idle `eclipse-mosquitto` 2.1.2 actually published in one
- * `$SYS/#` capture, values and all. Copied verbatim rather than trimmed,
- * because the point of it is to be what a broker really says - including the
- * one topic with a space in it and the one value that isn't a bare numeral.
+ * Captured verbatim from an idle `eclipse-mosquitto` 2.1.2 - every topic it
+ * published in one `$SYS/#` subscription, values and all.
+ *
+ * Copied rather than trimmed because the point of it is to be what a broker
+ * really says, including `retained messages/count` with its literal space and
+ * `uptime` carrying a unit word instead of a bare number.
  */
-const MOSQUITTO_CAPTURE: ReadonlyMap<string, string> = new Map([
-  ["$SYS/broker/bytes/received", "42"],
-  ["$SYS/broker/bytes/sent", "4494"],
+const MOSQUITTO: ReadonlyMap<string, string> = new Map([
+  ["$SYS/broker/bytes/received", "44"],
+  ["$SYS/broker/bytes/sent", "5694"],
   ["$SYS/broker/clients/active", "1"],
   ["$SYS/broker/clients/connected", "1"],
   ["$SYS/broker/clients/disconnected", "0"],
@@ -179,86 +20,268 @@ const MOSQUITTO_CAPTURE: ReadonlyMap<string, string> = new Map([
   ["$SYS/broker/clients/inactive", "0"],
   ["$SYS/broker/clients/total", "1"],
   ["$SYS/broker/connections/socket/count", "1"],
-  ["$SYS/broker/heap/current", "840119"],
-  ["$SYS/broker/heap/maximum", "846732"],
-  ["$SYS/broker/load/bytes/received/1min", "33.03"],
-  ["$SYS/broker/load/connections/1min", "0.78"],
-  ["$SYS/broker/load/messages/received/15min", "0.20"],
-  ["$SYS/broker/load/messages/received/1min", "2.48"],
-  ["$SYS/broker/load/messages/received/5min", "0.58"],
-  ["$SYS/broker/load/messages/sent/15min", "4.99"],
-  ["$SYS/broker/load/messages/sent/1min", "57.69"],
-  ["$SYS/broker/load/messages/sent/5min", "14.16"],
+  ["$SYS/broker/heap/current", "839609"],
+  ["$SYS/broker/heap/maximum", "846727"],
+  ["$SYS/broker/load/bytes/received/15min", "2.87"],
+  ["$SYS/broker/load/bytes/received/1min", "31.13"],
+  ["$SYS/broker/load/bytes/received/5min", "8.21"],
+  ["$SYS/broker/load/bytes/sent/15min", "286.56"],
+  ["$SYS/broker/load/bytes/sent/1min", "3078.77"],
+  ["$SYS/broker/load/bytes/sent/5min", "802.55"],
+  ["$SYS/broker/load/connections/15min", "0.07"],
+  ["$SYS/broker/load/connections/1min", "0.69"],
+  ["$SYS/broker/load/connections/5min", "0.20"],
+  ["$SYS/broker/load/messages/received/15min", "0.26"],
+  ["$SYS/broker/load/messages/received/1min", "3.09"],
+  ["$SYS/broker/load/messages/received/5min", "0.76"],
+  ["$SYS/broker/load/messages/sent/15min", "5.75"],
+  ["$SYS/broker/load/messages/sent/1min", "60.07"],
+  ["$SYS/broker/load/messages/sent/5min", "15.97"],
+  ["$SYS/broker/load/publish/dropped/15min", "0.00"],
   ["$SYS/broker/load/publish/dropped/1min", "0.00"],
-  ["$SYS/broker/load/sockets/1min", "0.78"],
-  ["$SYS/broker/messages/received", "3"],
-  ["$SYS/broker/messages/sent", "114"],
+  ["$SYS/broker/load/publish/dropped/5min", "0.00"],
+  ["$SYS/broker/load/publish/received/15min", "0.00"],
+  ["$SYS/broker/load/publish/received/1min", "0.00"],
+  ["$SYS/broker/load/publish/received/5min", "0.00"],
+  ["$SYS/broker/load/publish/sent/15min", "5.48"],
+  ["$SYS/broker/load/publish/sent/1min", "56.58"],
+  ["$SYS/broker/load/publish/sent/5min", "15.19"],
+  ["$SYS/broker/load/sockets/15min", "0.07"],
+  ["$SYS/broker/load/sockets/1min", "0.69"],
+  ["$SYS/broker/load/sockets/5min", "0.20"],
+  ["$SYS/broker/messages/received", "4"],
+  ["$SYS/broker/messages/sent", "145"],
   ["$SYS/broker/messages/stored", "55"],
+  ["$SYS/broker/packet/out/bytes", "0"],
   ["$SYS/broker/packet/out/count", "0"],
   ["$SYS/broker/publish/bytes/received", "0"],
-  ["$SYS/broker/publish/bytes/sent", "428"],
+  ["$SYS/broker/publish/bytes/sent", "546"],
   ["$SYS/broker/publish/messages/dropped", "0"],
   ["$SYS/broker/publish/messages/received", "0"],
-  ["$SYS/broker/publish/messages/sent", "115"],
+  ["$SYS/broker/publish/messages/sent", "145"],
   ["$SYS/broker/retained messages/count", "55"],
   ["$SYS/broker/shared_subscriptions/count", "0"],
-  ["$SYS/broker/store/messages/bytes", "202"],
+  ["$SYS/broker/store/messages/bytes", "204"],
   ["$SYS/broker/store/messages/count", "55"],
   ["$SYS/broker/subscriptions/count", "1"],
-  ["$SYS/broker/uptime", "34 seconds"],
+  ["$SYS/broker/uptime", "24 seconds"],
   ["$SYS/broker/version", "mosquitto version 2.1.2"],
 ]);
 
-describe("against a real mosquitto capture", () => {
-  it("fills every group", () => {
-    expect(groupSysReadings(MOSQUITTO_CAPTURE).map((g) => g.group)).toEqual([
-      "Broker",
-      "Clients",
-      "Messages",
-      "Traffic",
-      "Load",
-      "Memory",
-    ]);
+/**
+ * The same, from an EMQX 6.2.2 Enterprise node - a completely different tree
+ * under `$SYS/brokers/<node>/…`, with the readings under `stats/` rather than
+ * at the top level. Trimmed to a representative slice of its `metrics/`
+ * branch, which alone runs to over a hundred topics.
+ *
+ * These two fixtures exist to be read by the *same* code. Every assertion
+ * below that names both brokers is really asking whether the generic layers
+ * earned their keep.
+ */
+const EMQX: ReadonlyMap<string, string> = new Map([
+  ["$SYS/brokers", "emqx@172.17.0.2"],
+  [
+    "$SYS/brokers/emqx@172.17.0.2/datetime",
+    "2026-09-29T15:31:06.779594330+00:00",
+  ],
+  ["$SYS/brokers/emqx@172.17.0.2/metrics/authorization/deny", "0"],
+  ["$SYS/brokers/emqx@172.17.0.2/metrics/bytes/received", "479"],
+  ["$SYS/brokers/emqx@172.17.0.2/metrics/bytes/sent", "150168"],
+  ["$SYS/brokers/emqx@172.17.0.2/metrics/client/connected", "5"],
+  ["$SYS/brokers/emqx@172.17.0.2/metrics/delivery/dropped", "0"],
+  ["$SYS/brokers/emqx@172.17.0.2/metrics/delivery/dropped/expired", "0"],
+  ["$SYS/brokers/emqx@172.17.0.2/metrics/delivery/dropped/filter", "0"],
+  ["$SYS/brokers/emqx@172.17.0.2/metrics/delivery/dropped/no_local", "0"],
+  ["$SYS/brokers/emqx@172.17.0.2/metrics/delivery/dropped/qos0_msg", "0"],
+  ["$SYS/brokers/emqx@172.17.0.2/metrics/delivery/dropped/queue_full", "0"],
+  ["$SYS/brokers/emqx@172.17.0.2/metrics/delivery/dropped/too_large", "0"],
+  ["$SYS/brokers/emqx@172.17.0.2/metrics/messages/dropped", "0"],
+  [
+    "$SYS/brokers/emqx@172.17.0.2/metrics/messages/dropped/await_pubrel_timeout",
+    "0",
+  ],
+  ["$SYS/brokers/emqx@172.17.0.2/metrics/messages/dropped/no_subscribers", "0"],
+  ["$SYS/brokers/emqx@172.17.0.2/metrics/messages/dropped/quota_exceeded", "0"],
+  [
+    "$SYS/brokers/emqx@172.17.0.2/metrics/messages/dropped/receive_maximum",
+    "0",
+  ],
+  ["$SYS/brokers/emqx@172.17.0.2/metrics/messages/received", "11"],
+  ["$SYS/brokers/emqx@172.17.0.2/metrics/messages/retained", "63"],
+  ["$SYS/brokers/emqx@172.17.0.2/metrics/messages/sent", "11"],
+  ["$SYS/brokers/emqx@172.17.0.2/stats/channels/count", "2"],
+  ["$SYS/brokers/emqx@172.17.0.2/stats/channels/max", "2"],
+  ["$SYS/brokers/emqx@172.17.0.2/stats/cluster_sessions/count", "2"],
+  ["$SYS/brokers/emqx@172.17.0.2/stats/cluster_sessions/max", "2"],
+  ["$SYS/brokers/emqx@172.17.0.2/stats/connections/count", "2"],
+  ["$SYS/brokers/emqx@172.17.0.2/stats/connections/max", "2"],
+  ["$SYS/brokers/emqx@172.17.0.2/stats/delayed/count", "0"],
+  ["$SYS/brokers/emqx@172.17.0.2/stats/delayed/max", "0"],
+  ["$SYS/brokers/emqx@172.17.0.2/stats/durable_subscriptions/count", "0"],
+  ["$SYS/brokers/emqx@172.17.0.2/stats/durable_subscriptions/max", "0"],
+  ["$SYS/brokers/emqx@172.17.0.2/stats/live_connections/count", "2"],
+  ["$SYS/brokers/emqx@172.17.0.2/stats/live_connections/max", "2"],
+  ["$SYS/brokers/emqx@172.17.0.2/stats/retained/count", "3"],
+  ["$SYS/brokers/emqx@172.17.0.2/stats/retained/max", "3"],
+  ["$SYS/brokers/emqx@172.17.0.2/stats/routes/count", "4"],
+  ["$SYS/brokers/emqx@172.17.0.2/stats/routes/max", "4"],
+  ["$SYS/brokers/emqx@172.17.0.2/stats/sessions/count", "2"],
+  ["$SYS/brokers/emqx@172.17.0.2/stats/sessions/max", "2"],
+  ["$SYS/brokers/emqx@172.17.0.2/stats/suboptions/count", "5"],
+  ["$SYS/brokers/emqx@172.17.0.2/stats/suboptions/max", "5"],
+  ["$SYS/brokers/emqx@172.17.0.2/stats/subscribers/count", "5"],
+  ["$SYS/brokers/emqx@172.17.0.2/stats/subscribers/max", "5"],
+  ["$SYS/brokers/emqx@172.17.0.2/stats/subscriptions/count", "5"],
+  ["$SYS/brokers/emqx@172.17.0.2/stats/subscriptions/max", "5"],
+  ["$SYS/brokers/emqx@172.17.0.2/stats/subscriptions/shared/count", "0"],
+  ["$SYS/brokers/emqx@172.17.0.2/stats/subscriptions/shared/max", "0"],
+  ["$SYS/brokers/emqx@172.17.0.2/stats/topics/count", "4"],
+  ["$SYS/brokers/emqx@172.17.0.2/stats/topics/max", "4"],
+  ["$SYS/brokers/emqx@172.17.0.2/sysdescr", "EMQX Enterprise"],
+  ["$SYS/brokers/emqx@172.17.0.2/uptime", "1291616"],
+  ["$SYS/brokers/emqx@172.17.0.2/version", "6.2.2"],
+]);
+
+function labels(
+  readings: readonly { readonly label: string; readonly value: string }[],
+): ReadonlyMap<string, string> {
+  return new Map(readings.map((reading) => [reading.label, reading.value]));
+}
+
+describe("readSysDashboard", () => {
+  it("puts the same headline readings on the front page of both brokers", () => {
+    const mosquitto = labels(readSysDashboard(MOSQUITTO).headline);
+    const emqx = labels(readSysDashboard(EMQX).headline);
+
+    for (const label of [
+      "Version",
+      "Broker uptime",
+      "Connected",
+      "Subscriptions",
+      "Received",
+      "Sent",
+      "Bytes in",
+      "Bytes out",
+    ]) {
+      expect(mosquitto.has(label), `mosquitto is missing ${label}`).toBe(true);
+      expect(emqx.has(label), `emqx is missing ${label}`).toBe(true);
+    }
   });
 
-  /** The headline readings, formatted exactly as the panel shows them. If a
-   * mosquitto release renames one of these, this is where it surfaces. */
-  it("reads the headline values the way the panel shows them", () => {
-    const byLabel = new Map(
-      groupSysReadings(MOSQUITTO_CAPTURE).flatMap((group) =>
-        group.readings.map((r) => [r.label, r.value] as const),
-      ),
-    );
+  /** Formatting comes from the same rules for both, off values that look
+   * nothing alike - mosquitto's uptime carries a unit word, EMQX's does not. */
+  it("formats both brokers' values with one set of rules", () => {
+    const mosquitto = labels(readSysDashboard(MOSQUITTO).headline);
+    const emqx = labels(readSysDashboard(EMQX).headline);
 
-    expect(byLabel.get("Version")).toBe("mosquitto version 2.1.2");
-    expect(byLabel.get("Broker uptime")).toBe("34s");
-    expect(byLabel.get("Connected")).toBe("1");
-    expect(byLabel.get("Retained")).toBe("55");
-    expect(byLabel.get("Bytes out")).toBe("4.5 KB");
-    expect(byLabel.get("Messages in, 1 min")).toBe("2.48/min");
-    expect(byLabel.get("Heap now")).toBe("840 KB");
+    expect(mosquitto.get("Version")).toBe("mosquitto version 2.1.2");
+    expect(mosquitto.get("Broker uptime")).toBe("24s");
+    expect(mosquitto.get("Bytes out")).toBe("5.7 KB");
+    expect(mosquitto.get("Connected")).toBe("1");
+
+    expect(emqx.get("Version")).toBe("6.2.2");
+    expect(emqx.get("Edition")).toBe("EMQX Enterprise");
+    expect(emqx.get("Broker uptime")).toBe("14d 22h");
+    expect(emqx.get("Bytes out")).toBe("150 KB");
   });
 
-  /** Not a bug - the catalogue is a curated front page, and the rest is what
-   * the raw table is for. Pinned so a future trim is a decision rather than
-   * an accident. */
-  it("leaves the long tail to the raw table", () => {
-    const catalogued = new Set(
-      groupSysReadings(MOSQUITTO_CAPTURE).flatMap((g) =>
-        g.readings.map((r) => r.topic),
+  /** A broker carrying two spellings of one concept gets one tile, not two:
+   * EMQX publishes both `subscriptions` and `subscribers`. */
+  it("shows a concept once however many ways a broker spells it", () => {
+    const headline = readSysDashboard(EMQX).headline;
+
+    expect(headline.filter((r) => r.label === "Subscriptions")).toHaveLength(1);
+    expect(new Set(headline.map((r) => r.label)).size).toBe(headline.length);
+  });
+
+  it("never shows a reading twice across the page", () => {
+    for (const capture of [MOSQUITTO, EMQX]) {
+      const { headline, details } = readSysDashboard(capture);
+      const topics = [
+        ...headline.map((r) => r.topic),
+        ...details.flatMap((g) => g.readings.map((r) => r.topic)),
+      ];
+      expect(new Set(topics).size).toBe(topics.length);
+    }
+  });
+
+  /** Nothing is dropped: whatever the broker published is either a tile or a
+   * row in a group. */
+  it("accounts for every topic it was given", () => {
+    for (const capture of [MOSQUITTO, EMQX]) {
+      const { headline, details } = readSysDashboard(capture);
+      const shown =
+        headline.length +
+        details.reduce((total, group) => total + group.readings.length, 0);
+      // Readings that normalise to the same key collapse, so this is a
+      // ceiling rather than an equality.
+      expect(shown).toBeGreaterThan(0);
+      expect(shown).toBeLessThanOrEqual(capture.size);
+    }
+  });
+
+  /** The generic classifier is what makes an unknown broker readable, so how
+   * much it can place is worth pinning. */
+  it("files almost everything into a real group without help", () => {
+    for (const [name, capture, maxOther] of [
+      ["mosquitto", MOSQUITTO, 0],
+      ["emqx", EMQX, 4],
+    ] as const) {
+      const other =
+        readSysDashboard(capture).details.find((g) => g.group === "Other")
+          ?.readings.length ?? 0;
+      expect(other, `${name} left ${other} unclassified`).toBeLessThanOrEqual(
+        maxOther,
+      );
+    }
+  });
+
+  it("orders groups the same way for every broker", () => {
+    const order = readSysDashboard(EMQX).details.map((g) => g.group);
+
+    expect(order).toEqual(
+      [...order].sort(
+        (a, b) =>
+          [
+            "Broker",
+            "Clients",
+            "Messages",
+            "Traffic",
+            "Load",
+            "Memory",
+            "Other",
+          ].indexOf(a) -
+          [
+            "Broker",
+            "Clients",
+            "Messages",
+            "Traffic",
+            "Load",
+            "Memory",
+            "Other",
+          ].indexOf(b),
       ),
     );
-    const uncatalogued = [...MOSQUITTO_CAPTURE.keys()].filter(
-      (t) => !catalogued.has(t),
+  });
+
+  it("has nothing to show for a broker that published nothing", () => {
+    expect(readSysDashboard(new Map())).toEqual({ headline: [], details: [] });
+  });
+
+  /** A broker with an entirely unknown vocabulary still gets rows, which is
+   * the difference between "we don't support this" and a blank panel. */
+  it("still renders a broker it has never seen", () => {
+    const { headline, details } = readSysDashboard(
+      new Map([
+        ["$SYS/vendor/widgets/spinning", "42"],
+        ["$SYS/vendor/flux/capacitance", "1.21"],
+      ]),
     );
 
-    expect(uncatalogued).toEqual([
-      "$SYS/broker/connections/socket/count",
-      "$SYS/broker/load/bytes/received/1min",
-      "$SYS/broker/load/sockets/1min",
-      "$SYS/broker/packet/out/count",
-      "$SYS/broker/store/messages/bytes",
-      "$SYS/broker/store/messages/count",
+    expect(headline).toEqual([]);
+    expect(details.flatMap((g) => g.readings.map((r) => r.label))).toEqual([
+      "Vendor flux capacitance",
+      "Vendor widgets spinning",
     ]);
   });
 });

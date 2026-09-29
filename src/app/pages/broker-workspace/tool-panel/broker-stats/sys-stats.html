@@ -30,36 +30,43 @@
   Nothing on <code>$SYS</code> yet. This broker may not publish it, or your user
   may not be permitted to read it.
 </p>
-} @case ("ready") { @for (group of groups(); track group.group) {
-<h4 class="group-label">{{ group.group }}</h4>
+} @case ("ready") { @if (headline().length > 0) {
 <div class="tile-grid">
-  @for (reading of group.readings; track reading.topic) {
+  @for (reading of headline(); track reading.topic) {
   <app-stat-tile
     [label]="reading.label"
     [value]="reading.value"
-    [series]="sparklineFor(reading.topic)"
+    [series]="sparklineFor(reading)"
   />
   }
 </div>
-} @if (others().length > 0) {
+} @else {
+<p class="empty">
+  bme doesn't recognise this broker's <code>$SYS</code> layout, so there is
+  nothing to put on the front page. Everything it publishes is below, grouped
+  and labelled as well as it can be.
+</p>
+} @for (group of details(); track group.group) {
 <div
-  class="others-toggle"
-  [class.open]="othersOpen()"
-  (click)="othersOpen.set(!othersOpen())"
-  (keydown.enter)="othersOpen.set(!othersOpen())"
+  class="group-toggle"
+  [class.open]="isGroupOpen(group.group)"
+  (click)="toggleGroup(group.group)"
+  (keydown.enter)="toggleGroup(group.group)"
   role="button"
   tabindex="0"
-  [attr.aria-expanded]="othersOpen()"
+  [attr.aria-expanded]="isGroupOpen(group.group)"
 >
   <span class="chevron">›</span>
-  Other $SYS topics ({{ others().length }})
+  {{ group.group }} ({{ group.readings.length }})
 </div>
-@if (othersOpen()) {
-<ul class="others">
-  @for (entry of others(); track entry.topic) {
-  <li class="other-row">
-    <span class="other-topic" [title]="entry.topic">{{ entry.topic }}</span>
-    <span class="other-value">{{ entry.value }}</span>
+@if (isGroupOpen(group.group)) {
+<ul class="readings">
+  @for (reading of group.readings; track reading.topic) {
+  <li class="reading-row">
+    <span class="reading-label" [title]="reading.topic"
+      >{{ reading.label }}</span
+    >
+    <span class="reading-value">{{ reading.value }}</span>
   </li>
   }
 </ul>

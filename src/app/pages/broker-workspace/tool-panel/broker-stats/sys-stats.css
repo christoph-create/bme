@@ -21,15 +21,6 @@
   text-transform: uppercase;
 }
 
-/* A quieter label for the groups inside the section, so the tiles don't read
-   as six sections of their own. */
-.group-label {
-  margin: 2px 0 0;
-  font-size: 10.5px;
-  font-weight: 600;
-  color: var(--color-text-faint);
-}
-
 .tile-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
@@ -80,7 +71,7 @@
   color: var(--color-text-tertiary);
 }
 
-.others-toggle {
+.group-toggle {
   display: flex;
   align-items: center;
   gap: 4px;
@@ -92,7 +83,7 @@
   user-select: none;
 }
 
-.others-toggle:hover {
+.group-toggle:hover {
   color: var(--color-text);
 }
 
@@ -103,7 +94,7 @@
   transition: transform 120ms ease;
 }
 
-.others-toggle.open .chevron {
+.group-toggle.open .chevron {
   transform: rotate(90deg);
 }
 
@@ -113,7 +104,7 @@
   }
 }
 
-.others {
+.readings {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -122,32 +113,22 @@
   gap: 3px;
 }
 
-.other-row {
+.reading-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: baseline;
   gap: 8px;
 }
 
-.other-topic {
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  color: var(--color-text-quaternary);
+.reading-label {
+  font-size: 11px;
+  color: var(--color-text-secondary);
   white-space: nowrap;
   overflow: hidden;
-  /* Ellipsed at the front: these topics differ at the leaf, and a column of
-     `$SYS/brokers/emqx@127.0…` says nothing. `plaintext` is load-bearing -
-     `direction: rtl` alone moves a leading neutral character to the end, so
-     `$SYS/...` renders as `SYS/...$`. It lets the run's own first strong
-     character decide the text direction while the ellipsis still follows the
-     box's. */
-  direction: rtl;
-  unicode-bidi: plaintext;
-  text-align: left;
   text-overflow: ellipsis;
 }
 
-.other-value {
+.reading-value {
   font-family: var(--font-mono);
   font-size: 10.5px;
   color: var(--color-text-secondary);

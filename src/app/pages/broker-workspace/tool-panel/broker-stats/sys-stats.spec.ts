@@ -122,7 +122,7 @@ describe("SysStats", () => {
     expect(text(fixture)).toContain("not be permitted to read it");
   });
 
-  it("groups, labels and formats what the broker published", async () => {
+  it("labels and formats what the broker published", async () => {
     const { fixture } = await setup({
       monitoring: true,
       topics: {
@@ -133,36 +133,86 @@ describe("SysStats", () => {
       },
     });
 
-    const groups = [
-      ...fixture.nativeElement.querySelectorAll(".group-label"),
-    ].map((el: HTMLElement) => el.textContent?.trim());
-    expect(groups).toEqual(["Broker", "Clients"]);
-    expect(text(fixture)).toContain("1d 1h");
+    const tiles = [
+      ...fixture.nativeElement.querySelectorAll("app-stat-tile"),
+    ].map((tile: HTMLElement) => [
+      tile.querySelector(".tile-label")?.textContent?.trim(),
+      tile.querySelector(".tile-value")?.textContent?.trim(),
+    ]);
+    expect(tiles).toEqual([
+      ["Version", "mosquitto version 2.0.18"],
+      ["Broker uptime", "1d 1h"],
+      ["Connected", "17"],
+    ]);
     // The user's own topics are none of this section's business.
     expect(text(fixture)).not.toContain("temperature");
   });
 
-  /** The whole point of the raw table: EMQX, HiveMQ and VerneMQ publish none
-   * of mosquitto's tree and would otherwise show an empty panel. */
-  it("falls back to a raw table for a broker it doesn't recognise", async () => {
+  /** An EMQX tree reaches the same tiles as mosquitto's, with no code that
+   * knows either broker's name - that is what the normalise-then-classify
+   * layers are for. */
+  it("reads a broker with a completely different tree", async () => {
     const { fixture } = await setup({
       monitoring: true,
       topics: {
         "$SYS/brokers/emqx@127.0.0.1/version": topic("5.4.1"),
-        "$SYS/brokers/emqx@127.0.0.1/uptime": topic("3 days"),
+        "$SYS/brokers/emqx@127.0.0.1/uptime": topic("91240"),
+        "$SYS/brokers/emqx@127.0.0.1/stats/connections/count": topic("17"),
       },
     });
 
-    const toggle = fixture.nativeElement.querySelector(".others-toggle");
-    expect(toggle.textContent).toContain("Other $SYS topics (2)");
+    const tiles = [
+      ...fixture.nativeElement.querySelectorAll("app-stat-tile"),
+    ].map((tile: HTMLElement) => [
+      tile.querySelector(".tile-label")?.textContent?.trim(),
+      tile.querySelector(".tile-value")?.textContent?.trim(),
+    ]);
+    expect(tiles).toEqual([
+      ["Version", "5.4.1"],
+      ["Broker uptime", "1d 1h"],
+      ["Connected", "17"],
+    ]);
+  });
 
-    // Collapsed by default - it is a fallback, not the headline.
-    expect(fixture.nativeElement.querySelector(".others")).toBeNull();
-    toggle.click();
+  /** Anything not promoted to a tile is still grouped and labelled, behind a
+   * toggle per group - collapsed, because a broker can publish a hundred of
+   * them. */
+  it("puts the rest behind a toggle per group", async () => {
+    const { fixture } = await setup({
+      monitoring: true,
+      topics: {
+        "$SYS/broker/clients/expired": topic("4"),
+        "$SYS/broker/load/messages/sent/5min": topic("14.16"),
+      },
+    });
+
+    const toggles = [
+      ...fixture.nativeElement.querySelectorAll(".group-toggle"),
+    ].map((el: HTMLElement) => el.textContent?.replace(/\s+/g, " ").trim());
+    expect(toggles).toEqual(["› Clients (1)", "› Load (1)"]);
+    expect(fixture.nativeElement.querySelector(".readings")).toBeNull();
+
+    fixture.nativeElement.querySelector(".group-toggle").click();
     fixture.detectChanges();
 
-    expect(text(fixture)).toContain("$SYS/brokers/emqx@127.0.0.1/version");
-    expect(text(fixture)).toContain("5.4.1");
+    expect(text(fixture)).toContain("Clients expired");
+    expect(text(fixture)).toContain("4");
+  });
+
+  /** The difference between "we don't support this broker" and a blank
+   * panel. */
+  it("says so when it recognises none of what a broker sent", async () => {
+    const { fixture } = await setup({
+      monitoring: true,
+      topics: { "$SYS/vendor/flux/capacitance": topic("1.21") },
+    });
+
+    expect(text(fixture)).toContain("doesn't recognise this broker");
+
+    fixture.nativeElement.querySelector(".group-toggle").click();
+    fixture.detectChanges();
+
+    expect(text(fixture)).toContain("Vendor flux capacitance");
   });
 
   it("draws a sparkline where the shape says more than the number", async () => {

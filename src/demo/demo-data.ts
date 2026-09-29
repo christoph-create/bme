@@ -462,9 +462,9 @@ export const DEMO_TIMELINES: Readonly<Record<string, readonly DemoMessage[]>> =
  * exactly. The magnitudes are dressed up into a plausible household broker;
  * the awkward spellings are not.
  *
- * Three topics here are deliberately *not* in the catalogue, so the shot
- * shows the "Other $SYS topics" fallback doing its job - the thing that
- * keeps a non-mosquitto broker from looking broken.
+ * Three topics here are deliberately not among the curated concepts, so the
+ * shot shows the generic layer doing its job: they still get a group, a label
+ * and a unit, and land in the collapsible lists below the tiles.
  *
  * Fixed values, never generated: the screenshots are byte-identical between
  * runs, and that is the only signal that a UI change was intentional.

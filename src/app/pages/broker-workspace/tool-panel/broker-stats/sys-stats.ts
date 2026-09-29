@@ -16,21 +16,16 @@ import { StoredMessage } from "../../../../core/models/stored-message.model";
 import { MessageStoreService } from "../../../../core/services/message-store.service";
 import { SystemMonitorService } from "../../../../core/services/system-monitor.service";
 import { formatPayloadPreview } from "../../format/payload-text";
-import { OtherSysTopic, otherSysTopics } from "./other-sys-topics";
 import { StatTile } from "./stat-tile";
+import { SysGroup } from "./sys-classify";
+import { SPARKLINE_CONCEPTS } from "./sys-concepts";
 import { sysDashboardState } from "./sys-dashboard-state";
 import {
-  SysGroupReadings,
-  groupSysReadings,
+  SysDashboard,
+  SysReading,
   parseSysNumber,
+  readSysDashboard,
 } from "./sys-topics";
-
-/** The handful of readings where the shape over time says more than the
- * number: how busy the broker is, and whether clients are coming and going. */
-const SPARKLINE_TOPICS: ReadonlySet<string> = new Set([
-  "$SYS/broker/clients/connected",
-  "$SYS/broker/load/messages/received/1min",
-]);
 
 const TICK_INTERVAL_MS = 1000;
 
@@ -69,7 +64,10 @@ export class SysStats {
 
   readonly busy = signal(false);
   readonly error = signal<string | null>(null);
-  readonly othersOpen = signal(false);
+  /** Detail groups the user has opened. Collapsed by default: a broker can
+   * publish a hundred-odd readings, and the tiles above are the answer to
+   * "how is it doing". */
+  readonly openGroups = signal<ReadonlySet<SysGroup>>(new Set());
 
   readonly monitoring = computed(() =>
     this.monitor.isMonitoring(this.connectionId()),
@@ -88,13 +86,14 @@ export class SysStats {
     return latest;
   });
 
-  readonly groups = computed<readonly SysGroupReadings[]>(() =>
-    groupSysReadings(this.latest()),
+  private readonly dashboard = computed<SysDashboard>(() =>
+    readSysDashboard(this.latest()),
   );
 
-  readonly others = computed<readonly OtherSysTopic[]>(() =>
-    otherSysTopics(this.latest()),
+  readonly headline = computed<readonly SysReading[]>(
+    () => this.dashboard().headline,
   );
+  readonly details = computed(() => this.dashboard().details);
 
   readonly state = computed(() => {
     const since = this.watchingSince();
@@ -136,11 +135,14 @@ export class SysStats {
     });
   }
 
-  sparklineFor(topic: string): readonly number[] {
-    if (!SPARKLINE_TOPICS.has(topic)) {
+  sparklineFor(reading: SysReading): readonly number[] {
+    if (
+      reading.conceptId === undefined ||
+      !SPARKLINE_CONCEPTS.has(reading.conceptId)
+    ) {
       return [];
     }
-    const messages = this.topics().get(topic) ?? [];
+    const messages = this.topics().get(reading.topic) ?? [];
     const series: number[] = [];
     for (const message of messages) {
       const value = parseSysNumber(
@@ -151,6 +153,20 @@ export class SysStats {
       }
     }
     return series;
+  }
+
+  isGroupOpen(group: SysGroup): boolean {
+    return this.openGroups().has(group);
+  }
+
+  toggleGroup(group: SysGroup): void {
+    this.openGroups.update((open) => {
+      const next = new Set(open);
+      if (!next.delete(group)) {
+        next.add(group);
+      }
+      return next;
+    });
   }
 
   async toggleMonitoring(): Promise<void> {
