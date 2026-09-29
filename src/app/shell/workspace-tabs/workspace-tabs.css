@@ -46,8 +46,16 @@
 }
 
 .tab {
+  position: relative;
   border-right: 1px solid var(--color-border-faint);
   max-width: 200px;
+  /* Dragging a tab otherwise sweeps a text selection across the labels. */
+  user-select: none;
+  /* Only ever runs on release: a dropped tab slides the last few pixels into
+     its slot rather than snapping there. Its slot is a place in a flex row, so
+     the tabs it displaced have nothing to animate and move at once - the one
+     in hand is the one being followed anyway. */
+  transition: transform 130ms ease-out;
 }
 
 .tab-name {
@@ -69,4 +77,24 @@
   color: var(--color-text);
   background: var(--color-surface-hover);
   border-top-color: var(--color-accent);
+}
+
+/* Picked up: carried by the pointer, which the transform binding drives pixel
+   for pixel, and raised over the tabs it slides across. Deliberately not faded
+   - the tab in hand is the real one, not a ghost of it, and the movement is
+   already the whole signal. */
+.tab.dragging {
+  /* Chasing the pointer instead of sitting under it is the one thing a drag
+     must not do, so nothing is interpolated while it is live. */
+  transition: none;
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+  z-index: 2;
+  cursor: grabbing;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab {
+    transition: none;
+  }
 }

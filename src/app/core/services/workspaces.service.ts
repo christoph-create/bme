@@ -2,6 +2,7 @@ import { Injectable, computed, inject, signal } from "@angular/core";
 
 import { BrokerConnection } from "../models/broker-connection.model";
 import { nextActiveId } from "../workspaces/next-active-tab";
+import { moveTab } from "../workspaces/reorder-tabs";
 import { ConnectionsService } from "./connections.service";
 import { MessageStoreService } from "./message-store.service";
 import { SessionStatsService } from "./session-stats.service";
@@ -53,6 +54,17 @@ export class WorkspacesService {
    * does, so coming back finds the tabs as they were. */
   deactivate(): void {
     this.active.set(null);
+  }
+
+  /**
+   * Moves the tab at `from` to `to`, as dragging one along the strip does.
+   *
+   * Leaves the active workspace alone: rearranging the tabs is not the same
+   * gesture as switching to one, and dragging the tab you are looking at
+   * should not pull the view out from under you either.
+   */
+  reorder(from: number, to: number): void {
+    this.ids.update((ids) => moveTab(ids, from, to));
   }
 
   /**

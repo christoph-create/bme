@@ -23,8 +23,11 @@
     type="button"
     class="tab"
     [class.active]="activeId() === id"
+    [class.dragging]="draggingId() === id"
+    [style.transform]="transformOf(id)"
     [attr.aria-current]="activeId() === id ? 'page' : null"
     [title]="nameOf(id)"
+    (pointerdown)="onTabPointerDown($event, id)"
     (click)="activate(id)"
   >
     <app-status-dot [status]="statusOf(id)" />
