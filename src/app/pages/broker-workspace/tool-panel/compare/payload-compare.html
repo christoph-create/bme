@@ -1,0 +1,93 @@
+<div class="chip-row">
+  <div class="mode" role="status">
+    <span class="mode-chip" [class.selected]="!pinned()">Live</span>
+    @if (pinned()) {
+      <span class="mode-chip selected">
+        Pinned
+        <button
+          type="button"
+          class="unpin"
+          title="Unpin and follow the newest message again"
+          aria-label="Unpin and follow the newest message again"
+          (click)="unpin()"
+        >
+          ✕
+        </button>
+      </span>
+    }
+  </div>
+  @if (paused()) {
+    <span class="paused-note">Paused</span>
+  }
+</div>
+
+@if (selectedTopic(); as topic) {
+  <div class="topic mono" [title]="topic">{{ topic }}</div>
+}
+
+@switch (face()) {
+  @case ("no-topic") {
+    <p class="empty">Select a topic in the tree to compare its messages.</p>
+  }
+  @case ("no-messages") {
+    <p class="empty">No messages on <strong>{{ selectedTopic() }}</strong> yet.</p>
+  }
+  @case ("single-message") {
+    <p class="empty">
+      Only one message on <strong>{{ selectedTopic() }}</strong> so far —
+      nothing to compare it against yet.
+    </p>
+  }
+  @default {
+    <div class="sides" [class.wide]="wide()">
+      <div class="side">
+        <span class="slot">A</span>
+        <span class="side-time mono">{{ beforeLabel() }}</span>
+        <span class="side-role">{{ pinned() ? "baseline" : "previous" }}</span>
+      </div>
+      <div class="side">
+        <span class="slot">B</span>
+        <span class="side-time mono">{{ afterLabel() }}</span>
+        <span class="side-role">{{ afterRole() }}</span>
+      </div>
+    </div>
+
+    @if (reversed()) {
+      <p class="note">The baseline is newer than the message it is compared with.</p>
+    }
+
+    @if (summary(); as counts) {
+      <div class="summary mono">{{ counts }}</div>
+    }
+
+    @switch (face()) {
+      @case ("awaiting-newer") {
+        <p class="empty">
+          Baseline pinned. Waiting for the next message on
+          <strong>{{ selectedTopic() }}</strong>.
+        </p>
+      }
+      @case ("not-diffable") {
+        <ul class="reasons">
+          @for (entry of notDiffableReasons(); track entry.slot) {
+            <li><span class="slot">{{ entry.slot }}</span> {{ entry.reason }}</li>
+          }
+        </ul>
+      }
+      @case ("identical") {
+        <p class="empty">Identical payloads. {{ identicalNote() }}</p>
+      }
+      @case ("json") {
+        <app-json-diff-table [rows]="jsonRows()" [wide]="wide()" />
+      }
+      @case ("lines") {
+        @if (mixedFormats()) {
+          <p class="note">One side isn't JSON — showing a line diff.</p>
+        }
+        @if (lineDiff(); as diff) {
+          <app-line-diff-view [diff]="diff" />
+        }
+      }
+    }
+  }
+}

@@ -19,6 +19,7 @@ import {
 } from "@angular/core";
 import { Subscription } from "rxjs";
 
+import { ComparePins } from "../../../core/models/compare-pin.model";
 import { MessageDraft } from "../../../core/models/message-draft.model";
 import { qosNumber } from "../../../core/models/qos";
 import { StoredMessage } from "../../../core/models/stored-message.model";
@@ -31,6 +32,7 @@ import { FormattedPayload } from "../../../shared/formatted-payload/formatted-pa
 import { formatClockTime } from "../format/clock-time";
 import { formatMessageBody, formatTruncationNote } from "../format/payload-text";
 import { formatTimeAgo } from "../format/time-ago";
+import { pinSlot } from "../tool-panel/compare/compare-pins";
 import { formatPropertyRows, PropertyRow } from "./format-properties";
 import { filterMessageViews } from "./filter-message-views";
 import { MeasureHeight } from "./measure-height.directive";
@@ -91,7 +93,18 @@ export class MessageStream {
    * either way; hidden it just stops trusting what the DOM reports about its
    * own size, and restores its scroll position when it comes back. */
   readonly active = input(true);
+  /** The messages frozen for the compare tool, so the cards they came from
+   * can say which column they feed. */
+  readonly comparePins = input<ComparePins | null>(null);
   readonly resendRequested = output<MessageDraft>();
+  /** The message the user asked to compare.
+   *
+   * The raw `StoredMessage`, not a `MessageView` (a render artefact) and not
+   * a pin (the toggle policy belongs in one place, next to its own spec).
+   * Fires on every click including on an already-pinned message, because the
+   * workspace also has to reveal the tool - the same reason `resendRequested`
+   * can fire twice for one message. */
+  readonly compareRequested = output<StoredMessage>();
 
   private readonly messageStore = inject(MessageStoreService);
   private readonly jsonFormat = inject(JsonFormatService);
@@ -429,6 +442,36 @@ export class MessageStream {
     // The zero-length publish comes back as ordinary traffic with the retain
     // flag clear, so nothing would otherwise retract the mark.
     this.messageStore.forgetRetained(this.connectionId(), topic);
+  }
+
+  /**
+   * Which compare column a message feeds, or null when it is not pinned.
+   *
+   * A method rather than a field on `MessageView`: the views are memoized on
+   * the message list, and pinning has to re-badge a card without rebuilding
+   * every view. Three reference comparisons across the ~15 mounted cards.
+   */
+  pinSlotOf(message: StoredMessage): "A" | "B" | null {
+    return pinSlot(this.comparePins(), this.topic(), message);
+  }
+
+  compareTitle(message: StoredMessage): string {
+    const slot = this.pinSlotOf(message);
+    if (slot === "A") {
+      return "Unpin this baseline and follow the newest message again";
+    }
+    if (slot === "B") {
+      return "Stop comparing this message and follow the newest one again";
+    }
+    return "Compare this message in the tools panel";
+  }
+
+  /** Deliberately available for binary, empty and truncated payloads, unlike
+   * Resend: publishing a label would be a lie on the wire, but pinning one is
+   * harmless, and the compare tool explains the problem far better than a
+   * greyed-out control with a tooltip. */
+  requestCompare(message: StoredMessage): void {
+    this.compareRequested.emit(message);
   }
 
   resend(draft: MessageDraft | null): void {

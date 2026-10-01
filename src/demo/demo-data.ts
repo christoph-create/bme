@@ -410,7 +410,19 @@ export const DEMO_TIMELINE: readonly DemoMessage[] = [
     "AtMostOnce",
   ),
   climateReading('{"temperature": 21.3, "humidity": 48, "battery": 92}', 4_800),
-  climateReading('{"temperature": 21.5, "humidity": 48, "battery": 92}', 6_100),
+  // The last two readings carry a field each that the other does not, so the
+  // compare tool's latest-vs-previous diff shows all three of its markers
+  // (changed, added, removed) with something left behind the collapsed
+  // unchanged count. Both are strings, so `findNumericFields` ignores them
+  // and the chart picker is unaffected.
+  climateReading(
+    '{"temperature": 21.5, "humidity": 48, "battery": 92, "lastError": "E07"}',
+    6_100,
+  ),
+  climateReading(
+    '{"temperature": 21.8, "humidity": 48, "battery": 92, "status": "charging"}',
+    5_400,
+  ),
 ];
 
 /** The office broker's traffic. Shorter and visibly different from the home

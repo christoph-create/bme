@@ -457,6 +457,50 @@ describe("MessageStoreService", () => {
     });
   });
 
+  /**
+   * Three features key caches and user-visible state on the `StoredMessage`
+   * reference - the message stream's measured row heights, value-chart-card's
+   * parse cache, and the compare tool's pin. There is no message id to use
+   * instead, so this is the invariant they all rest on, and nothing else
+   * asserts it: a `.map()` added to `append` would break the pin silently,
+   * mid-session.
+   */
+  describe("message identity", () => {
+    it("keeps existing message objects across an append", async () => {
+      const { events$, store } = setup();
+
+      events$.next({ MessageReceived: messageReceived({ payload: [1] }) });
+      const [first] = await firstValueFrom(
+        store.messagesFor(CONNECTION_A, "sensors/temp"),
+      );
+
+      events$.next({ MessageReceived: messageReceived({ payload: [2] }) });
+      const after = await firstValueFrom(
+        store.messagesFor(CONNECTION_A, "sensors/temp"),
+      );
+
+      expect(after[0]).toBe(first);
+    });
+
+    it("keeps them across an append that evicts the oldest", async () => {
+      const { events$, store } = setup(2);
+
+      events$.next({ MessageReceived: messageReceived({ payload: [1] }) });
+      events$.next({ MessageReceived: messageReceived({ payload: [2] }) });
+      const [, second] = await firstValueFrom(
+        store.messagesFor(CONNECTION_A, "sensors/temp"),
+      );
+
+      events$.next({ MessageReceived: messageReceived({ payload: [3] }) });
+      const after = await firstValueFrom(
+        store.messagesFor(CONNECTION_A, "sensors/temp"),
+      );
+
+      expect(after).toHaveLength(2);
+      expect(after[0]).toBe(second);
+    });
+  });
+
   it("clearTopic() is a no-op for an unknown connection or topic", async () => {
     const { events$, store } = setup();
 

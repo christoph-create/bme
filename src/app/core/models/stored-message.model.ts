@@ -1,7 +1,16 @@
 import { MessageProperties } from "./message-properties.model";
 import { QoS } from "./qos";
 
-/** A received MQTT message as kept in the in-memory session history. */
+/**
+ * A received MQTT message as kept in the in-memory session history.
+ *
+ * There is no id field, and `receivedAt` is `Date.now()`, which collides
+ * under load - so the **object reference is this type's de-facto identity**.
+ * `MessageStoreService.append` preserves it across every emission, and the
+ * message stream's row heights, value-chart-card's parse cache and the
+ * compare tool's pin all key on it. Anything that rebuilds these objects on
+ * the way out of the store breaks all three at once.
+ */
 export interface StoredMessage {
   /** Capped by the backend at 256 KiB, so it can be shorter than `payloadLen`. */
   payload: number[];

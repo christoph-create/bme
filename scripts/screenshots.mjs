@@ -190,6 +190,33 @@ const SHOTS = [
   },
 
   {
+    name: "payload-compare",
+    async setup(page) {
+      await openWorkspace(page);
+      // Pinning is the whole path: it opens the dock and switches to the tool
+      // by itself, so the shot proves the hand-off between the two panels
+      // rather than just the rendering. Pinned rather than Live because the
+      // frozen baseline - and the badge on the card it came from - is the
+      // half that a still image cannot otherwise show.
+      await page
+        .locator(".message-card")
+        .nth(1)
+        .locator(".card-action", { hasText: "Compare" })
+        .click();
+      // The A/B header and the value columns only split in two once the dock
+      // is wide - the same trick the charts and broker shots use.
+      await toggleDock(page, "Subscriptions panel");
+      await growToolPanel(page, 280);
+      // Clicking a card leaves the stream scrolled to it, which would crop
+      // the newest message off the top.
+      await page
+        .locator(".message-list")
+        .evaluate((list) => list.scrollTo(0, 0));
+      await blurFocus(page);
+    },
+  },
+
+  {
     name: "broker-dashboard",
     async setup(page) {
       await openWorkspace(page);

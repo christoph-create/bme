@@ -1,0 +1,27 @@
+@if (diff().tooLarge) {
+  <p class="too-large">
+    These payloads are too large to diff line by line. Compare a smaller pair,
+    or use the field table by publishing JSON.
+  </p>
+} @else {
+  @for (hunk of diff().hunks; track $index) {
+    <div class="hunk">
+      <div class="hunk-header">{{ hunk.header }}</div>
+      @for (row of hunk.rows; track $index) {
+        <div
+          class="line"
+          [class.added]="row.kind === 'added'"
+          [class.removed]="row.kind === 'removed'"
+        >
+          <span class="gutter" aria-hidden="true">{{
+            row.beforeLine ?? ""
+          }}</span>
+          <span class="gutter" aria-hidden="true">{{ row.afterLine ?? "" }}</span>
+          <span class="marker" aria-hidden="true">{{ marker(row.kind) }}</span>
+          <span class="visually-hidden">{{ row.kind }}</span>
+          <span class="text">{{ text(row.text) }}</span>
+        </div>
+      }
+    </div>
+  }
+}

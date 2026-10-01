@@ -43,6 +43,22 @@ async function setup() {
   return { fixture };
 }
 
+/** A tab by its visible label - the strip's order is a product decision, not
+ * something each test should have to agree with. */
+function tabNamed(
+  fixture: { nativeElement: HTMLElement },
+  label: string,
+): HTMLElement {
+  const tabs = [
+    ...fixture.nativeElement.querySelectorAll<HTMLElement>("[role=tab]"),
+  ];
+  const tab = tabs.find((candidate) => candidate.textContent?.trim() === label);
+  if (tab === undefined) {
+    throw new Error(`No tool tab labelled "${label}"`);
+  }
+  return tab;
+}
+
 describe("ToolPanel", () => {
   it("shows the charts tool by default", async () => {
     const { fixture } = await setup();
@@ -59,6 +75,7 @@ describe("ToolPanel", () => {
     const tabs = [...fixture.nativeElement.querySelectorAll("[role=tab]")];
     expect(tabs.map((tab: HTMLElement) => tab.textContent?.trim())).toEqual([
       "Charts",
+      "Compare",
       "Broker",
     ]);
     expect(tabs[0].getAttribute("aria-selected")).toBe("true");
@@ -66,13 +83,15 @@ describe("ToolPanel", () => {
     // strip is one Tab stop rather than one per tool.
     expect(
       tabs.map((tab: HTMLElement) => tab.getAttribute("tabindex")),
-    ).toEqual(["0", "-1"]);
+    ).toEqual(["0", "-1", "-1"]);
   });
 
   it("switches tools when a tab is clicked", async () => {
     const { fixture } = await setup();
 
-    const broker = [...fixture.nativeElement.querySelectorAll("[role=tab]")][1];
+    // Found by its label rather than its index, so inserting a tool between
+    // Charts and Broker stops being a reason for this test to fail.
+    const broker = tabNamed(fixture, "Broker");
     broker.click();
     fixture.detectChanges();
 
@@ -92,10 +111,15 @@ describe("ToolPanel", () => {
 
     tabs[0].dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
     fixture.detectChanges();
-    expect(fixture.componentInstance.activeTool()).toBe("broker");
+    expect(fixture.componentInstance.activeTool()).toBe("compare");
     expect(document.activeElement).toBe(tabs[1]);
 
     tabs[1].dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
+    fixture.detectChanges();
+    expect(fixture.componentInstance.activeTool()).toBe("broker");
+    expect(document.activeElement).toBe(tabs[2]);
+
+    tabs[2].dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
     fixture.detectChanges();
     expect(fixture.componentInstance.activeTool()).toBe("charts");
   });

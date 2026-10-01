@@ -11,7 +11,9 @@ import {
 import { Router } from "@angular/router";
 
 import { MqttVersion } from "../../core/models/broker-connection.model";
+import { ComparePins } from "../../core/models/compare-pin.model";
 import { MessageDraft } from "../../core/models/message-draft.model";
+import { StoredMessage } from "../../core/models/stored-message.model";
 import { ConnectionStatusService } from "../../core/services/connection-status.service";
 import { WorkspacesService } from "../../core/services/workspaces.service";
 import { isConnected } from "../../core/status/connection-status";
@@ -32,6 +34,7 @@ import {
 import { MessageStream } from "./message-stream/message-stream";
 import { PublishPanel } from "./publish-panel/publish-panel";
 import { SubscriptionsPanel } from "./subscriptions-panel/subscriptions-panel";
+import { togglePin } from "./tool-panel/compare/compare-pins";
 import { ToolPanel } from "./tool-panel/tool-panel";
 import { TopicTree } from "./topic-tree/topic-tree";
 
@@ -90,7 +93,45 @@ export class BrokerWorkspace implements OnInit {
    * selected topic changes. */
   readonly paused = signal(false);
 
+  /** The messages frozen for the compare tool.
+   *
+   * Owned here rather than inside the tool because the tools dock defaults to
+   * closed and its `@switch` destroys whichever tool is not showing - a pin
+   * taken while the Charts tab is up would have nowhere to live. A plain
+   * signal rather than a root service: both readers are descendants of this
+   * long-lived component, so an input covers it without the per-connection
+   * keying and cleanup a service would need. */
+  readonly comparePins = signal<ComparePins | null>(null);
+
   private readonly publishPanel = viewChild(PublishPanel);
+  private readonly toolPanel = viewChild(ToolPanel);
+
+  /**
+   * Pins a message the user asked to compare, and brings the tool into view.
+   *
+   * Two halves on purpose. The pin itself is *state*, so it travels down as
+   * an input - re-pinning the same message is a no-op there by definition.
+   * Revealing the tool is an *action* that has to happen on every click, even
+   * when the pin did not change: pinning the baseline again while the Charts
+   * tab is showing must still switch tabs. That is the same reason
+   * `loadDraft` is a method call rather than an input.
+   */
+  pinForCompare(message: StoredMessage): void {
+    const topic = this.selectedTopic();
+    if (topic === null) {
+      return;
+    }
+    this.comparePins.update((pins) =>
+      togglePin(pins, topic, message, Date.now()),
+    );
+    this.toolPanel()?.selectTool("compare");
+    this.openDock("tools");
+  }
+
+  clearComparePin(): void {
+    this.comparePins.set(null);
+  }
+
 
   /** Hands a message the user asked to resend straight to the publish panel.
    * A direct method call rather than an input, because resending the *same*
@@ -139,6 +180,15 @@ export class BrokerWorkspace implements OnInit {
 
   toggleDock(dock: DockId): void {
     this.docksOpen.update((open) => ({ ...open, [dock]: !open[dock] }));
+  }
+
+  /** Idempotent, unlike `toggleDock`: revealing a tool must not close the
+   * dock when it is already open. */
+  private openDock(dock: DockId): void {
+    if (this.docksOpen()[dock]) {
+      return;
+    }
+    this.docksOpen.update((open) => ({ ...open, [dock]: true }));
   }
 
   private readonly layout = computed<LayoutInput>(() => ({

@@ -1,0 +1,54 @@
+<div class="rows">
+  @for (row of changedRows(); track $index) {
+    <div
+      class="diff-row"
+      [class.wide]="wide()"
+      [class.changed]="row.kind === 'changed'"
+      [class.added]="row.kind === 'added'"
+      [class.removed]="row.kind === 'removed'"
+    >
+      <span class="marker" aria-hidden="true">{{ marker(row.kind) }}</span>
+      <span class="visually-hidden">{{ kindWord(row.kind) }}</span>
+      <span class="path" [title]="row.label">{{ row.label }}</span>
+      <span class="values">
+        @if (row.before !== null) {
+          <span class="before">{{ row.before }}</span>
+        }
+        @if (row.before !== null && row.after !== null) {
+          <span class="arrow" aria-hidden="true">→</span>
+        }
+        @if (row.after !== null) {
+          <span class="after">{{ row.after }}</span>
+        }
+        @if (row.typeChanged) {
+          <span class="type-note" title="The JSON type changed too">type</span>
+        }
+      </span>
+    </div>
+  }
+</div>
+
+@if (unchangedRows().length > 0) {
+  <button
+    type="button"
+    class="unchanged-toggle"
+    [attr.aria-expanded]="unchangedExpanded()"
+    (click)="toggleUnchanged()"
+  >
+    {{ unchangedLabel() }}
+  </button>
+  @if (unchangedExpanded()) {
+    <div class="rows unchanged">
+      @for (row of unchangedRows(); track $index) {
+        <div class="diff-row" [class.wide]="wide()">
+          <span class="marker" aria-hidden="true"></span>
+          <span class="visually-hidden">{{ kindWord(row.kind) }}</span>
+          <span class="path" [title]="row.label">{{ row.label }}</span>
+          <span class="values">
+            <span class="after">{{ row.after }}</span>
+          </span>
+        </div>
+      }
+    </div>
+  }
+}
