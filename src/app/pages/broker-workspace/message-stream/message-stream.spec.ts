@@ -936,3 +936,109 @@ describe("MessageStream", () => {
     });
   });
 });
+
+describe("MessageStream compare", () => {
+  it("emits the message itself, by reference, when Compare is clicked", async () => {
+    const pinned = message({ payload: encode("{}") });
+    const { fixture } = await setup({ "a/b": [pinned] });
+    fixture.componentRef.setInput("topic", "a/b");
+    fixture.detectChanges();
+
+    const seen: StoredMessage[] = [];
+    fixture.componentInstance.compareRequested.subscribe((m) => seen.push(m));
+
+    cardAction(fixture.nativeElement, "Compare").click();
+
+    // Identity is the contract - the pin holds this exact reference, so a
+    // structurally equal copy would not do.
+    expect(seen[0]).toBe(pinned);
+  });
+
+  it("emits again on a second click, because the tool still has to be revealed", async () => {
+    const pinned = message({ payload: encode("{}") });
+    const { fixture } = await setup({ "a/b": [pinned] });
+    fixture.componentRef.setInput("topic", "a/b");
+    fixture.detectChanges();
+
+    const seen: StoredMessage[] = [];
+    fixture.componentInstance.compareRequested.subscribe((m) => seen.push(m));
+
+    cardAction(fixture.nativeElement, "Compare").click();
+    cardAction(fixture.nativeElement, "Compare").click();
+
+    expect(seen).toEqual([pinned, pinned]);
+  });
+
+  it("badges a pinned card and offers to unpin it", async () => {
+    const pinned = message({ payload: encode("{}") });
+    const { fixture } = await setup({ "a/b": [pinned] });
+    fixture.componentRef.setInput("topic", "a/b");
+    fixture.componentRef.setInput("comparePins", {
+      topic: "a/b",
+      a: pinned,
+      b: null,
+      pinnedAt: 0,
+    });
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector(".pin-badge")?.textContent?.trim(),
+    ).toBe("A");
+    expect(cardAction(fixture.nativeElement, "Unpin")).toBeTruthy();
+  });
+
+  it("names the compared message B", async () => {
+    const baseline = message({ payload: encode("1"), receivedAt: 1 });
+    const compared = message({ payload: encode("2"), receivedAt: 2 });
+    const { fixture } = await setup({ "a/b": [baseline, compared] });
+    fixture.componentRef.setInput("topic", "a/b");
+    fixture.componentRef.setInput("comparePins", {
+      topic: "a/b",
+      a: baseline,
+      b: compared,
+      pinnedAt: 0,
+    });
+    fixture.detectChanges();
+
+    const badges = [
+      ...fixture.nativeElement.querySelectorAll(".pin-badge"),
+    ].map((badge: HTMLElement) => badge.textContent?.trim());
+    // Newest first in the stream, so B's card comes before A's.
+    expect(badges).toEqual(["B", "A"]);
+  });
+
+  it("does not badge a pin taken on another topic", async () => {
+    const pinned = message({ payload: encode("{}") });
+    const { fixture } = await setup({ "a/b": [pinned] });
+    fixture.componentRef.setInput("topic", "a/b");
+    fixture.componentRef.setInput("comparePins", {
+      topic: "other/topic",
+      a: pinned,
+      b: null,
+      pinnedAt: 0,
+    });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector(".pin-badge")).toBeNull();
+  });
+
+  it("offers Compare for a binary payload that Resend refuses", async () => {
+    const binary = message({ payload: [0xff, 0xfe, 0xff, 0xfe] });
+    const { fixture } = await setup({ "a/b": [binary] });
+    fixture.componentRef.setInput("topic", "a/b");
+    fixture.detectChanges();
+
+    const seen: StoredMessage[] = [];
+    fixture.componentInstance.compareRequested.subscribe((m) => seen.push(m));
+
+    expect(
+      cardAction(fixture.nativeElement, "Resend").classList.contains(
+        "disabled",
+      ),
+    ).toBe(true);
+    cardAction(fixture.nativeElement, "Compare").click();
+    // Pinning a payload the tool cannot diff is harmless, and being told why
+    // beats a greyed-out control.
+    expect(seen[0]).toBe(binary);
+  });
+});

@@ -101,7 +101,9 @@
       [connected]="connected()"
       [active]="active()"
       [(paused)]="paused"
+      [comparePins]="comparePins()"
       (resendRequested)="loadDraft($event)"
+      (compareRequested)="pinForCompare($event)"
     />
   </section>
 
@@ -140,6 +142,8 @@
       [connected]="connected()"
       [wide]="toolsWide()"
       [paused]="paused()"
+      [comparePins]="comparePins()"
+      (unpinRequested)="clearComparePin()"
     />
   </aside>
 </div>

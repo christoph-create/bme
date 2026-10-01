@@ -80,6 +80,17 @@
   --color-chart-grid: rgb(255 255 255 / 6%);
   --color-chart-axis-text: var(--color-text-quaternary);
 
+  /* The compare tool's three verdicts. Aliases rather than new hues: added,
+     removed and changed are the same three states as success, danger and
+     warning everywhere else in the app, and a fourth palette would make the
+     dock read as a different product. Retune here, not in the diff table. */
+  --color-diff-added: var(--color-success);
+  --color-diff-added-tint: var(--color-success-tint);
+  --color-diff-removed: var(--color-danger);
+  --color-diff-removed-tint: var(--color-danger-tint);
+  --color-diff-changed: var(--color-warning);
+  --color-diff-changed-tint: var(--color-warning-tint);
+
   --font-sans:
     "Inter",
     /* The gold standard for modern UI alignment (if installed) */ "Segoe UI",

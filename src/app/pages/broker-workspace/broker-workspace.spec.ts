@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { BrokerConnection } from "../../core/models/broker-connection.model";
 import { MqttEvent } from "../../core/models/mqtt-event.model";
+import { StoredMessage } from "../../core/models/stored-message.model";
 import { ConnectionsService } from "../../core/services/connections.service";
 import { MessageStoreService } from "../../core/services/message-store.service";
 import { MqttEventsService } from "../../core/services/mqtt-events.service";
@@ -44,6 +45,18 @@ function sampleConnection(
     max_reconnect_attempts: 10,
     subscriptions: [],
     ...overrides,
+  };
+}
+
+function storedMessage(): StoredMessage {
+  const payload = [...new TextEncoder().encode('{"a":1}')];
+  return {
+    payload,
+    payloadLen: payload.length,
+    qos: "AtMostOnce",
+    retain: false,
+    properties: null,
+    receivedAt: 1_700_000_000_000,
   };
 }
 
@@ -150,6 +163,112 @@ describe("BrokerWorkspace", () => {
     expect(panel.form.controls.payload.value).toBe('{"b":2}');
     expect(panel.qos()).toBe("AtLeastOnce");
     expect(panel.retain()).toBe(true);
+  });
+
+  it("pins a message the stream asked to compare and reveals the tool", async () => {
+    const { fixture } = await setup();
+    await fixture.whenStable();
+
+    const tree = fixture.debugElement.query(By.directive(TopicTree))
+      .componentInstance as TopicTree;
+    tree.topicSelected.emit("sensors/zone-a");
+    fixture.detectChanges();
+
+    const stream = fixture.debugElement.query(By.directive(MessageStream))
+      .componentInstance as MessageStream;
+    const pinned = storedMessage();
+    stream.compareRequested.emit(pinned);
+    fixture.detectChanges();
+
+    const pins = fixture.componentInstance.comparePins();
+    expect(pins?.a).toBe(pinned);
+    expect(pins?.topic).toBe("sensors/zone-a");
+    // The dock starts closed, so revealing it is part of the same action.
+    expect(fixture.componentInstance.docksOpen().tools).toBe(true);
+    const tools = fixture.debugElement.query(By.directive(ToolPanel))
+      .componentInstance as ToolPanel;
+    expect(tools.activeTool()).toBe("compare");
+  });
+
+  it("leaves an already-open tools dock open", async () => {
+    const { fixture } = await setup();
+    await fixture.whenStable();
+    fixture.componentInstance.toggleDock("tools");
+    fixture.detectChanges();
+
+    const tree = fixture.debugElement.query(By.directive(TopicTree))
+      .componentInstance as TopicTree;
+    tree.topicSelected.emit("sensors/zone-a");
+    fixture.detectChanges();
+
+    const stream = fixture.debugElement.query(By.directive(MessageStream))
+      .componentInstance as MessageStream;
+    stream.compareRequested.emit(storedMessage());
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.docksOpen().tools).toBe(true);
+  });
+
+  it("returns to live on a second compare click, and still reveals the tool", async () => {
+    const { fixture } = await setup();
+    await fixture.whenStable();
+
+    const tree = fixture.debugElement.query(By.directive(TopicTree))
+      .componentInstance as TopicTree;
+    tree.topicSelected.emit("sensors/zone-a");
+    fixture.detectChanges();
+
+    const stream = fixture.debugElement.query(By.directive(MessageStream))
+      .componentInstance as MessageStream;
+    const pinned = storedMessage();
+    stream.compareRequested.emit(pinned);
+    fixture.detectChanges();
+    const tools = fixture.debugElement.query(By.directive(ToolPanel))
+      .componentInstance as ToolPanel;
+    tools.selectTool("charts");
+    fixture.detectChanges();
+
+    stream.compareRequested.emit(pinned);
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.comparePins()).toBeNull();
+    // The pin is gone but the tool still has to come forward: the click is an
+    // action as well as a state change.
+    expect(tools.activeTool()).toBe("compare");
+  });
+
+  it("ignores a compare request while no topic is selected", async () => {
+    const { fixture } = await setup();
+    await fixture.whenStable();
+
+    const stream = fixture.debugElement.query(By.directive(MessageStream))
+      .componentInstance as MessageStream;
+    stream.compareRequested.emit(storedMessage());
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.comparePins()).toBeNull();
+  });
+
+  it("clears the pin when the compare tool asks to unpin", async () => {
+    const { fixture } = await setup();
+    await fixture.whenStable();
+
+    const tree = fixture.debugElement.query(By.directive(TopicTree))
+      .componentInstance as TopicTree;
+    tree.topicSelected.emit("sensors/zone-a");
+    fixture.detectChanges();
+
+    const stream = fixture.debugElement.query(By.directive(MessageStream))
+      .componentInstance as MessageStream;
+    stream.compareRequested.emit(storedMessage());
+    fixture.detectChanges();
+
+    const tools = fixture.debugElement.query(By.directive(ToolPanel))
+      .componentInstance as ToolPanel;
+    tools.unpinRequested.emit();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.comparePins()).toBeNull();
   });
 
   it("selecting a topic opens its stream without touching the publish topic", async () => {

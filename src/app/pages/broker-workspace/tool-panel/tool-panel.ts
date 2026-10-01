@@ -3,17 +3,20 @@ import {
   Component,
   ElementRef,
   input,
+  output,
   signal,
   viewChildren,
 } from "@angular/core";
 
+import { ComparePins } from "../../../core/models/compare-pin.model";
 import { BrokerStats } from "./broker-stats/broker-stats";
+import { PayloadCompare } from "./compare/payload-compare";
 import { stepForKey, nextTool } from "./tool-switcher";
 import { ValueCharts } from "./value-charts/value-charts";
 
-/** Tools that can occupy the panel. "pin" and "compare" are the planned
- * additions; each is a union member, a `tools` entry and a `@case`. */
-export type WorkspaceTool = "charts" | "broker";
+/** Tools that can occupy the panel. "pin" is the one planned addition left;
+ * it is a union member, a `tools` entry and a `@case`. */
+export type WorkspaceTool = "charts" | "compare" | "broker";
 
 interface ToolTab {
   readonly id: WorkspaceTool;
@@ -31,7 +34,7 @@ interface ToolTab {
  */
 @Component({
   selector: "app-tool-panel",
-  imports: [BrokerStats, ValueCharts],
+  imports: [BrokerStats, PayloadCompare, ValueCharts],
   templateUrl: "./tool-panel.html",
   styleUrl: "./tool-panel.css",
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -45,11 +48,20 @@ export class ToolPanel {
   /** Wide enough for two columns of charts. Decided by the workspace from the
    * dock's measured width, since it is the one that owns the grid. */
   readonly wide = input(false);
-  /** The message stream's Pause, forwarded so the charts freeze with it. */
+  /** The message stream's Pause, forwarded so the charts and the compare
+   * tool's live side freeze with it. */
   readonly paused = input(false);
+  /** The messages frozen for the compare tool, owned by the workspace so a
+   * pin survives switching to another tool. */
+  readonly comparePins = input<ComparePins | null>(null);
+
+  /** The compare tool's way back to Live, forwarded because the pin is the
+   * workspace's to clear. */
+  readonly unpinRequested = output<void>();
 
   readonly tools: readonly ToolTab[] = [
     { id: "charts", label: "Charts" },
+    { id: "compare", label: "Compare" },
     { id: "broker", label: "Broker" },
   ];
   readonly activeTool = signal<WorkspaceTool>("charts");

@@ -122,6 +122,17 @@
             @if (pv.view.truncatedNote; as note) {
               <span class="truncated-badge" [title]="note">Truncated</span>
             }
+            @if (pinSlotOf(pv.view.message); as slot) {
+              <span
+                class="pin-badge"
+                [title]="
+                  slot === 'A'
+                    ? 'Compare baseline'
+                    : 'Compared against the baseline'
+                "
+                >{{ slot }}</span
+              >
+            }
             <div class="card-actions">
               <span
                 class="card-action"
@@ -148,6 +159,18 @@
                 tabindex="0"
               >
                 Copy
+              </span>
+              <span
+                class="card-action"
+                [class.active]="pinSlotOf(pv.view.message) !== null"
+                (click)="requestCompare(pv.view.message)"
+                (keydown.enter)="requestCompare(pv.view.message)"
+                role="button"
+                tabindex="0"
+                [attr.aria-pressed]="pinSlotOf(pv.view.message) !== null"
+                [title]="compareTitle(pv.view.message)"
+              >
+                {{ pinSlotOf(pv.view.message) === null ? "Compare" : "Unpin" }}
               </span>
             </div>
           </div>

@@ -1,0 +1,175 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  height: 100%;
+  overflow: auto;
+  padding: 10px 12px 14px;
+}
+
+.chip-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* The app's tab strip at a smaller scale, so the tool's own mode control
+   reads as the same kind of thing as the strip above it. */
+.mode {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--color-input-bg);
+  border-radius: var(--radius-input);
+  padding: 2px;
+}
+
+.mode-chip {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-tertiary);
+  padding: 2px 7px;
+  border-radius: calc(var(--radius-input) - 2px);
+}
+
+.mode-chip.selected {
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+}
+
+.unpin {
+  background: none;
+  border: none;
+  padding: 0 0 0 1px;
+  margin: 0;
+  font-size: 10px;
+  line-height: 1;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.75;
+}
+
+.unpin:hover {
+  opacity: 1;
+}
+
+.unpin:focus-visible {
+  outline: 2px solid var(--color-accent-ink);
+  outline-offset: 1px;
+  border-radius: 2px;
+}
+
+.paused-note {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--color-warning);
+  flex-shrink: 0;
+}
+
+.topic {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Stacked at the dock's floor, side by side once there is room - the same
+   threshold the field table's columns use, so the header and the rows below
+   it never disagree about how wide the panel is. */
+.sides {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.sides.wide {
+  flex-direction: row;
+  gap: 12px;
+}
+
+.side {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.slot {
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--color-text-secondary);
+  background: var(--color-badge-bg);
+  border-radius: 3px;
+  padding: 1px 4px;
+  flex-shrink: 0;
+}
+
+.side-time {
+  font-size: 11.5px;
+  color: var(--color-text);
+}
+
+.side-role {
+  font-size: 10.5px;
+  color: var(--color-text-quaternary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.summary {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  flex-shrink: 0;
+}
+
+.note {
+  margin: 0;
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--color-text-quaternary);
+  flex-shrink: 0;
+}
+
+.empty {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--color-text-quaternary);
+}
+
+.empty strong {
+  color: var(--color-text-tertiary);
+  font-weight: 600;
+}
+
+.reasons {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.reasons li {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--color-text-quaternary);
+}

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { nextTool, stepForKey } from "./tool-switcher";
 
-const TOOLS: readonly string[] = ["charts", "broker", "pin"];
+const TOOLS: readonly string[] = ["charts", "compare", "broker"];
 
 describe("stepForKey", () => {
   it("reads both axes, so the strip works however it is laid out", () => {
@@ -27,18 +27,18 @@ describe("stepForKey", () => {
 
 describe("nextTool", () => {
   it("steps forward and back", () => {
-    expect(nextTool(TOOLS, "charts", 1)).toBe("broker");
-    expect(nextTool(TOOLS, "broker", -1)).toBe("charts");
+    expect(nextTool(TOOLS, "charts", 1)).toBe("compare");
+    expect(nextTool(TOOLS, "compare", -1)).toBe("charts");
   });
 
   it("wraps at both ends", () => {
-    expect(nextTool(TOOLS, "pin", 1)).toBe("charts");
-    expect(nextTool(TOOLS, "charts", -1)).toBe("pin");
+    expect(nextTool(TOOLS, "broker", 1)).toBe("charts");
+    expect(nextTool(TOOLS, "charts", -1)).toBe("broker");
   });
 
   it("jumps to the first and last", () => {
-    expect(nextTool(TOOLS, "broker", "first")).toBe("charts");
-    expect(nextTool(TOOLS, "broker", "last")).toBe("pin");
+    expect(nextTool(TOOLS, "compare", "first")).toBe("charts");
+    expect(nextTool(TOOLS, "compare", "last")).toBe("broker");
   });
 
   it("stays put when there is nowhere to go", () => {

@@ -32,6 +32,16 @@
         [paused]="paused()"
       />
     }
+    @case ("compare") {
+      <app-payload-compare
+        [connectionId]="connectionId()"
+        [selectedTopic]="selectedTopic()"
+        [wide]="wide()"
+        [paused]="paused()"
+        [pins]="comparePins()"
+        (unpinRequested)="unpinRequested.emit()"
+      />
+    }
     @case ("broker") {
       <app-broker-stats
         [connectionId]="connectionId()"

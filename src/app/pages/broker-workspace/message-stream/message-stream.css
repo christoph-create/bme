@@ -135,7 +135,12 @@
 .meta {
   display: flex;
   align-items: center;
-  gap: 8px;
+  /* Wraps because the row carries a lot now: time, QoS, optionally Retained,
+     optionally Truncated, optionally a compare slot, then three actions. At
+     the centre column's 400px minimum that is past what one line holds, and
+     clipping the last action rather than wrapping would hide it entirely. */
+  flex-wrap: wrap;
+  gap: 4px 8px;
   margin-bottom: 6px;
 }
 
@@ -145,7 +150,8 @@
 .card-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 4px 8px;
   margin-left: auto;
 }
 
@@ -167,6 +173,12 @@
 
 .card-action.disabled:hover {
   color: var(--color-text-faint);
+}
+
+/* Pinned for compare: the action now undoes itself, so it reads as engaged
+   rather than as one more thing to click. */
+.card-action.active {
+  color: var(--color-accent);
 }
 
 .copied-note {
@@ -202,6 +214,20 @@
   background: var(--color-info-tint);
   padding: 1px 6px;
   border-radius: 4px;
+}
+
+/* The compare slot this card feeds. A letter rather than one "Pinned", so a
+   user with both sides frozen can tell the baseline from the message it is
+   being compared with. */
+.pin-badge {
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-accent-ink);
+  background: var(--color-accent);
+  padding: 1px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
 }
 
 .truncated-badge {

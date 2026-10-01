@@ -1,0 +1,178 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/* The dock's floor is 240px (DOCK_LIMITS.tools.min), which leaves roughly
+   200px for a path and two values - a three-column row cannot fit there at
+   all. So narrow is a different layout rather than a squeezed one: the values
+   stack under the path, and only a dock the user has given room to gets real
+   columns. Same rule the chart cards' two-up layout follows. */
+.diff-row {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr);
+  gap: 0 4px;
+  align-items: baseline;
+  padding: 3px 4px;
+  border-radius: var(--radius-sm);
+  min-width: 0;
+}
+
+/* The path gets less room than the values it labels: paths are mostly short
+   and already ellipsed, and giving them half the dock leaves a gap the eye
+   has to cross on every row. */
+.diff-row.wide {
+  grid-template-columns: 12px minmax(0, 0.6fr) minmax(0, 1fr);
+}
+
+.diff-row.changed {
+  background: var(--color-diff-changed-tint);
+}
+
+.diff-row.added {
+  background: var(--color-diff-added-tint);
+}
+
+.diff-row.removed {
+  background: var(--color-diff-removed-tint);
+}
+
+.marker {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--color-text-faint);
+  grid-row: 1;
+}
+
+.diff-row.changed .marker {
+  color: var(--color-diff-changed);
+}
+
+.diff-row.added .marker {
+  color: var(--color-diff-added);
+}
+
+.diff-row.removed .marker {
+  color: var(--color-diff-removed);
+}
+
+.path {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* Values are plain mono text, never syntax-highlighted: --color-json-string
+   *is* --color-success and --color-json-boolean *is* --color-danger, so
+   tokenizing here would put green text in a removed row. The row's kind owns
+   the colour. */
+.values {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0 5px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.5;
+  min-width: 0;
+  /* Narrow: under the path, indented past the marker column. */
+  grid-column: 2;
+}
+
+.diff-row.wide .values {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.before,
+.after {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.before {
+  color: var(--color-text-quaternary);
+  text-decoration: line-through;
+  text-decoration-color: var(--color-text-faint);
+}
+
+.diff-row.removed .before {
+  color: var(--color-diff-removed);
+  text-decoration: none;
+}
+
+.after {
+  color: var(--color-text);
+}
+
+.diff-row.added .after {
+  color: var(--color-diff-added);
+}
+
+.arrow {
+  color: var(--color-text-faint);
+  flex-shrink: 0;
+}
+
+/* A value that looks unchanged but changed type is the bug people open a diff
+   to find, so it gets a word rather than relying on the quotes alone. */
+.type-note {
+  font-family: var(--font-sans);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--color-diff-changed);
+  flex-shrink: 0;
+}
+
+.unchanged-toggle {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  font-size: 11px;
+  color: var(--color-text-quaternary);
+  cursor: pointer;
+}
+
+.unchanged-toggle:hover {
+  color: var(--color-text-secondary);
+}
+
+.unchanged-toggle:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
+}
+
+.rows.unchanged .path,
+.rows.unchanged .after {
+  color: var(--color-text-quaternary);
+}
+
+/* The app has no global one, and the marker glyphs are aria-hidden, so each
+   row has to say its own kind out loud somewhere. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
