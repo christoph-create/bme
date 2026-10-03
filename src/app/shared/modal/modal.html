@@ -5,7 +5,12 @@
     aria-label="Close dialog"
     (click)="onBackdropClick()"
   ></button>
-  <div class="panel" role="dialog" aria-modal="true">
+  <div
+    class="panel"
+    role="dialog"
+    aria-modal="true"
+    [style.max-width]="maxWidth()"
+  >
     <div class="panel-header">
       <h2>{{ title() }}</h2>
       <button

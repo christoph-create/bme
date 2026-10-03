@@ -1,13 +1,5 @@
-/* The MQTT 5 properties block on the settings layer. Its own file for the
-   same reason publish-settings.css is: the per-stylesheet size budget. */
-
-.properties {
-  gap: var(--space-3);
-}
-
-.properties > .field-label {
-  margin-bottom: 0;
-}
+/* The MQTT 5 properties column of the settings dialog. Its own file for
+   the same reason publish-settings.css is: the per-stylesheet size budget. */
 
 .user-property-row {
   display: flex;
@@ -16,7 +8,7 @@
 }
 
 /* Inputs keep an intrinsic width otherwise, and two of them side by side
-   would push the whole panel wider than the window. */
+   would push the column wider than the dialog. */
 .user-property-row > input {
   flex: 1;
   min-width: 0;

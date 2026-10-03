@@ -478,13 +478,13 @@ export class MessageStream {
     if (draft === null) {
       return;
     }
-    this.resendRequested.emit(draft);
+    this.resendRequested.emit({ ...draft, payload: this.shownPayload(draft) });
   }
 
   async copyPayload(view: MessageView): Promise<void> {
     // The draft's payload is the real decoded text; `body` is the display
     // string, which for binary/empty payloads is a label, not the payload.
-    const text = view.draft?.payload ?? view.body;
+    const text = view.draft === null ? view.body : this.shownPayload(view.draft);
     try {
       await navigator.clipboard.writeText(text);
     } catch {
@@ -492,6 +492,17 @@ export class MessageStream {
       return;
     }
     this.flashCopied("Copied");
+  }
+
+  /** The payload as the card currently shows it, so Copy and Resend hand
+   * over what the user is looking at. Applied per click rather than baked
+   * into `messageViews`, so flipping Pretty/Raw doesn't rebuild every view.
+   * Resending pretty JSON is harmless: the publish panel compacts it again
+   * before it goes on the wire. */
+  private shownPayload(draft: MessageDraft): string {
+    return draft.format === "json" && this.prettyJson()
+      ? this.jsonFormat.tryFormat(draft.payload)
+      : draft.payload;
   }
 
   togglePause(): void {

@@ -1,40 +1,50 @@
-/* The second layer and the preview row. Split out of publish-panel.css purely
-   for size: one file was over the 4kB anyComponentStyle budget in
-   angular.json.
+/* The publish settings dialog and the preview row. Split out of
+   publish-panel.css purely for size: one file was over the 4kB
+   anyComponentStyle budget in angular.json.
 
    Field shapes here deliberately mirror connection-form.css - `.field`,
-   `.field-row`, `.toggle-field` - so the settings layer reads as the same
-   kind of form as the rest of the app rather than a panel-local invention. */
+   `.toggle-field` - so the dialog reads as the same kind of form as the
+   rest of the app rather than a panel-local invention. */
 
-.settings-body {
-  padding: 0 18px 14px;
+.settings-grid {
+  display: grid;
+  gap: var(--space-7);
+}
+
+.settings-grid.two-columns {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+}
+
+.settings-column {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
+  gap: var(--space-3);
+  min-width: 0;
 }
 
-.back-link {
-  align-self: flex-start;
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--color-text-secondary);
-  font-size: 12px;
-  cursor: pointer;
+.section-title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-quaternary);
 }
 
-.back-link:hover {
-  color: var(--color-text);
+.section-title:not(:first-child) {
+  margin-top: var(--space-4);
 }
 
-.settings-form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  max-width: 420px;
+/* Two short fields side by side, so a number or a short identifier doesn't
+   take a full-width row of its own. */
+.field-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.field > input {
+  width: 100%;
 }
 
 .field {
@@ -50,17 +60,11 @@
   margin-bottom: var(--space-2);
 }
 
-.field-row {
-  display: flex;
-  gap: var(--space-3);
-}
-
 .toggle-field {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  flex: 1;
   padding: 9px 12px;
   background: var(--color-input-bg);
   border: 1px solid var(--color-input-border);
@@ -84,19 +88,25 @@
   color: var(--color-text-tertiary);
 }
 
-.counter-chip {
-  display: inline-block;
-  margin-left: 4px;
-  padding: 1px 6px;
-  border-radius: var(--radius-sm);
-  background: var(--color-badge-bg);
-  color: var(--color-text-secondary);
-  font-size: 11px;
-}
-
 .settings-actions {
   display: flex;
-  gap: var(--space-2);
+  justify-content: flex-end;
+  margin-top: var(--space-6);
+}
+
+.btn-done {
+  padding: 8px 18px;
+  border: none;
+  border-radius: var(--radius-input);
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-done:hover {
+  filter: brightness(1.1);
 }
 
 .btn-outline {

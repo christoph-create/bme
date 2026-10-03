@@ -97,7 +97,7 @@ It's built with [Tauri](https://tauri.app) (a Rust backend, SQLite for local sto
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/mqtt5-properties.png" width="820" alt="An MQTT 5 connection: the message stream shows a received message with its content type, payload format, expiry and a device user property listed above the payload, and the publish settings below have the MQTT 5 properties section filled in with a content type, expiry, response topic, correlation data, the UTF-8 switch and a user property">
+  <img src="docs/screenshots/mqtt5-properties.png" width="820" alt="An MQTT 5 connection: the message stream shows a received message with its content type, payload format, expiry and a device user property listed above the payload, and the publish settings dialog has the MQTT 5 properties column filled in with a content type, expiry, response topic, correlation data, the UTF-8 switch and a user property">
   <br>
   <em>MQTT 5 — properties on what arrives, and an editor for what you send.</em>
 </p>
@@ -109,7 +109,7 @@ It's built with [Tauri](https://tauri.app) (a Rust backend, SQLite for local sto
       <br><em>Variables behind <code>{{name}}</code></em>
     </td>
     <td align="center" width="50%">
-      <img src="docs/screenshots/repeat-publishing.png" width="380" alt="Publish settings view showing retain and repeat toggles, publish interval in milliseconds, number of messages, a summary of the defined variables, and the start of the MQTT 5 properties section below">
+      <img src="docs/screenshots/repeat-publishing.png" width="380" alt="Publish settings dialog showing retain and repeat toggles, publish interval in milliseconds and number of messages side by side, a summary of the defined variables, and the MQTT 5 properties in a second column">
       <br><em>Repeat publishing</em>
     </td>
   </tr>

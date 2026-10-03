@@ -85,9 +85,6 @@ async function loadTemplate(page, name) {
   await page.locator(".template-row").filter({ hasText: name }).click();
 }
 
-/** Drags the horizontal splitter up by `deltaPx`, making the publish panel
- * that much taller. It is deliberately short by default, which crops any shot
- * of what lives inside it. */
 /** Drops the focus ring `fill()` leaves behind - it reads as "the user is
  * mid-edit here", which is never what a screenshot is trying to say. */
 async function blurFocus(page) {
@@ -97,16 +94,6 @@ async function blurFocus(page) {
       active.blur();
     }
   });
-}
-
-async function growPublishPanel(page, deltaPx) {
-  const box = await page.locator(".resizer-row").boundingBox();
-  const x = box.x + box.width / 2;
-  const y = box.y + box.height / 2;
-  await page.mouse.move(x, y);
-  await page.mouse.down();
-  await page.mouse.move(x, y - deltaPx, { steps: 10 });
-  await page.mouse.up();
 }
 
 /** Drags the tools dock's splitter left, widening the dock by `deltaPx`. */
@@ -272,7 +259,6 @@ const SHOTS = [
     async setup(page) {
       await openWorkspace(page);
       await loadTemplate(page, "Discovery ping");
-      await growPublishPanel(page, 260);
       await page.getByRole("button", { name: "Publish settings" }).click();
       // The checkboxes sit under their switch tracks, so the label is the only
       // clickable way in - the same one a user has.
@@ -290,10 +276,7 @@ const SHOTS = [
     async setup(page) {
       await openWorkspace(page);
       await loadTemplate(page, "Temperature reading");
-      await growPublishPanel(page, 300);
       await page.getByRole("button", { name: "Publish settings" }).click();
-      // The block lives at the end of the settings layer, so it is filled
-      // the way a user would and then scrolled into view.
       await page.getByLabel("Content type").fill("application/json");
       await page.getByLabel("Message expiry (seconds)").fill("300");
       await page
@@ -308,9 +291,6 @@ const SHOTS = [
       await page.getByLabel("User property key").fill("device");
       await page.getByLabel("User property value").fill("bme-desktop");
       await blurFocus(page);
-      await page
-        .locator(".settings-body")
-        .evaluate((body) => body.scrollTo(0, body.scrollHeight));
     },
   },
 
@@ -356,6 +336,15 @@ const SHOTS = [
     async setup(page) {
       await page.goto("/settings");
       await page.getByRole("heading", { name: "Settings" }).waitFor();
+      // The app pins itself to the window and scrolls the page inside it, so
+      // a full-page capture would only see one window's worth. Unpinned here
+      // so the document grows to the page's real height instead.
+      await page.addStyleTag({
+        content: `
+          app-root { height: auto !important; }
+          .shell-body > router-outlet + * { overflow: visible !important; }
+        `,
+      });
     },
   },
 ];

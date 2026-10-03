@@ -122,6 +122,17 @@ body {
   font-family: var(--font-sans);
 }
 
+/* Each routed page scrolls inside the shell rather than the document
+   scrolling, which would carry the workspace tab bar away with it. Global
+   because the router inserts the page after the outlet, out of reach of
+   app.component.css's encapsulated selectors - and a fresh element per
+   navigation means every page opens scrolled to the top. */
+.shell-body > router-outlet + * {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 input[type="text"],
 input[type="password"],
 input[type="number"],

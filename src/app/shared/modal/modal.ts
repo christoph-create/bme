@@ -18,6 +18,9 @@ const openModals: Modal[] = [];
 })
 export class Modal {
   readonly title = input.required<string>();
+  /** For a dialog whose body is laid out in columns and needs more than the
+   * default single-form width. */
+  readonly maxWidth = input<string | null>(null);
   readonly close_modal = output<void>();
 
   constructor() {

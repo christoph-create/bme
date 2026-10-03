@@ -483,15 +483,18 @@ describe("MessageStream", () => {
 
   describe("resend", () => {
     it("emits a draft carrying the message's topic, payload, QoS and retain", async () => {
-      const { fixture } = await setup({
-        device: [
-          message({
-            payload: encode('{"on":true}'),
-            qos: "ExactlyOnce",
-            retain: true,
-          }),
-        ],
-      });
+      const { fixture } = await setup(
+        {
+          device: [
+            message({
+              payload: encode('{"on":true}'),
+              qos: "ExactlyOnce",
+              retain: true,
+            }),
+          ],
+        },
+        { settings: { prettyJson: false } },
+      );
       await selectTopic(fixture, "device");
 
       const emitted: MessageDraft[] = [];
@@ -551,6 +554,38 @@ describe("MessageStream", () => {
       expect(emitted).toHaveLength(2);
     });
 
+    it("hands over the JSON pretty-printed while the stream shows it that way", async () => {
+      const { fixture } = await setup(
+        { device: [message({ payload: encode('{"on":true}') })] },
+        { settings: { prettyJson: true } },
+      );
+      await selectTopic(fixture, "device");
+
+      const emitted: MessageDraft[] = [];
+      fixture.componentInstance.resendRequested.subscribe((draft) =>
+        emitted.push(draft),
+      );
+      cardAction(fixture.nativeElement as HTMLElement, "Resend").click();
+
+      expect(emitted[0].payload).toBe('{\n  "on": true\n}');
+    });
+
+    it("leaves a non-JSON payload untouched in pretty mode", async () => {
+      const { fixture } = await setup(
+        { device: [message({ payload: encode("ON") })] },
+        { settings: { prettyJson: true } },
+      );
+      await selectTopic(fixture, "device");
+
+      const emitted: MessageDraft[] = [];
+      fixture.componentInstance.resendRequested.subscribe((draft) =>
+        emitted.push(draft),
+      );
+      cardAction(fixture.nativeElement as HTMLElement, "Resend").click();
+
+      expect(emitted[0].payload).toBe("ON");
+    });
+
     it("disables resend for a binary payload instead of emitting its label", async () => {
       const binary = Array.from({ length: 40 }, (_, i) => 0x80 + (i % 0x40));
       const { fixture } = await setup({ device: [message({ payload: binary })] });
@@ -573,9 +608,10 @@ describe("MessageStream", () => {
       const writeText = vi.fn().mockResolvedValue(undefined);
       vi.stubGlobal("navigator", { clipboard: { writeText } });
 
-      const { fixture } = await setup({
-        device: [message({ payload: encode('{"on":true}') })],
-      });
+      const { fixture } = await setup(
+        { device: [message({ payload: encode('{"on":true}') })] },
+        { settings: { prettyJson: false } },
+      );
       await selectTopic(fixture, "device");
 
       cardAction(fixture.nativeElement as HTMLElement, "Copy").click();
@@ -586,6 +622,30 @@ describe("MessageStream", () => {
       expect((fixture.nativeElement as HTMLElement).textContent).toContain(
         "Copied",
       );
+      vi.unstubAllGlobals();
+    });
+
+    it("copies JSON as currently shown, following the Pretty/Raw toggle", async () => {
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      vi.stubGlobal("navigator", { clipboard: { writeText } });
+
+      const { fixture } = await setup(
+        { device: [message({ payload: encode('{"on":true}') })] },
+        { settings: { prettyJson: true } },
+      );
+      await selectTopic(fixture, "device");
+      const action = cardAction(fixture.nativeElement as HTMLElement, "Copy");
+
+      action.click();
+      await fixture.whenStable();
+      fixture.componentInstance.togglePrettyJson();
+      action.click();
+      await fixture.whenStable();
+
+      expect(writeText.mock.calls).toEqual([
+        ['{\n  "on": true\n}'],
+        ['{"on":true}'],
+      ]);
       vi.unstubAllGlobals();
     });
 

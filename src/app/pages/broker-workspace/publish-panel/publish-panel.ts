@@ -28,6 +28,7 @@ import {
 } from "../../../core/variables/placeholders";
 import { probeExpand } from "../../../core/variables/probe-expand";
 import { VariableRuntime } from "../../../core/variables/variable-runtime";
+import { Modal } from "../../../shared/modal/modal";
 import { PayloadInput } from "../../../shared/payload-input/payload-input";
 import { LoadTemplateModal } from "../load-template-modal/load-template-modal";
 import { QosSelect } from "../qos-select/qos-select";
@@ -65,6 +66,7 @@ const FORMAT_OPTIONS: readonly MessageFormat[] = ["json", "raw"];
     LoadTemplateModal,
     PayloadInput,
     VariablesModal,
+    Modal,
   ],
   templateUrl: "./publish-panel.html",
   styleUrls: [
@@ -112,10 +114,11 @@ export class PublishPanel {
   readonly saveModalDraft = signal<MessageDraft | null>(null);
   readonly showLoadModal = signal(false);
 
-  /** The second layer: the panel body swaps to publish settings rather than
-   * growing. The panel is height-constrained (200-560px), so the controls
-   * that are set once and then left alone - retain, repeat, variables - live
-   * behind the gear instead of competing with the payload for space. */
+  /** Controls that are set once and then left alone - retain, repeat,
+   * variables, MQTT 5 properties - live in a dialog behind the gear instead
+   * of competing with the payload for the height-constrained panel's space.
+   * A dialog rather than a layer swapped into the panel, so they get room
+   * for two columns instead of one scrolling strip. */
   readonly showSettings = signal(false);
   readonly showVariablesModal = signal(false);
 
@@ -315,8 +318,8 @@ export class PublishPanel {
     this.retain.set(!this.retain());
   }
 
-  toggleSettings(): void {
-    this.showSettings.set(!this.showSettings());
+  closeSettings(): void {
+    this.showSettings.set(false);
   }
 
   setPropertyField(

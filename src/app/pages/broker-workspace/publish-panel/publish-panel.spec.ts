@@ -325,9 +325,9 @@ describe("PublishPanel", () => {
 
     expect(component.retain()).toBe(false);
 
-    // Retain lives on the settings layer now: it's set once for a draft and
+    // Retain lives in the settings dialog: it's set once for a draft and
     // then left alone, so it doesn't earn a slot in the main row.
-    component.toggleSettings();
+    component.openSettings();
     fixture.detectChanges();
 
     const checkbox = (fixture.nativeElement as HTMLElement).querySelector(
@@ -338,6 +338,24 @@ describe("PublishPanel", () => {
 
     expect(component.retain()).toBe(true);
     expect(checkbox.checked).toBe(true);
+  });
+
+  it("opens settings as a dialog over the panel, closed by Done", async () => {
+    const { fixture } = await setup();
+    const host = fixture.nativeElement as HTMLElement;
+
+    (host.querySelector(".settings-toggle") as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    // The publish form stays put underneath rather than being swapped out.
+    expect(host.querySelector("app-modal [role=dialog]")).not.toBeNull();
+    expect(host.querySelector("form.body")).not.toBeNull();
+
+    (host.querySelector(".btn-done") as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    expect(host.querySelector("app-modal")).toBeNull();
+    expect(fixture.componentInstance.showSettings()).toBe(false);
   });
 
   it("does not show the retain checkbox on the main layer", async () => {
