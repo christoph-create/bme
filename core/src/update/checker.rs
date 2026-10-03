@@ -4,7 +4,7 @@ use crate::models::{AvailableRelease, UpdateCheck};
 use crate::storage::app_settings_repo::AppSettingsRepository;
 use crate::update::github::release_url;
 use crate::update::port::{ReleaseSource, UpdateError};
-use crate::update::version::{is_newer, parse_version};
+use crate::update::version::{is_newer_than_current, parse_current_version, parse_version};
 use crate::update::{LAST_CHECKED_AT_KEY, SKIPPED_VERSION_KEY};
 
 /// How long a successful check counts for. Launching bme ten times a day
@@ -40,7 +40,7 @@ impl<S: ReleaseSource, R: AppSettingsRepository> UpdateChecker<S, R> {
     /// `now` is a parameter rather than a call to `Utc::now()` so the throttle
     /// is testable without a clock.
     pub async fn check(&self, force: bool, now: DateTime<Utc>) -> Result<UpdateCheck, UpdateError> {
-        let current = parse_version(&self.current_version)
+        let current = parse_current_version(&self.current_version)
             .ok_or_else(|| UpdateError::UnknownCurrentVersion(self.current_version.clone()))?;
 
         if !force && self.is_within_check_interval(now)? {
@@ -73,7 +73,7 @@ impl<S: ReleaseSource, R: AppSettingsRepository> UpdateChecker<S, R> {
         Ok(UpdateCheck {
             current_version: current.to_string(),
             latest: Some(AvailableRelease {
-                is_newer: is_newer(current, latest),
+                is_newer: is_newer_than_current(current, latest),
                 is_skipped: skipped.as_deref() == Some(latest.to_string().as_str()),
                 url: release_url(latest),
                 version: latest.to_string(),
@@ -342,6 +342,20 @@ mod tests {
             checker.check(false, now()).await,
             Err(UpdateError::Response(_))
         ));
+    }
+
+    #[tokio::test]
+    async fn an_rc_build_is_offered_its_final_release() {
+        let checker = UpdateChecker::new(
+            FakeReleaseSource::tagged("v0.10.0"),
+            settings(),
+            "0.10.0-rc.2",
+        );
+
+        let result = checker.check(false, now()).await.unwrap();
+
+        assert_eq!(result.current_version, "0.10.0-rc.2");
+        assert!(result.latest.unwrap().is_newer);
     }
 
     #[tokio::test]

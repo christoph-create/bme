@@ -18,7 +18,7 @@ npm run tauri dev                                        # run the app (Angular 
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings     # warnings fail the build, same as CI
 cargo test --workspace
-cargo test -p bme_core storage::connections_repo          # single module, e.g.
+cargo test -p bme-core storage::connections_repo          # single module, e.g.
 cargo test <test_fn_name>                                 # single test, matched by name across the workspace
 
 # Frontend (Angular, in src/)
@@ -29,9 +29,12 @@ npm run screenshots                                       # regenerate docs/scre
 npm run screenshots -- connections                        # just one shot
 ```
 
-CI (`.github/workflows/ci.yml`) runs lint → test → build, in that order, on
-every push/PR; pushing a `v*` tag additionally builds and publishes a
-release (Linux + Windows).
+CI (`.github/workflows/ci.yml`) runs lint → test on every push/PR and builds
+no installers. `bundle.yml` (manual, any branch) builds all installers as
+workflow artifacts; a `v*` tag runs `release.yml` → a *draft* GitHub release
+(`-rc.N` tags: a public prerelease instead), which goes public only when
+published by hand. Details in
+[docs/architecture/conventions.md](docs/architecture/conventions.md#releasing).
 
 ## Architecture
 

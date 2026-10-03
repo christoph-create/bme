@@ -197,7 +197,7 @@ npm run build
 npm run screenshots
 ```
 
-CI runs the same checks on every push via GitHub Actions (`.github/workflows/ci.yml`); pushing a `v*` tag additionally builds and publishes a release.
+CI runs the same checks on every push via GitHub Actions (`.github/workflows/ci.yml`). Installers for every platform can be built from any branch without releasing via the *Bundle* workflow, and pushing a `v*` tag builds a release — see [Releasing](docs/architecture/conventions.md#releasing).
 
 Bug reports, ideas and pull requests are all welcome — see
 [CONTRIBUTING.md](CONTRIBUTING.md) for how to get set up and what to run before

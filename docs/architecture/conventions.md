@@ -15,9 +15,10 @@ npm run test           # vitest
 npm run build
 ```
 
-CI (`.github/workflows/ci.yml`) runs exactly these, in the order
-lint → test → build, on every PR and on every push to `master`. Clippy is
-`-D warnings`; a warning is a failed build.
+CI (`.github/workflows/ci.yml`) runs exactly these, as lint → test (the
+Angular production build rides along in test), on every PR and on every push
+to `master`. Clippy is `-D warnings`; a warning is a failed build. Nothing in
+`ci.yml` builds an installer — see [Releasing](#releasing).
 
 ## Testing
 
@@ -72,16 +73,33 @@ Six files hold the version. Never edit them by hand:
 
 ```bash
 scripts/bump-version.sh patch    # or minor / major / X.Y.Z
+scripts/bump-version.sh 0.10.0-rc.1
+scripts/bump-version.sh release  # 0.10.0-rc.N -> 0.10.0
 ```
 
-`src-tauri/Cargo.toml` is the source of truth — the release job refuses to
-publish if the pushed `v*` tag doesn't match it. (The script's header
-comment still says `.forgejo/workflows/ci.yml`; the workflow has since moved
-to GitHub Actions.)
+`src-tauri/Cargo.toml` is the source of truth — `release.yml` refuses to
+publish if the pushed `v*` tag doesn't match it.
 
-Pushing a `vX.Y.Z` tag builds and publishes Linux (AppImage/deb/rpm) and
-Windows (portable exe/NSIS/msi) artifacts. A tag containing `-` is published
-as a prerelease.
+## Releasing
+
+Three workflows under `.github/workflows/`:
+
+| Workflow | Runs on | Does |
+| --- | --- | --- |
+| `ci.yml` | push to `master`, PRs | lint → test. No installers. |
+| `bundle.yml` | **manual** (Actions → Bundle → Run workflow), or called by `release.yml` | Every installer for Linux (AppImage/deb/rpm/pkg.tar.zst) and Windows (NSIS/msi/portable exe), uploaded as workflow artifacts — never as a release. This is how to get test builds of any branch. |
+| `release.yml` | push of a `v*` tag | tag check → ci → bundle → one GitHub release with everything attached |
+
+What a tag turns into:
+
+- **`vX.Y.Z`** → a **draft** release, visible only to maintainers. Download
+  and test it, then press *Publish* on GitHub. Publishing is the go-live
+  step: the in-app update check (which reads `/releases/latest`) only sees it
+  from then on.
+- **`vX.Y.Z-rc.N`** → a public **prerelease** for testers. The update check
+  ignores prereleases. No MSI: WiX can't version an rc, so
+  Windows gets NSIS + portable only. The pacman package gets pkgver
+  `X.Y.Zrc.N`, since pacman forbids `-`.
 
 The app now **displays** its version (connections footer) and compares it
 against the newest GitHub release, so a `bump-version.sh` that half-ran is

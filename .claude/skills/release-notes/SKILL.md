@@ -6,7 +6,9 @@ description: Draft the GitHub release notes for a new bme version, in this repo'
 # Release notes
 
 **Output is plain text, printed in the reply.** The user pastes it into the
-GitHub release themselves, after the pipeline has finished. This skill does
+GitHub release themselves, after the pipeline has finished — for a stable
+tag that's the still-unpublished *draft*, so the notes are in place before
+it goes public. This skill does
 not commit, tag, push, or run `gh release edit` / `gh release create`.
 
 ## Gather
@@ -25,6 +27,10 @@ git describe --tags --exact-match HEAD 2>/dev/null   # non-empty: HEAD is tagged
   `v0.7.0..v0.8.0`. Never `<newest-tag>..HEAD`; that is empty.
 - If HEAD is **not tagged**: `<newest-tag>..HEAD`, and the notes cover
   unreleased work.
+- **rc tags** (`v0.10.0-rc.1`): notes for a stable release diff from the
+  previous *stable* tag, skipping any rcs in between
+  (`git tag --list 'v*' --sort=-v:refname | grep -v -- -rc`). Notes for an
+  rc are short and say it's a release candidate.
 
 Then read what landed:
 

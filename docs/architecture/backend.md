@@ -164,6 +164,10 @@ Things that are load-bearing rather than incidental:
   would need cmake and a C toolchain in every CI job. The consequence is that
   `github.rs` installs the process-wide provider itself, once.
 
+The app's *own* version may be an rc (`parse_current_version`), so an rc
+build is offered its final release; release *tags* are still parsed strictly,
+so a prerelease is never offered.
+
 ### Seeing the dialog without publishing a release
 
 The update dialog only appears while running something older than the newest

@@ -1,0 +1,91 @@
+name: Bundle
+
+# Builds every installer for every platform and uploads them as workflow
+# artifacts - never as a release. Run it by hand (Actions -> Bundle -> Run
+# workflow, any branch) to get test builds; release.yml calls it for tags.
+on:
+  workflow_dispatch:
+  workflow_call:
+
+env:
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-linux
+        with:
+          bundle-tools: "true"
+
+      - run: npm ci
+      - run: npm run tauri build
+
+      # Repack the .deb as a pacman package. makepkg only runs on Arch, hence
+      # the container; it compiles nothing, so this costs seconds, and the
+      # result carries the same binary as the .deb above.
+      - name: Build Arch package
+        run: |
+          version="$(grep -m1 '^version' src-tauri/Cargo.toml | cut -d'"' -f2)"
+          workdir=target/arch-pkg
+          mkdir -p "$workdir"
+          cp "target/release/bundle/deb/bme_${version}_amd64.deb" "$workdir/"
+          cp packaging/arch/PKGBUILD LICENSE "$workdir/"
+          # pacman forbids '-' in pkgver, so an rc's 0.10.0-rc.1 becomes
+          # 0.10.0rc1, which vercmp also sorts before 0.10.0. The .deb keeps
+          # its original name, hence _debver.
+          sed -i -e "s/^pkgver=.*/pkgver=${version/-rc./rc}/" \
+                 -e "s/^_debver=.*/_debver=${version}/" "$workdir/PKGBUILD"
+          docker run --rm -v "$PWD/$workdir:/pkg" archlinux:base-devel bash -c '
+            set -e
+            # makepkg refuses to run as root.
+            useradd -m builder
+            chown -R builder /pkg
+            su builder -c "cd /pkg && makepkg --nodeps --clean"
+          '
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bundle-linux
+          if-no-files-found: error
+          path: |
+            target/release/bundle/deb/*.deb
+            target/release/bundle/rpm/*.rpm
+            target/release/bundle/appimage/*.AppImage
+            target/arch-pkg/*.pkg.tar.zst
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: npm ci
+
+      # WiX refuses any non-numeric prerelease version ("0.10.0-rc.1"), so
+      # rc builds ship the NSIS installer and the portable exe only.
+      - name: Build
+        shell: bash
+        run: |
+          version="$(grep -m1 '^version' src-tauri/Cargo.toml | cut -d'"' -f2)"
+          if [[ "$version" == *-* ]]; then
+            npm run tauri build -- --bundles nsis
+          else
+            npm run tauri build
+          fi
+
+      - name: Package portable build
+        shell: bash
+        run: |
+          version="$(grep -m1 '^version' src-tauri/Cargo.toml | cut -d'"' -f2)"
+          mkdir -p target/release/bundle/portable
+          cp target/release/bme.exe "target/release/bundle/portable/bme-${version}-windows-portable.exe"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bundle-windows
+          if-no-files-found: error
+          path: |
+            target/release/bundle/nsis/*.exe
+            target/release/bundle/msi/*.msi
+            target/release/bundle/portable/*.exe

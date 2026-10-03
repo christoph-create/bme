@@ -1,0 +1,52 @@
+name: Release
+
+# vX.Y.Z      -> a *draft* release, visible only to maintainers. Download it,
+#                test it, then press Publish on GitHub; that is the go-live
+#                step.
+# vX.Y.Z-rc.N -> a public prerelease, for testers. The in-app update check
+#                ignores prereleases.
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify tag matches Cargo.toml version
+        run: |
+          tag_version="${GITHUB_REF#refs/tags/v}"
+          pkg_version="$(grep -m1 '^version' src-tauri/Cargo.toml | cut -d'"' -f2)"
+          if [ "$tag_version" != "$pkg_version" ]; then
+            echo "Tag v$tag_version does not match src-tauri/Cargo.toml version $pkg_version"
+            exit 1
+          fi
+
+  checks:
+    uses: ./.github/workflows/ci.yml
+
+  bundle:
+    needs: [verify, checks]
+    uses: ./.github/workflows/bundle.yml
+
+  publish:
+    runs-on: ubuntu-latest
+    needs: [bundle]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          draft: ${{ !contains(github.ref_name, '-') }}
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          fail_on_unmatched_files: true
+          files: dist/**/*

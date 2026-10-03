@@ -46,6 +46,45 @@ pub fn parse_version(raw: &str) -> Option<Version> {
     })
 }
 
+/// The version of the running build. Unlike a release tag this may be an rc
+/// (`0.10.0-rc.1`), because rc builds are shipped to testers - and those must
+/// still be offered the final `0.10.0` once it's out.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CurrentVersion {
+    pub base: Version,
+    pub rc: Option<u64>,
+}
+
+/// Like [`parse_version`], plus exactly the `-rc.N` suffix
+/// `scripts/bump-version.sh` produces. Only ever applied to our own version:
+/// release tags stay strict, so a prerelease is still never *offered*.
+pub fn parse_current_version(raw: &str) -> Option<CurrentVersion> {
+    let trimmed = raw.trim();
+    let (base, rc) = match trimmed.split_once("-rc.") {
+        Some((base, n)) => (base, Some(n.parse().ok()?)),
+        None => (trimmed, None),
+    };
+    Some(CurrentVersion {
+        base: parse_version(base)?,
+        rc,
+    })
+}
+
+/// [`is_newer`] for a running build: an rc counts as older than its own final
+/// release, so `0.10.0-rc.2` is offered `0.10.0`.
+pub fn is_newer_than_current(current: CurrentVersion, latest: Version) -> bool {
+    is_newer(current.base, latest) || (current.rc.is_some() && latest == current.base)
+}
+
+impl fmt::Display for CurrentVersion {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.rc {
+            Some(n) => write!(f, "{}-rc.{n}", self.base),
+            None => write!(f, "{}", self.base),
+        }
+    }
+}
+
 /// True when `latest` is strictly newer than `current`. Equal is not newer,
 /// and older is never newer - a downgrade must never be offered.
 pub fn is_newer(current: Version, latest: Version) -> bool {
@@ -125,6 +164,68 @@ mod tests {
         assert!(is_newer(v(0, 99, 99), v(1, 0, 0)));
         assert!(is_newer(v(0, 7, 99), v(0, 8, 0)));
         assert!(is_newer(v(0, 7, 0), v(0, 7, 1)));
+    }
+
+    #[test]
+    fn current_version_accepts_an_rc_suffix() {
+        let rc = |n| CurrentVersion {
+            base: v(0, 10, 0),
+            rc: Some(n),
+        };
+        assert_eq!(parse_current_version("0.10.0-rc.2"), Some(rc(2)));
+        assert_eq!(parse_current_version("v0.10.0-rc.2"), Some(rc(2)));
+        assert_eq!(
+            parse_current_version("0.10.0"),
+            Some(CurrentVersion {
+                base: v(0, 10, 0),
+                rc: None
+            })
+        );
+    }
+
+    #[test]
+    fn current_version_rejects_other_prerelease_forms() {
+        for raw in [
+            "0.10.0-beta",
+            "0.10.0-rc",
+            "0.10.0-rc.x",
+            "0.10.0-rc.1+b",
+            "dev",
+        ] {
+            assert_eq!(
+                parse_current_version(raw),
+                None,
+                "expected {raw:?} to be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn an_rc_is_older_than_its_own_release() {
+        let rc = CurrentVersion {
+            base: v(0, 10, 0),
+            rc: Some(1),
+        };
+        assert!(is_newer_than_current(rc, v(0, 10, 0)));
+        assert!(is_newer_than_current(rc, v(0, 10, 1)));
+        assert!(!is_newer_than_current(rc, v(0, 9, 9)));
+    }
+
+    #[test]
+    fn a_final_release_is_not_newer_than_itself() {
+        let current = CurrentVersion {
+            base: v(0, 10, 0),
+            rc: None,
+        };
+        assert!(!is_newer_than_current(current, v(0, 10, 0)));
+    }
+
+    #[test]
+    fn current_version_display_keeps_the_rc_suffix() {
+        assert_eq!(
+            parse_current_version("v0.10.0-rc.3").unwrap().to_string(),
+            "0.10.0-rc.3"
+        );
     }
 
     #[test]

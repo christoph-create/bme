@@ -1,13 +1,14 @@
 # Maintainer: christoph-create <60292060+christoph-create@users.noreply.github.com>
 #
-# Template for the release job in .github/workflows/ci.yml, which copies this
-# file next to the freshly built .deb and substitutes pkgver. It repacks that
-# .deb rather than compiling, so the pacman package carries the same binary
-# CI already tested. Not runnable from a plain clone -- source= refers to a
-# build artifact that is not in the repo.
+# Template for the linux job in .github/workflows/bundle.yml, which copies this
+# file next to the freshly built .deb and substitutes pkgver/_debver. It
+# repacks that .deb rather than compiling, so the pacman package carries the
+# same binary CI already tested. Not runnable from a plain clone -- source=
+# refers to a build artifact that is not in the repo.
 
 pkgname=bme
-pkgver=0.0.0 # replaced by CI from the git tag
+pkgver=0.0.0 # replaced by CI; pacman-safe form of the version (0.10.0rc1)
+_debver=0.0.0 # replaced by CI; the version as the .deb is named (0.10.0-rc.1)
 pkgrel=1
 pkgdesc="Better MQTT Explorer - a fast, native desktop client for developing against MQTT brokers"
 arch=('x86_64')
@@ -16,21 +17,22 @@ license=('GPL-3.0-or-later')
 # Derived from `ldd` on the bundled binary, mapped with `pacman -F`. Note there
 # is no libayatana-appindicator here: CI installs the -dev package because
 # Tauri's build script probes for it, but the binary never links it.
+# hicolor-icon-theme owns the icon directories the .deb installs into.
 depends=('webkit2gtk-4.1' 'gtk3' 'libsoup3' 'cairo' 'gdk-pixbuf2' 'glib2'
          'glibc' 'libgcc' 'dbus' 'systemd-libs' 'util-linux-libs' 'pcre2'
-         'libffi' 'zlib')
+         'libffi' 'zlib' 'hicolor-icon-theme')
 # The binary arrives prebuilt and already stripped (see the release profile in
 # the workspace Cargo.toml), so re-stripping it would only cost time.
 options=('!strip' '!debug')
-source=("bme_${pkgver}_amd64.deb" 'LICENSE')
-noextract=("bme_${pkgver}_amd64.deb")
+source=("bme_${_debver}_amd64.deb" 'LICENSE')
+noextract=("bme_${_debver}_amd64.deb")
 sha256sums=('SKIP' 'SKIP')
 
 package() {
   cd "$srcdir"
   # A .deb is an ar archive; its data member holds the tree we want, already
   # laid out at the same paths Arch uses.
-  bsdtar -xf "bme_${pkgver}_amd64.deb" data.tar.gz
+  bsdtar -xf "bme_${_debver}_amd64.deb" data.tar.gz
   bsdtar -xf data.tar.gz -C "$pkgdir"
 
   install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
